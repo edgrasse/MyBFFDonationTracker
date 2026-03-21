@@ -880,7 +880,7 @@ async function loadDonations() {
       const sheetDons = (d.data || []).map(sheetRowToObj);
       // For seed data: assign pseudo-IDs and include if not already seeded
       let seedDons = [];
-      if (!seedDone) {
+      if (!seedDone && sheetDons.length === 0) {
         seedDons = SEED_DONATIONS.map((r, i) => ({
           id: `seed_${i}`, year: r.year, who: r.who,
           event_requested: r.event_requested, used_for: r.used_for,
@@ -892,7 +892,8 @@ async function loadDonations() {
           saved_at: "", edited_by: "Import", edited_at: ""
         }));
       }
-      ALL_DONATIONS = [...sheetDons, ...seedDons];
+      // Only use seed data if sheet is empty
+      ALL_DONATIONS = sheetDons.length > 0 ? sheetDons : seedDons;
     }
   } catch(e) {
     // Use seed data offline
