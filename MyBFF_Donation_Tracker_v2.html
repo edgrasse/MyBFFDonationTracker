@@ -265,6 +265,58 @@ a:hover { text-decoration: underline; }
   nav { padding: 0 12px; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ── HELP PAGE ── */
+.help-category { margin-bottom: 28px; }
+.help-category-title {
+  font-family: 'Playfair Display', serif; font-size: 18px;
+  color: var(--navy); margin-bottom: 12px;
+  padding-bottom: 8px; border-bottom: 2px solid var(--gold);
+  display: flex; align-items: center; gap: 10px;
+}
+.help-item {
+  background: white; border-radius: var(--radius); box-shadow: var(--shadow);
+  margin-bottom: 10px; overflow: hidden; border-left: 3px solid transparent;
+  transition: border-color .2s;
+}
+.help-item:hover { border-left-color: var(--gold); }
+.help-item.hidden { display: none; }
+.help-question {
+  padding: 14px 18px; font-weight: 600; font-size: 14px;
+  cursor: pointer; display: flex; justify-content: space-between;
+  align-items: center; color: var(--navy); user-select: none;
+}
+.help-question:hover { background: #f9f7f3; }
+.help-arrow { font-size: 12px; color: var(--gray); transition: transform .2s; }
+.help-item.open .help-arrow { transform: rotate(90deg); }
+.help-answer {
+  display: none; padding: 0 18px 16px; font-size: 14px;
+  color: #374151; line-height: 1.7;
+}
+.help-item.open .help-answer { display: block; }
+.help-step {
+  display: flex; gap: 10px; margin-bottom: 8px; align-items: flex-start;
+}
+.help-step-num {
+  background: var(--navy); color: white; border-radius: 50%;
+  width: 22px; height: 22px; min-width: 22px; display: flex;
+  align-items: center; justify-content: center; font-size: 11px;
+  font-weight: 700; margin-top: 1px;
+}
+.help-tip {
+  background: #fffbeb; border-left: 3px solid var(--gold);
+  padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 13px;
+  margin-top: 10px; color: #78350f;
+}
+.help-note {
+  background: #f0f4ff; border-left: 3px solid var(--navy);
+  padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 13px;
+  margin-top: 10px; color: var(--navy);
+}
+.help-tag {
+  display: inline-block; background: var(--gray-light); color: var(--gray);
+  border-radius: 4px; padding: 1px 7px; font-size: 12px; font-family: monospace;
+}
 </style>
 </head>
 <body>
@@ -297,6 +349,7 @@ a:hover { text-decoration: underline; }
     <button class="nav-tab" onclick="showPage('tasks')">Pickup Tasks</button>
     <button class="nav-tab" onclick="showPage('reports')">Reports</button>
     <button class="nav-tab admin-only" onclick="showPage('admin')" style="display:none">Admin</button>
+    <button class="nav-tab" onclick="showPage('help')">Help</button>
   </nav>
   <main>
 
@@ -451,6 +504,15 @@ a:hover { text-decoration: underline; }
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- HELP -->
+    <div class="page" id="page-help">
+      <div class="page-header">
+        <div class="section-title" style="margin:0">Help &amp; FAQ</div>
+        <input class="filter-input" id="helpSearch" placeholder="&#128269; Search help topics..." oninput="filterHelp()" style="min-width:260px">
+      </div>
+      <div id="helpContent"></div>
     </div>
 
     <!-- ADMIN -->
@@ -910,7 +972,9 @@ async function launchApp() {
 }
 
 async function loadAll() {
-  await Promise.all([loadDonations(), loadVendors(), loadEvents(), loadPickups(), loadUsers()]);
+  // Donations must load first — vendors are built from donation org names
+  await loadDonations();
+  await Promise.all([loadVendors(), loadEvents(), loadPickups(), loadUsers()]);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -985,29 +1049,44 @@ function sheetRowToObj(r) {
 }
 
 async function loadVendors() {
+  // Step 1: Load any manually-created vendor cards from the Vendors sheet
+  let sheetVendors = [];
   try {
     const d = await apiGet({ action: "getVendors" });
     if (d.status === "ok" && d.data.length > 0) {
-      ALL_VENDORS = d.data.map(r => ({
-        id: r.ID, name: r.Name, type: r.Type, address: r.Address,
-        phone: r.Phone, email: r.Email, website: r.Website,
-        contact1_name: r.ContactPerson1, contact1_phone: r.ContactPhone1, contact1_email: r.ContactEmail1,
-        contact2_name: r.ContactPerson2, contact2_phone: r.ContactPhone2, contact2_email: r.ContactEmail2,
-        notes: r.Notes, reference_link: r.ReferenceLink
+      sheetVendors = d.data.map(r => ({
+        id: r.ID || r.id, name: r.Name || r.name, type: r.Type || r.type || "",
+        address: r.Address || r.address || "", phone: r.Phone || r.phone || "",
+        email: r.Email || r.email || "", website: r.Website || r.website || "",
+        contact1_name: r.ContactPerson1 || "", contact1_phone: r.ContactPhone1 || "",
+        contact1_email: r.ContactEmail1 || "",
+        contact2_name: r.ContactPerson2 || "", contact2_phone: r.ContactPhone2 || "",
+        contact2_email: r.ContactEmail2 || "",
+        notes: r.Notes || r.notes || "", reference_link: r.ReferenceLink || r.reference_link || ""
       }));
-    } else {
-      // Seed vendor names from historical data
-      ALL_VENDORS = [];
     }
-  } catch(e) {
-    ALL_VENDORS = SEED_VENDORS.map((name, i) => ({
-      id: `vend_${i}`, name, type: "", address: "", phone: "", email: "", website: "",
-      contact1_name: "", contact1_phone: "", contact1_email: "",
+  } catch(e) { sheetVendors = []; }
+
+  // Step 2: Build entries for every unique org name in ALL_DONATIONS
+  // that doesn't already have a full vendor card in the sheet
+  const sheetNames = new Set(sheetVendors.map(v => (v.name || "").toLowerCase().trim()));
+  const donationNames = [...new Set(
+    ALL_DONATIONS.map(d => (d.organization || "").trim()).filter(Boolean)
+  )].sort();
+
+  const autoVendors = donationNames
+    .filter(name => !sheetNames.has(name.toLowerCase()))
+    .map((name, i) => ({
+      id: "auto_" + i, name, type: "", address: "", phone: "", email: "",
+      website: "", contact1_name: "", contact1_phone: "", contact1_email: "",
       contact2_name: "", contact2_phone: "", contact2_email: "",
       notes: "", reference_link: ""
     }));
-  }
+
+  // Step 3: Sheet vendor cards first (full details), then auto-generated stubs
+  ALL_VENDORS = [...sheetVendors, ...autoVendors];
 }
+
 
 async function loadEvents() {
   try {
@@ -1841,6 +1920,7 @@ function showPage(name) {
   else if (name === "reports") renderReport();
   else if (name === "admin") { renderAdminUsers(); renderAdminEvents(); renderAdminPickups(); }
   else if (name === "dashboard") renderDashboard();
+  else if (name === "help") renderHelp();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1962,6 +2042,302 @@ async function executeMerge(fromName, toName) {
   renderDonations();
   renderVendors();
   renderDashboard();
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELP / FAQ
+// ═══════════════════════════════════════════════════════════
+const HELP_DATA = [
+  {
+    category: "Dashboard",
+    icon: "📊",
+    items: [
+      {
+        q: "What does the Dashboard show?",
+        a: `The Dashboard is your home screen and gives you a quick overview of everything happening with donations. It shows six summary cards at the top — total contacts made, how many vendors said yes, how many declined, the total estimated dollar value of donations, all-time contact count, and all-time yes count. Below that you will see a breakdown by event for the current year, a list of the most recent activity, and a Year Over Year summary table comparing 2024, 2025, and 2026 side by side.`
+      },
+      {
+        q: "Why does the Dashboard show zeros or 'No data'?",
+        a: `This usually means the app is still loading data from Google Sheets, or the year field in some records does not match the current year. The dashboard always defaults to showing the current year's data. If you just logged in, wait a few seconds and refresh the page. If it continues, check that the Donations tab in Google Sheets has its header row in row 1 (not sorted into the middle of the data).`
+      },
+      {
+        q: "Can I filter the Dashboard by a different year?",
+        a: `The Dashboard always shows the current year in the summary cards and By Event section. To view data from a different year, go to the Donations page or Reports page where you can filter by any year.`
+      }
+    ]
+  },
+  {
+    category: "Donations — Adding & Editing",
+    icon: "➕",
+    items: [
+      {
+        q: "How do I add a new donation request?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click <strong>Donations</strong> in the top navigation bar.</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Click the gold <strong>+ Add Donation</strong> button in the top right.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>In the form that appears, start typing the <strong>Organization</strong> name. Matching names from your vendor list will appear — select one or type a new name.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Fill in as many fields as you know: Type, Who is entering it, Year, Event Requested, How you contacted them, Date, and Lead Time.</div></div>
+            <div class="help-step"><div class="help-step-num">5</div><div>Leave <strong>Granted?</strong> blank if you haven't heard back yet. Set it to No if they declined. Set it to Yes only when they commit.</div></div>
+            <div class="help-step"><div class="help-step-num">6</div><div>Click <strong>Save Donation</strong>.</div></div>
+            <div class="help-tip">💡 Tip: You don't need to fill every field right away. You can always come back and edit the record when you get more information.</div>`
+      },
+      {
+        q: "How do I update a record when a vendor says Yes?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Go to <strong>Donations</strong> and find the record — use the search box or filters to narrow it down.</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Click the <strong>Edit</strong> button on the right side of that row.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Change <strong>Granted?</strong> to <strong>Yes</strong>. New fields will appear for Item donated, Estimated Value, and Pickup/Delivery method.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Fill in what they are donating, the dollar value, and how you are receiving it (Mail, Pick Up, Electronic, or Other).</div></div>
+            <div class="help-step"><div class="help-step-num">5</div><div>If someone needs to pick it up, select <strong>Pick Up</strong> and assign a person in the Pickup Assigned To field.</div></div>
+            <div class="help-step"><div class="help-step-num">6</div><div>Click <strong>Save Donation</strong>.</div></div>`
+      },
+      {
+        q: "How do I find and edit an existing donation record?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click <strong>Donations</strong> in the top navigation.</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Use the <strong>Search box</strong> to type a vendor name, item, or any notes text.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Use the <strong>dropdowns</strong> to filter by Year, Event, Status (Yes/No/No Answer/Pending), or Type.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Click <strong>Edit</strong> on the row you want to change, make your updates, and click <strong>Save Donation</strong>.</div></div>
+            <div class="help-tip">💡 Tip: Click the vendor name (shown in bold) instead of Edit to open a read-only detail view first, which also shows all past donations from that vendor.</div>`
+      },
+      {
+        q: "How do I view all donations from a specific vendor across all years?",
+        a: `There are two ways to do this. First, in the <strong>Donations</strong> list, use the search box to type the vendor name — all records for that vendor will appear regardless of year. Second, go to the <strong>Vendors</strong> page and find the vendor card — it shows a complete donation history at the bottom including year, event, status, item, and value for every record linked to that vendor.`
+      },
+      {
+        q: "How do I record that a vendor declined or never responded?",
+        a: `Find the record and click <strong>Edit</strong>. In the <strong>Granted?</strong> dropdown, select <strong>No — Declined</strong> if they said no, or <strong>No Answer</strong> if they never responded despite being contacted. Leave it blank (Pending) if you are still waiting. Click Save Donation.`
+      },
+      {
+        q: "Can I delete a donation record?",
+        a: `Only Admin users (Ed and Kris) can delete records. To delete, find the record in the Donations list and click the red <strong>Del</strong> button on the right. You will be asked to confirm before anything is deleted. Standard users do not see the delete button.
+            <div class="help-note">⚠️ Deletions cannot be undone. If you are unsure, edit the record instead of deleting it.</div>`
+      },
+      {
+        q: "What is the 'Used For' field vs 'Event Requested'?",
+        a: `<strong>Event Requested</strong> is the event you originally asked the donation for. <strong>Used For</strong> is the event you actually used it at — these can be different. For example, you might request a donation for the Walk but end up using it at Trivia instead because it expires sooner. Always fill in both fields so reports show accurate information.`
+      },
+      {
+        q: "What is Lead Time?",
+        a: `Lead Time is a note about how far in advance you need to contact that vendor before an event. For example, some vendors require 30 days notice, others require 8 weeks. This helps Kris and the team know when to start reaching out for each event. You can enter it as days or weeks (e.g. "30 days" or "6 weeks").`
+      }
+    ]
+  },
+  {
+    category: "Vendors",
+    icon: "🏪",
+    items: [
+      {
+        q: "How do I add a new vendor to the master list?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click <strong>Vendors</strong> in the top navigation.</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Click the gold <strong>+ Add Vendor</strong> button.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Enter the vendor name. Use a consistent naming convention for locations, such as <span class="help-tag">Home Depot - Schaumburg</span> or <span class="help-tag">Target - Crystal Lake</span>, so each location is clearly identifiable.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Fill in contact details — address, phone, email, website/donation URL, and up to two contact people with their individual phone and email.</div></div>
+            <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Save Vendor</strong>.</div></div>
+            <div class="help-tip">💡 Tip: Vendors are also created automatically when you add a donation record with a new organization name. You can then go to the Vendors page to add their contact details.</div>`
+      },
+      {
+        q: "How do I add or update contact details for an existing vendor?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click <strong>Vendors</strong> in the top navigation.</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Use the search box to find the vendor by typing their name.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Click <strong>Edit</strong> on their vendor card.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Add or update the contact name, phone number, email, address, or donation website link.</div></div>
+            <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Save Vendor</strong>.</div></div>
+            <div class="help-tip">💡 Tip: Moving contact info from the Notes field into the proper vendor card fields makes it much easier for the whole team to find and use.</div>`
+      },
+      {
+        q: "How do I search for a vendor?",
+        a: `On the <strong>Vendors</strong> page, type any part of the vendor name in the search box at the top. The list will filter instantly as you type. You can also filter by Type (Restaurant, Shopping, Entertainment) using the dropdown next to the search box.`
+      },
+      {
+        q: "How do I merge two vendor names that are the same vendor?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click the <strong>Admin</strong> tab (visible to Admin users only).</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Scroll down to the <strong>Merge Vendor Names</strong> section.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>In the <strong>From</strong> field, start typing the duplicate or incorrect name. Select it from the dropdown.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>In the <strong>To</strong> field, type the correct name you want to keep. Select it from the dropdown.</div></div>
+            <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Preview Merge</strong> to see exactly which records will be affected.</div></div>
+            <div class="help-step"><div class="help-step-num">6</div><div>If everything looks right, click <strong>Confirm Merge</strong>. All affected records are updated in Google Sheets automatically.</div></div>
+            <div class="help-note">ℹ️ No records are deleted during a merge — only the vendor name field is updated on each record.</div>`
+      },
+      {
+        q: "What is the vendor card?",
+        a: `The vendor card is the detailed profile for each vendor in the Vendors directory. It shows the vendor name, type, address, phone, email, donation website link, and up to two contact people with their individual contact info. At the bottom of each card is a complete donation history showing every donation record linked to that vendor across all years. The goal over time is to move contact information out of the Notes field and into proper vendor cards so it is easy for the whole team to find.`
+      },
+      {
+        q: "What is the naming convention for vendors with multiple locations?",
+        a: `For vendors with multiple locations that you contact separately, use the format <span class="help-tag">Vendor Name - Location</span>. For example: <span class="help-tag">Home Depot - Schaumburg</span>, <span class="help-tag">Home Depot - Palatine</span>, <span class="help-tag">Target - Crystal Lake</span>. This keeps each location separate (since they have different contacts and donate independently) while making it clear they belong to the same overall chain.`
+      }
+    ]
+  },
+  {
+    category: "Events",
+    icon: "🎪",
+    items: [
+      {
+        q: "What events are in the system?",
+        a: `The current events are <strong>Cornhole</strong>, <strong>Golf Tournament</strong>, <strong>Trivia</strong>, <strong>Walk</strong>, <strong>Holiday</strong>, and <strong>Signature Event</strong>. These appear in the Event Requested and Used For dropdowns when adding or editing a donation.`
+      },
+      {
+        q: "How do I add a new event?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click the <strong>Admin</strong> tab (Admin users only).</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Find the <strong>Events</strong> section and click <strong>+ Add Event</strong>.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Type the event name and optionally the year it applies to.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Click <strong>Add Event</strong>. The new event will immediately appear in all event dropdowns throughout the app.</div></div>
+            <div class="help-tip">💡 Tip: You can also add an event directly to the Events tab in Google Sheets — just add a row with an ID, Name, Year, and "true" in the Active column.</div>`
+      },
+      {
+        q: "How do I update or rename an existing event?",
+        a: `Currently the easiest way to rename an event is directly in the <strong>Events tab of Google Sheets</strong> — find the event row and change the Name column. The new name will appear in the app dropdowns the next time the page is loaded. For renaming an event across existing donation records, contact your admin as this would require updating the records individually.`
+      }
+    ]
+  },
+  {
+    category: "Pickup Tasks",
+    icon: "📦",
+    items: [
+      {
+        q: "How do I assign a pickup to someone?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Find the donation record in the <strong>Donations</strong> list and click <strong>Edit</strong>.</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Make sure <strong>Granted?</strong> is set to <strong>Yes</strong>.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Set <strong>How Are We Getting It?</strong> to <strong>Pick Up</strong>.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>In the <strong>Assigned To</strong> field that appears, start typing the person's name and select them from the list.</div></div>
+            <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Save Donation</strong>.</div></div>
+            <div class="help-tip">💡 Tip: The assigned person will appear on the Pickup Tasks page so they can see what they need to collect.</div>`
+      },
+      {
+        q: "How do I view all open pickup tasks?",
+        a: `Click <strong>Pickup Tasks</strong> in the top navigation. This shows all donation records where the pickup method is set to Pick Up and the status is Yes. You can filter by year or by the assigned person's name using the dropdowns at the top.`
+      },
+      {
+        q: "How do I add someone to the pickup people list?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click the <strong>Admin</strong> tab.</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Find the <strong>Pickup People</strong> section and click <strong>+ Add Person</strong>.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Enter their name and optionally their phone and email.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Click <strong>Add Person</strong>. They will now appear in the Pickup Assigned To dropdown when editing donation records.</div></div>
+            <div class="help-note">ℹ️ Pickup people can be app users or volunteers who do not have app access — anyone who might physically pick something up.</div>`
+      }
+    ]
+  },
+  {
+    category: "Reports & Exporting",
+    icon: "📄",
+    items: [
+      {
+        q: "How do I print a report?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click <strong>Reports</strong> in the top navigation.</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Use the dropdowns to filter by Year, Event, Status, and/or Type to show only what you want to print.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Click <strong>Print Report</strong>. Your browser's print dialog will open.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>To save as a PDF instead of printing, choose <strong>Save as PDF</strong> in the print dialog's destination dropdown.</div></div>`
+      },
+      {
+        q: "How do I export data to Excel?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click <strong>Reports</strong> in the top navigation.</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Apply any filters you want — the export will only include the records currently shown.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Click the green <strong>Export to Excel</strong> button. A CSV file will download automatically.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Open the downloaded file in Excel. CSV files open directly in Excel and can be saved as .xlsx from there.</div></div>
+            <div class="help-tip">💡 Tip: To export all records with no filters, make sure all dropdowns are set to "All" before clicking Export.</div>`
+      },
+      {
+        q: "How do I see total donation value for a specific event or year?",
+        a: `Go to <strong>Reports</strong> and use the filter dropdowns to select the Year and/or Event you want. The total donated value of all matching Yes records is shown at the top of the results in bold. You can also see a year-by-year breakdown on the <strong>Dashboard</strong> in the Year Over Year Summary table.`
+      }
+    ]
+  },
+  {
+    category: "Users & Access",
+    icon: "👤",
+    items: [
+      {
+        q: "How do I add a new user?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click the <strong>Admin</strong> tab (Admin users only).</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>In the <strong>Users</strong> section, click <strong>+ Add User</strong>.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Enter their Display Name (e.g. Brenda), Username (e.g. brenda2026), and a Password.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Set their Role — <strong>Standard</strong> for team helpers who can read and write but not delete, or <strong>Admin</strong> for full access.</div></div>
+            <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Add User</strong>. They can log in immediately.</div></div>
+            <div class="help-tip">💡 Tip: You can also add users directly in the Users tab of Google Sheets — add a row with Username, Password, Role, and DisplayName.</div>`
+      },
+      {
+        q: "How do I change someone's password or role?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click the <strong>Admin</strong> tab.</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Find the user in the Users table and click <strong>Edit</strong>.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>To change the password, type a new one in the Password field. Leave it blank to keep the current password.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>To change the role, select Standard or Admin from the Role dropdown.</div></div>
+            <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Save Changes</strong>.</div></div>`
+      },
+      {
+        q: "What is the difference between Admin and Standard users?",
+        a: `<strong>Admin users</strong> (currently Ed and Kris) have full access — they can add, edit, and delete any record, manage users, add events, manage pickup people, and use the Merge feature. <strong>Standard users</strong> can add new donation records, edit existing ones, add and edit vendor details, view all data, and export reports — but they cannot delete records and cannot access the Admin panel. This protects the data from accidental deletion by team helpers.`
+      },
+      {
+        q: "How do I remove a user?",
+        a: `Click the <strong>Admin</strong> tab, find the user in the Users table, and click <strong>Remove</strong>. You cannot remove your own account. The user will no longer be able to log in once removed.`
+      }
+    ]
+  },
+  {
+    category: "Tips & Best Practices",
+    icon: "💡",
+    items: [
+      {
+        q: "What is the best way to enter a new contact when I don't know the outcome yet?",
+        a: `Enter the record right away with whatever you know — vendor name, how you contacted them, date, and event requested. Leave Granted? blank. Add the contact person's name and phone number in the Notes field. When you hear back, go back and edit the record to update the status and add donation details if they said yes.`
+      },
+      {
+        q: "How should I handle a vendor who donates multiple times in the same year?",
+        a: `Create a separate donation record for each donation. For example, if Andy's Frozen Custard donates for both Trivia and the Walk in the same year, you should have two separate records — one with Event Requested as Trivia, one with Walk. Both will show up in the vendor's history card and both will count in the reports. Do not try to combine multiple donations into one record.`
+      },
+      {
+        q: "What is the best way to keep notes about a vendor?",
+        a: `Use both the Notes field on the donation record AND the vendor card. The <strong>donation record Notes</strong> are best for things specific to that particular request — like "Spoke with Jeremy, call back Tuesday" or "Picked up 8/5". The <strong>vendor card</strong> is best for permanent information — contact names, phone numbers, addresses, donation website links, and things like "1 donation per year" or "need to request by February". Over time, moving contact info into the vendor card makes it available to the whole team without having to dig through individual records.`
+      },
+      {
+        q: "How do I make sure the app works on my phone?",
+        a: `The app is designed to work on phones and tablets. Open it in <strong>Safari</strong> on iPhone or Chrome on Android using the GitHub Pages URL. To add it to your home screen for easy access: on iPhone, tap the Share button in Safari then tap <strong>Add to Home Screen</strong>. On Android, tap the three-dot menu and tap <strong>Add to Home Screen</strong>. This creates an icon that opens the app directly like a regular app.`
+      },
+      {
+        q: "Does the data save automatically?",
+        a: `Yes — every time you click Save Donation or Save Vendor, the record is immediately saved to Google Sheets. There is no auto-save while you are typing in a form, so make sure to click the Save button when you are done. If you close a form without saving, your changes will be lost.`
+      },
+      {
+        q: "Can multiple people use the app at the same time?",
+        a: `Yes. Multiple team members can be logged in and adding or editing records simultaneously. Because all data goes to the same Google Sheet, everyone sees the same information. If two people edit the exact same record at the same time, the last save wins — so try to coordinate if you know someone else might be editing the same record.`
+      }
+    ]
+  }
+];
+
+function renderHelp() {
+  const container = document.getElementById("helpContent");
+  if (!container) return;
+  container.innerHTML = HELP_DATA.map((cat, ci) => `
+    <div class="help-category" data-category="${ci}">
+      <div class="help-category-title">
+        <span>${cat.icon}</span> ${cat.category}
+      </div>
+      ${cat.items.map((item, ii) => `
+        <div class="help-item" id="help-${ci}-${ii}" onclick="toggleHelp(${ci},${ii})">
+          <div class="help-question">
+            <span>${item.q}</span>
+            <span class="help-arrow">&#9654;</span>
+          </div>
+          <div class="help-answer">${item.a}</div>
+        </div>`).join("")}
+    </div>`).join("");
+}
+
+function toggleHelp(ci, ii) {
+  const el = document.getElementById(`help-${ci}-${ii}`);
+  el.classList.toggle("open");
+}
+
+function filterHelp() {
+  const q = document.getElementById("helpSearch").value.toLowerCase();
+  document.querySelectorAll(".help-item").forEach(el => {
+    const text = el.textContent.toLowerCase();
+    el.classList.toggle("hidden", q.length > 0 && !text.includes(q));
+    if (q.length > 0 && text.includes(q)) el.classList.add("open");
+  });
+  document.querySelectorAll(".help-category").forEach(cat => {
+    const visible = [...cat.querySelectorAll(".help-item")].some(el => !el.classList.contains("hidden"));
+    cat.style.display = visible ? "" : "none";
+  });
 }
 
 // Expose seed function for admin use
