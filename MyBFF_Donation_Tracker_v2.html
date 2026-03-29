@@ -1515,9 +1515,10 @@ function renderVendors() {
   const type = document.getElementById("vendType").value;
   let vendors = ALL_VENDORS.filter(v => {
     if (type && v.type !== type) return false;
+    if (!v.name) return false;
     if (search && !v.name.toLowerCase().includes(search)) return false;
     return true;
-  });
+  }).sort((a, b) => (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase()));
   document.getElementById("vendCount").textContent = `Showing ${vendors.length} vendors`;
   const container = document.getElementById("vendorList");
   if (!vendors.length) {
