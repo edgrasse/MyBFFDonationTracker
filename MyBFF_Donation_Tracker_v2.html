@@ -1084,7 +1084,15 @@ async function loadVendors() {
     }));
 
   // Step 3: Sheet vendor cards first (full details), then auto-generated stubs
-  ALL_VENDORS = [...sheetVendors, ...autoVendors];
+  // Deduplicate — if a name exists in sheetVendors, don't add the auto stub
+  const allVendors = [...sheetVendors, ...autoVendors];
+  const seen = new Set();
+  ALL_VENDORS = allVendors.filter(v => {
+    const key = (v.name || "").toLowerCase().trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 
@@ -1609,13 +1617,27 @@ async function saveVendor() {
     reference_link: document.getElementById("vendRefLink").value,
   };
 
-  if (editingVendorId) {
+  // If editing an auto-generated stub (id starts with "auto_"), treat as new sheet record
+  const isAutoVendor = editingVendorId && editingVendorId.startsWith("auto_");
+  const isRealVendor = editingVendorId && !isAutoVendor;
+
+  if (isRealVendor) {
+    // Update existing sheet record
     params.vid = editingVendorId;
     const idx = ALL_VENDORS.findIndex(x => x.id === editingVendorId);
     if (idx >= 0) ALL_VENDORS[idx] = { ...ALL_VENDORS[idx], ...params, id: editingVendorId };
   } else {
-    const newV = { ...params, id: `vend_${Date.now()}` };
-    ALL_VENDORS.push(newV);
+    // New record (either brand new or upgrading an auto-stub to a real card)
+    const newId = "vend_" + Date.now();
+    params.vid = undefined; // let sheet assign via appendRow
+    const newV = { ...params, id: newId };
+    if (isAutoVendor) {
+      // Replace the auto stub in local state
+      const idx = ALL_VENDORS.findIndex(x => x.id === editingVendorId);
+      if (idx >= 0) ALL_VENDORS[idx] = newV;
+    } else {
+      ALL_VENDORS.push(newV);
+    }
   }
 
   await apiSend(params);
