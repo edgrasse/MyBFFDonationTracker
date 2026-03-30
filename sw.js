@@ -1,6 +1,6 @@
 // MyBFF Donation Tracker — Service Worker
 // Cache version: bump this string on every new build to force cache refresh
-const CACHE_VERSION = "mybff-v4.1-supabase-20260330";
+const CACHE_VERSION = "mybff-v4.2-supabase-20260330";
 const CACHE_NAME = CACHE_VERSION;
 
 const PRECACHE_URLS = [
