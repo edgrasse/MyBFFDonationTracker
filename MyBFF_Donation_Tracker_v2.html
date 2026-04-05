@@ -123,6 +123,15 @@ tr:last-child td { border-bottom: none; }
 .badge-blank { background: var(--gray-light); color: var(--gray); }
 .badge-type { background: #e8f0fe; color: #1a4fc6; }
 .badge-event { background: #f3e8ff; color: #6b21a8; }
+/* Event-specific colors */
+.ev-cornhole   { background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; }
+.ev-golf       { background: #d1fae5; color: #065f46; border: 1px solid #10b981; }
+.ev-trivia     { background: #dbeafe; color: #1e40af; border: 1px solid #3b82f6; }
+.ev-walk       { background: #fce7f3; color: #9d174d; border: 1px solid #ec4899; }
+.ev-holiday    { background: #fee2e2; color: #991b1b; border: 1px solid #ef4444; }
+.ev-signature  { background: #ede9fe; color: #5b21b6; border: 1px solid #8b5cf6; }
+.ev-other      { background: #f3f4f6; color: #374151; border: 1px solid #9ca3af; }
+.badge-available { background: #d1fae5; color: #065f46; border: 1px solid #10b981; }
 
 /* ── BUTTONS ── */
 .btn {
@@ -346,7 +355,7 @@ if ('serviceWorker' in navigator) {
     <input type="password" id="loginPass" name="password" placeholder="Password" autocomplete="current-password">
     <button class="btn-login" onclick="doLogin()">Sign In</button>
     <div class="login-error" id="loginError"></div>
-    <div style="font-size:11px;color:#ccc;margin-top:16px" id="buildStamp">Build: v4.3-Supabase · March 30, 2026</div>
+    <div style="font-size:11px;color:#ccc;margin-top:16px" id="buildStamp">Build: v4.4-Supabase · April 5, 2026</div>
   </div>
 </div>
 
@@ -410,14 +419,18 @@ if ('serviceWorker' in navigator) {
             <option value="2026">2026</option>
           </select>
           <select class="filter-select" id="donEvent" onchange="renderDonations()">
-            <option value="">All Events</option>
+            <option value="">All Events (Requested)</option>
+          </select>
+          <select class="filter-select" id="donUsedForFilter" onchange="renderDonations()">
+            <option value="">All Used For</option>
+            <option value="__available__">⭐ Available (not yet used)</option>
           </select>
           <select class="filter-select" id="donGranted" onchange="renderDonations()">
             <option value="">All Statuses</option>
-            <option value="Yes">Yes</option>
-            <option value="No">No</option>
+            <option value="Yes">Yes — Donated</option>
+            <option value="No">No — Declined</option>
             <option value="No Answer">No Answer</option>
-            <option value="">Pending</option>
+            <option value="Pending">Pending</option>
           </select>
           <select class="filter-select" id="donType" onchange="renderDonations()">
             <option value="">All Types</option>
@@ -432,7 +445,7 @@ if ('serviceWorker' in navigator) {
           <table>
             <thead>
               <tr>
-                <th>Year</th><th>Organization</th><th>Event Requested</th>
+                <th>Year</th><th>Organization</th><th>Requested For</th><th>Used For</th>
                 <th>How</th><th>Date</th><th>Granted</th><th>Value</th><th>Item</th><th>Who</th><th>Actions</th>
               </tr>
             </thead>
@@ -635,13 +648,19 @@ if ('serviceWorker' in navigator) {
       </div>
       <div class="form-group">
         <label class="form-label">How Contacted</label>
-        <select class="form-select" id="donHow">
+        <select class="form-select" id="donHow" onchange="toggleHowField()">
           <option value="">Select...</option>
           <option>Online</option><option>Online Form</option><option>Email</option>
           <option>Phone</option><option>Phone/Email</option><option>In Person</option>
           <option>Letter</option><option>Donation Match</option><option>Mail</option>
-          <option>Drop Off</option><option>Other</option>
+          <option>Drop Off</option><option>Inventory</option><option>Other</option>
         </select>
+      </div>
+      <div class="form-group full" id="inventoryRow" style="display:none">
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;font-size:14px;color:#166534">
+          📦 <strong>Inventory Item</strong> — This donation was received but not tracked in the original spreadsheet. 
+          It will appear in Available Items searches.
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Date Requested</label>
@@ -856,7 +875,7 @@ if ('serviceWorker' in navigator) {
 <div class="modal-overlay" id="eventModal">
   <div class="modal" style="max-width:380px">
     <button class="modal-close" onclick="closeModal('eventModal')">&#10005;</button>
-    <div class="modal-title">Add Event</div>
+    <div class="modal-title" id="evModalTitle">Add / Edit Event</div>
     <div class="form-grid single">
       <div class="form-group">
         <label class="form-label">Event Name</label>
@@ -866,10 +885,14 @@ if ('serviceWorker' in navigator) {
         <label class="form-label">Year (optional)</label>
         <input type="text" class="form-input" id="evYear" placeholder="e.g. 2026">
       </div>
+      <div class="form-group">
+        <label class="form-label">Event Date (optional — used for Available Items)</label>
+        <input type="date" class="form-input" id="evDate">
+      </div>
     </div>
     <div class="form-actions">
       <button class="btn btn-outline" onclick="closeModal('eventModal')">Cancel</button>
-      <button class="btn btn-gold" onclick="saveEvent()">Add Event</button>
+      <button class="btn btn-gold" onclick="saveEvent()">Save Event</button>
     </div>
   </div>
 </div>
@@ -935,7 +958,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff";
-const BUILD_VERSION = "v4.1-Supabase · March 30, 2026";
+const BUILD_VERSION = "v4.4-Supabase · April 5, 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -992,6 +1015,22 @@ let editingVendorId = null;
 function genId() {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 6);
 }
+
+// Event color class helper
+function eventClass(name) {
+  if (!name) return "ev-other";
+  const n = name.toLowerCase();
+  if (n.includes("cornhole")) return "ev-cornhole";
+  if (n.includes("golf"))     return "ev-golf";
+  if (n.includes("trivia"))   return "ev-trivia";
+  if (n.includes("walk"))     return "ev-walk";
+  if (n.includes("holiday"))  return "ev-holiday";
+  if (n.includes("signature")) return "ev-signature";
+  return "ev-other";
+}
+
+// EVENT_DATES lookup — set in Admin panel, keyed by event name
+let EVENT_DATES = {};
 
 // ═══════════════════════════════════════════════════════════
 // INIT
@@ -1143,9 +1182,22 @@ async function loadEvents() {
     const rows = await sbGet("MyBFFEvents", "order=name.asc");
     if (rows && rows.length > 0) {
       ALL_EVENTS = rows.map(r => r.name).filter(Boolean);
+      // Build event date lookup
+      EVENT_DATES = {};
+      rows.forEach(r => { if (r.name && r.event_date) EVENT_DATES[r.name] = r.event_date; });
     }
   } catch(e) { console.error("loadEvents:", e); }
   populateEventDropdowns();
+}
+
+// Returns true if an item is "available": granted=Yes, used_for is blank, 
+// and if the assigned event_requested has a date it hasn't passed yet
+function isAvailable(d) {
+  if (d.granted !== "Yes") return false;
+  if (d.used_for && d.used_for.trim() !== "") return false;
+  // If event_requested has a future date set, it's still available
+  // If event_requested date has passed, still show as available (used_for is blank = not actually used)
+  return true;
 }
 
 async function loadPickups() {
@@ -1174,7 +1226,7 @@ async function loadUsers() {
 function populateEventDropdowns() {
   const opts = ALL_EVENTS.map(e => `<option value="${e}">${e}</option>`).join("");
   const blankOpt = `<option value="">Select...</option>`;
-  const allOpt = `<option value="">All Events</option>`;
+  const allOpt = `<option value="">All Events (Requested)</option>`;
   ["donEvent","rptEvent"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = allOpt + opts;
@@ -1183,6 +1235,11 @@ function populateEventDropdowns() {
     const el = document.getElementById(id);
     if (el) el.innerHTML = blankOpt + opts;
   });
+  // Used For filter dropdown
+  const ufEl = document.getElementById("donUsedForFilter");
+  if (ufEl) {
+    ufEl.innerHTML = `<option value="">All Used For</option><option value="__available__">⭐ Available (not yet used)</option>` + opts;
+  }
   renderAdminEvents();
 }
 
@@ -1295,35 +1352,63 @@ function renderDonations() {
   document.getElementById("donCount").textContent = `Showing ${data.length} of ${ALL_DONATIONS.length} records`;
   const tbody = document.getElementById("donTable");
   if (!data.length) { tbody.innerHTML = `<tr><td colspan="10" class="empty-state">No donations match your filters.</td></tr>`; return; }
-  tbody.innerHTML = data.map(d => `
+  tbody.innerHTML = data.map(d => {
+    // Year mismatch indicator
+    const reqYear = d.year ? String(d.year) : "";
+    const usedForYear = d.used_for_year ? String(d.used_for_year) : "";
+    // Determine used_for display with cross-year note
+    let usedForDisplay;
+    if (!d.used_for || d.used_for.trim() === "") {
+      if (d.granted === "Yes") {
+        usedForDisplay = `<span class="badge badge-available">Available</span>`;
+      } else {
+        usedForDisplay = `<span style="color:var(--gray)">—</span>`;
+      }
+    } else {
+      // Check if the event year from donor record differs — we track this by checking if
+      // a different year appears to be attached; for now show the event with color
+      usedForDisplay = `<span class="badge ${eventClass(d.used_for)}">${d.used_for}</span>`;
+    }
+    return `
     <tr>
       <td>${d.year}</td>
       <td><strong style="cursor:pointer;color:var(--navy)" onclick='viewDonation("${d.id}")'>${d.organization}</strong></td>
-      <td><span class="badge badge-event">${d.event_requested || "—"}</span></td>
+      <td><span class="badge ${eventClass(d.event_requested)}">${d.event_requested || "—"}</span></td>
+      <td>${usedForDisplay}</td>
       <td>${d.how || "—"}</td>
       <td>${d.date_requested || "—"}</td>
       <td><span class="badge ${grantedBadge(d.granted)}">${d.granted || "Pending"}</span></td>
       <td>${d.value ? "$"+parseFloat(d.value).toLocaleString() : "—"}</td>
-      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.item || "—"}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.item || "—"}</td>
       <td>${d.who || "—"}</td>
       <td>
         <button class="btn btn-outline btn-sm" onclick='editDonation("${d.id}")'>Edit</button>
         ${currentUser && currentUser.role === "admin" ? `<button class="btn btn-danger btn-sm" style="margin-left:4px" onclick='deleteDonation("${d.id}")'>Del</button>` : ""}
       </td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
 }
 
 function filterDonations() {
   const search = document.getElementById("donSearch").value.toLowerCase();
   const year = document.getElementById("donYear").value;
   const event = document.getElementById("donEvent").value;
+  const usedForFilter = document.getElementById("donUsedForFilter") ? document.getElementById("donUsedForFilter").value : "";
   const granted = document.getElementById("donGranted").value;
   const type = document.getElementById("donType").value;
   return ALL_DONATIONS.filter(d => {
     if (year && String(d.year) !== year) return false;
     if (event && d.event_requested !== event) return false;
-    if (granted === "" && !d.granted) return true;
-    if (granted && d.granted !== granted) return false;
+    // Used For filter
+    if (usedForFilter === "__available__") {
+      if (d.granted !== "Yes") return false;
+      if (d.used_for && d.used_for.trim() !== "") return false;
+    } else if (usedForFilter) {
+      if (d.used_for !== usedForFilter) return false;
+    }
+    // Granted filter
+    if (granted === "Pending") { if (d.granted) return false; }
+    else if (granted && d.granted !== granted) return false;
     if (type && d.type !== type) return false;
     if (search && !`${d.organization} ${d.item} ${d.notes} ${d.who}`.toLowerCase().includes(search)) return false;
     return true;
@@ -1331,7 +1416,7 @@ function filterDonations() {
 }
 
 function clearDonationFilters() {
-  ["donSearch","donYear","donEvent","donGranted","donType"].forEach(id => document.getElementById(id).value = "");
+  ["donSearch","donYear","donEvent","donUsedForFilter","donGranted","donType"].forEach(id => { const el = document.getElementById(id); if(el) el.value = ""; }); document.getElementById("donYear").value = String(new Date().getFullYear());
   renderDonations();
 }
 
@@ -1344,7 +1429,8 @@ function viewDonation(id) {
     <div style="font-family:'Playfair Display',serif;font-size:22px;margin-bottom:4px">${d.organization}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
       <span class="badge badge-type">${d.type || "—"}</span>
-      <span class="badge badge-event">${d.event_requested || "—"}</span>
+      <span class="badge ${eventClass(d.event_requested)}">${d.event_requested || "—"}</span>
+      ${d.used_for && d.used_for.trim() ? `<span class="badge ${eventClass(d.used_for)}" title="Used For">→ ${d.used_for}</span>` : (d.granted === "Yes" ? `<span class="badge badge-available">Available</span>` : "")}
       <span class="badge ${grantedBadge(d.granted)}">${d.granted || "Pending"}</span>
       <span class="badge badge-blank">${d.year}</span>
     </div>
@@ -1371,7 +1457,8 @@ function viewDonation(id) {
     ${vendHistory.slice(0,6).map(h => `
       <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:13px;padding:7px 0;border-bottom:1px solid var(--border);align-items:center">
         <span class="badge badge-blank">${h.year}</span>
-        <span class="badge badge-event">${h.event_requested||"—"}</span>
+        <span class="badge ${eventClass(h.event_requested)}">${h.event_requested||"—"}</span>
+        ${h.used_for && h.used_for.trim() ? `<span style="font-size:11px;color:var(--gray)">→ ${h.used_for}</span>` : ""}
         <span class="badge ${grantedBadge(h.granted)}">${h.granted||"Pending"}</span>
         <span>${h.item || "—"}</span>
         ${h.value ? `<span style="color:var(--green);font-weight:600">$${parseFloat(h.value).toLocaleString()}</span>` : ""}
@@ -1425,10 +1512,23 @@ function clearDonationForm() {
   document.getElementById("donYearField").value = new Date().getFullYear();
   document.getElementById("grantedFields").style.display = "none";
   document.getElementById("pickupAssignWrap").style.display = "none";
+  const invRow = document.getElementById("inventoryRow");
+  if (invRow) invRow.style.display = "none";
 }
 
 function toggleGrantedFields() {
   document.getElementById("grantedFields").style.display = document.getElementById("donGranted2").value === "Yes" ? "contents" : "none";
+}
+
+function toggleHowField() {
+  const how = document.getElementById("donHow").value;
+  const invRow = document.getElementById("inventoryRow");
+  if (invRow) invRow.style.display = how === "Inventory" ? "" : "none";
+  // If inventory selected, auto-set Granted to Yes
+  if (how === "Inventory") {
+    document.getElementById("donGranted2").value = "Yes";
+    toggleGrantedFields();
+  }
 }
 function togglePickupAssign() {
   document.getElementById("pickupAssignWrap").style.display = document.getElementById("donPickupMethod").value === "Pick Up" ? "" : "none";
@@ -1545,7 +1645,8 @@ function renderVendors() {
         ${donations.slice(0,5).map(d => `
           <div class="history-row">
             <span class="badge badge-blank">${d.year}</span>
-            <span class="badge badge-event">${d.event_requested||"—"}</span>
+            <span class="badge ${eventClass(d.event_requested)}">${d.event_requested||"—"}</span>
+            ${d.used_for && d.used_for.trim() ? `<span style="font-size:11px;color:var(--gray)">→ ${d.used_for}</span>` : ""}
             <span class="badge ${grantedBadge(d.granted)}">${d.granted||"Pending"}</span>
             <span style="flex:1;font-size:13px">${d.item||"—"}</span>
             ${d.value ? `<span style="color:var(--green);font-weight:600;font-size:13px">$${parseFloat(d.value).toLocaleString()}</span>` : ""}
@@ -1663,7 +1764,7 @@ function renderTasks() {
     <div class="task-card">
       <div class="task-info">
         <div class="task-vendor">${d.organization}</div>
-        <div class="task-detail">${d.year} · ${d.event_requested || "—"} · ${d.item || "—"}${d.value ? " · $"+parseFloat(d.value).toLocaleString() : ""}</div>
+        <div class="task-detail">${d.year} · <span class="${eventClass(d.event_requested)}" style="font-weight:600">${d.event_requested || "—"}</span> · ${d.item || "—"}${d.value ? " · $"+parseFloat(d.value).toLocaleString() : ""}</div>
         ${d.notes ? `<div style="font-size:12px;color:var(--gray);margin-top:4px">${d.notes}</div>` : ""}
       </div>
       ${d.pickup_assigned_to ? `<div class="task-assignee">📦 ${d.pickup_assigned_to}</div>` : `<span class="badge badge-noanswer">Unassigned</span>`}
@@ -1791,10 +1892,26 @@ async function saveEditUser() {
 function renderAdminEvents() {
   const el = document.getElementById("eventList");
   if (!el) return;
-  el.innerHTML = ALL_EVENTS.map(e => `
+  el.innerHTML = ALL_EVENTS.map(e => {
+    const dateVal = EVENT_DATES[e] || "";
+    const dateDisplay = dateVal ? `<span style="font-size:12px;color:var(--gray);margin-left:8px">📅 ${dateVal}</span>` : `<span style="font-size:12px;color:var(--gray);margin-left:8px">No date set</span>`;
+    return `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-      <span style="font-weight:500">${e}</span>
-    </div>`).join("");
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="badge ${eventClass(e)}">${e}</span>
+        ${dateDisplay}
+      </div>
+      <button class="btn btn-outline btn-sm" onclick='openEditEventModal("${e}")'>Edit Date</button>
+    </div>`;
+  }).join("");
+}
+
+function openEditEventModal(name) {
+  document.getElementById("evName").value = name;
+  document.getElementById("evYear").value = "";
+  document.getElementById("evDate").value = EVENT_DATES[name] || "";
+  document.getElementById("evModalTitle").textContent = "Edit Event: " + name;
+  openModal("eventModal");
 }
 
 async function renderAdminPickups() {
@@ -1852,12 +1969,15 @@ async function saveEvent() {
   const name = document.getElementById("evName").value.trim();
   if (!name) { showToast("Event name required.", "error"); return; }
   const year = document.getElementById("evYear").value.trim();
+  const evDate = document.getElementById("evDate").value.trim();
   try {
-    await sbUpsert("MyBFFEvents", { name, year: year || null }, "name");
+    await sbUpsert("MyBFFEvents", { name, year: year || null, event_date: evDate || null }, "name");
     if (!ALL_EVENTS.includes(name)) ALL_EVENTS.push(name);
+    if (evDate) EVENT_DATES[name] = evDate; else delete EVENT_DATES[name];
     closeModal("eventModal");
-    showToast("Event added!", "success");
+    showToast("Event saved!", "success");
     populateEventDropdowns();
+    renderAdminEvents();
   } catch(e) {
     showToast("Error: " + e.message, "error");
   }
@@ -2151,11 +2271,11 @@ const HELP_DATA = [
     items: [
       {
         q: "What does the Dashboard show?",
-        a: `The Dashboard is your home screen and gives you a quick overview of everything happening with donations. It shows six summary cards at the top — total contacts made, how many vendors said yes, how many declined, the total estimated dollar value of donations, all-time contact count, and all-time yes count. Below that you will see a breakdown by event for the current year, a list of the most recent activity, and a Year Over Year summary table comparing 2024, 2025, and 2026 side by side.`
+        a: `The Dashboard is your home screen and gives you a quick overview of everything happening with donations. It shows six summary cards at the top — total contacts made for the current year, how many vendors said yes, how many declined, the total estimated dollar value of donations, all-time contact count, and all-time yes count. Below that you will see a breakdown by event for the current year, a list of the most recent activity, and a Year Over Year summary table comparing 2024, 2025, and 2026 side by side.`
       },
       {
         q: "Why does the Dashboard show zeros or 'No data'?",
-        a: `This usually means the app is still loading data from Google Sheets, or the year field in some records does not match the current year. The dashboard always defaults to showing the current year's data. If you just logged in, wait a few seconds and refresh the page. If it continues, check that the Donations tab in Google Sheets has its header row in row 1 (not sorted into the middle of the data).`
+        a: `This usually means the app is still loading data, or the year field in some records does not match the current year. The dashboard always defaults to showing the current year's data. If you just logged in, wait a few seconds and refresh the page.`
       },
       {
         q: "Can I filter the Dashboard by a different year?",
@@ -2171,49 +2291,69 @@ const HELP_DATA = [
         q: "How do I add a new donation request?",
         a: `<div class="help-step"><div class="help-step-num">1</div><div>Click <strong>Donations</strong> in the top navigation bar.</div></div>
             <div class="help-step"><div class="help-step-num">2</div><div>Click the gold <strong>+ Add Donation</strong> button in the top right.</div></div>
-            <div class="help-step"><div class="help-step-num">3</div><div>In the form that appears, start typing the <strong>Organization</strong> name. Matching names from your vendor list will appear — select one or type a new name.</div></div>
-            <div class="help-step"><div class="help-step-num">4</div><div>Fill in as many fields as you know: Type, Who is entering it, Year, Event Requested, How you contacted them, Date, and Lead Time.</div></div>
-            <div class="help-step"><div class="help-step-num">5</div><div>Leave <strong>Granted?</strong> blank if you haven't heard back yet. Set it to No if they declined. Set it to Yes only when they commit.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Start typing the <strong>Organization</strong> name. Matching names will appear — select one or type a new name.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Fill in Type, Who is entering it, Year, Event Requested, How you contacted them, Date, and Lead Time.</div></div>
+            <div class="help-step"><div class="help-step-num">5</div><div>Leave <strong>Granted?</strong> blank if you haven't heard back yet.</div></div>
             <div class="help-step"><div class="help-step-num">6</div><div>Click <strong>Save Donation</strong>.</div></div>
             <div class="help-tip">💡 Tip: You don't need to fill every field right away. You can always come back and edit the record when you get more information.</div>`
       },
       {
         q: "How do I update a record when a vendor says Yes?",
-        a: `<div class="help-step"><div class="help-step-num">1</div><div>Go to <strong>Donations</strong> and find the record — use the search box or filters to narrow it down.</div></div>
-            <div class="help-step"><div class="help-step-num">2</div><div>Click the <strong>Edit</strong> button on the right side of that row.</div></div>
-            <div class="help-step"><div class="help-step-num">3</div><div>Change <strong>Granted?</strong> to <strong>Yes</strong>. New fields will appear for Item donated, Estimated Value, and Pickup/Delivery method.</div></div>
-            <div class="help-step"><div class="help-step-num">4</div><div>Fill in what they are donating, the dollar value, and how you are receiving it (Mail, Pick Up, Electronic, or Other).</div></div>
-            <div class="help-step"><div class="help-step-num">5</div><div>If someone needs to pick it up, select <strong>Pick Up</strong> and assign a person in the Pickup Assigned To field.</div></div>
-            <div class="help-step"><div class="help-step-num">6</div><div>Click <strong>Save Donation</strong>.</div></div>`
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Find the record in the Donations list and click <strong>Edit</strong>.</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Change <strong>Granted?</strong> to <strong>Yes</strong>. New fields appear for Item, Value, and Pickup method.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Fill in what they are donating and the estimated dollar value.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Leave <strong>Used For</strong> blank for now — the item will appear as <strong>Available</strong> until you assign it to an event.</div></div>
+            <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Save Donation</strong>.</div></div>`
       },
       {
         q: "How do I find and edit an existing donation record?",
         a: `<div class="help-step"><div class="help-step-num">1</div><div>Click <strong>Donations</strong> in the top navigation.</div></div>
             <div class="help-step"><div class="help-step-num">2</div><div>Use the <strong>Search box</strong> to type a vendor name, item, or any notes text.</div></div>
-            <div class="help-step"><div class="help-step-num">3</div><div>Use the <strong>dropdowns</strong> to filter by Year, Event, Status (Yes/No/No Answer/Pending), or Type.</div></div>
-            <div class="help-step"><div class="help-step-num">4</div><div>Click <strong>Edit</strong> on the row you want to change, make your updates, and click <strong>Save Donation</strong>.</div></div>
-            <div class="help-tip">💡 Tip: Click the vendor name (shown in bold) instead of Edit to open a read-only detail view first, which also shows all past donations from that vendor.</div>`
+            <div class="help-step"><div class="help-step-num">3</div><div>Use the dropdowns to filter by Year, Event Requested, Used For, Status, or Type.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Click <strong>Edit</strong> on the row, make your updates, and click <strong>Save Donation</strong>.</div></div>
+            <div class="help-tip">💡 Tip: Click the vendor name (shown in bold) to open a read-only detail view that also shows all past donations from that vendor.</div>`
+      },
+      {
+        q: "What is 'Event Requested' vs 'Used For'?",
+        a: `<strong>Event Requested</strong> is the event you originally asked the donation for. <strong>Used For</strong> is the event you actually used it at — these are often the same but can be different. For example, you might request a donation for the Walk but end up using it at Trivia instead. Leave <strong>Used For blank</strong> until you know which event the item will go to — a blank Used For means the item is <strong>Available</strong>. Both fields are shown in the Donations list and you can filter by either one.`
+      },
+      {
+        q: "What does 'Available' mean in the Used For column?",
+        a: `An item shows as <strong>Available</strong> (green badge) when: (1) the vendor said Yes (Granted = Yes), and (2) the Used For field is blank — meaning the item has not yet been assigned to an event. Use the <strong>Used For → Available</strong> filter in the Donations page to see all items ready to be assigned. Once you assign an event in Used For, the item will show that event name instead of Available.`
+      },
+      {
+        q: "How do I see all available items that haven't been assigned to an event?",
+        a: `On the Donations page, use the <strong>Used For dropdown</strong> and select <strong>⭐ Available (not yet used)</strong>. This shows all donations where the vendor said Yes but the Used For field is blank. You can combine this with the Year filter to focus on current or prior year items.`
+      },
+      {
+        q: "How do I assign an available item to an event?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Filter the Donations page to show Available items using the Used For dropdown.</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Click <strong>Edit</strong> on the item you want to assign.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>In the <strong>Used For</strong> dropdown, select the event this item will be used at.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Click <strong>Save Donation</strong>. The item will no longer show as Available.</div></div>
+            <div class="help-tip">💡 Tip: If a prior-year item shows as Available and you want to assign it to a 2026 event, just edit it and set Used For to the 2026 event. The record will show which year it was requested in.</div>`
+      },
+      {
+        q: "How do I add an inventory item — something donated but not in the original records?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click <strong>+ Add Donation</strong> on the Donations page.</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Enter the Organization name (where it came from).</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>In the <strong>How Contacted</strong> field, select <strong>Inventory</strong>. The form will automatically set the item as Granted = Yes.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Fill in the Item description and Value, and leave Used For blank so it shows as Available.</div></div>
+            <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Save Donation</strong>. The item now appears in Available Items searches.</div></div>
+            <div class="help-note">ℹ️ Use How = Inventory for any item that already exists in your possession but wasn't in the spreadsheet — prizes from prior years, donated items received outside the normal request process, etc.</div>`
       },
       {
         q: "How do I view all donations from a specific vendor across all years?",
-        a: `There are two ways to do this. First, in the <strong>Donations</strong> list, use the search box to type the vendor name — all records for that vendor will appear regardless of year. Second, go to the <strong>Vendors</strong> page and find the vendor card — it shows a complete donation history at the bottom including year, event, status, item, and value for every record linked to that vendor.`
-      },
-      {
-        q: "How do I record that a vendor declined or never responded?",
-        a: `Find the record and click <strong>Edit</strong>. In the <strong>Granted?</strong> dropdown, select <strong>No — Declined</strong> if they said no, or <strong>No Answer</strong> if they never responded despite being contacted. Leave it blank (Pending) if you are still waiting. Click Save Donation.`
+        a: `There are two ways. In the <strong>Donations</strong> list, use the search box to type the vendor name — all records for that vendor will appear. Or go to the <strong>Vendors</strong> page and find the vendor card — it shows a complete donation history at the bottom including year, event, status, item, and value.`
       },
       {
         q: "Can I delete a donation record?",
-        a: `Only Admin users (Ed and Kris) can delete records. To delete, find the record in the Donations list and click the red <strong>Del</strong> button on the right. You will be asked to confirm before anything is deleted. Standard users do not see the delete button.
-            <div class="help-note">⚠️ Deletions cannot be undone. If you are unsure, edit the record instead of deleting it.</div>`
-      },
-      {
-        q: "What is the 'Used For' field vs 'Event Requested'?",
-        a: `<strong>Event Requested</strong> is the event you originally asked the donation for. <strong>Used For</strong> is the event you actually used it at — these can be different. For example, you might request a donation for the Walk but end up using it at Trivia instead because it expires sooner. Always fill in both fields so reports show accurate information.`
+        a: `Only Admin users (Ed and Kris) can delete records. Find the record and click the red <strong>Del</strong> button. You will be asked to confirm. Standard users do not see the delete button.
+            <div class="help-note">⚠️ Deletions cannot be undone. If you are unsure, edit the record instead.</div>`
       },
       {
         q: "What is Lead Time?",
-        a: `Lead Time is a note about how far in advance you need to contact that vendor before an event. For example, some vendors require 30 days notice, others require 8 weeks. This helps Kris and the team know when to start reaching out for each event. You can enter it as days or weeks (e.g. "30 days" or "6 weeks").`
+        a: `Lead Time is a note about how far in advance you need to contact that vendor before an event. For example, some vendors require 30 days notice, others 8 weeks. Enter it as days or weeks (e.g. "30 days" or "6 weeks").`
       }
     ]
   },
@@ -2222,66 +2362,45 @@ const HELP_DATA = [
     icon: "🏪",
     items: [
       {
-        q: "How do I add a new vendor to the master list?",
-        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click <strong>Vendors</strong> in the top navigation.</div></div>
-            <div class="help-step"><div class="help-step-num">2</div><div>Click the gold <strong>+ Add Vendor</strong> button.</div></div>
-            <div class="help-step"><div class="help-step-num">3</div><div>Enter the vendor name. Use a consistent naming convention for locations, such as <span class="help-tag">Home Depot - Schaumburg</span> or <span class="help-tag">Target - Crystal Lake</span>, so each location is clearly identifiable.</div></div>
-            <div class="help-step"><div class="help-step-num">4</div><div>Fill in contact details — address, phone, email, website/donation URL, and up to two contact people with their individual phone and email.</div></div>
-            <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Save Vendor</strong>.</div></div>
-            <div class="help-tip">💡 Tip: Vendors are also created automatically when you add a donation record with a new organization name. You can then go to the Vendors page to add their contact details.</div>`
+        q: "How does the Vendor Directory work?",
+        a: `The Vendor Directory is automatically built from the organization names in your Donations records — every vendor you've ever contacted appears here automatically. Vendor cards show the donation history at the bottom. You can add full contact details (address, phone, email, contacts, donation URL) by clicking Edit on any vendor card. The Vendor tab is for looking up a vendor's history and contact info, while the Donations tab is for managing individual donation requests.`
       },
       {
-        q: "How do I add or update contact details for an existing vendor?",
-        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click <strong>Vendors</strong> in the top navigation.</div></div>
-            <div class="help-step"><div class="help-step-num">2</div><div>Use the search box to find the vendor by typing their name.</div></div>
-            <div class="help-step"><div class="help-step-num">3</div><div>Click <strong>Edit</strong> on their vendor card.</div></div>
-            <div class="help-step"><div class="help-step-num">4</div><div>Add or update the contact name, phone number, email, address, or donation website link.</div></div>
-            <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Save Vendor</strong>.</div></div>
-            <div class="help-tip">💡 Tip: Moving contact info from the Notes field into the proper vendor card fields makes it much easier for the whole team to find and use.</div>`
+        q: "How do I add or edit contact details for a vendor?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Go to the <strong>Vendors</strong> tab.</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Find the vendor — use the search box or scroll.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Click <strong>Edit</strong> on the vendor card.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Fill in address, phone, email, website, up to 2 contacts, and any notes.</div></div>
+            <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Save Vendor</strong>.</div></div>`
       },
       {
-        q: "How do I search for a vendor?",
-        a: `On the <strong>Vendors</strong> page, type any part of the vendor name in the search box at the top. The list will filter instantly as you type. You can also filter by Type (Restaurant, Shopping, Entertainment) using the dropdown next to the search box.`
-      },
-      {
-        q: "How do I merge two vendor names that are the same vendor?",
-        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click the <strong>Admin</strong> tab (visible to Admin users only).</div></div>
-            <div class="help-step"><div class="help-step-num">2</div><div>Scroll down to the <strong>Merge Vendor Names</strong> section.</div></div>
-            <div class="help-step"><div class="help-step-num">3</div><div>In the <strong>From</strong> field, start typing the duplicate or incorrect name. Select it from the dropdown.</div></div>
-            <div class="help-step"><div class="help-step-num">4</div><div>In the <strong>To</strong> field, type the correct name you want to keep. Select it from the dropdown.</div></div>
-            <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Preview Merge</strong> to see exactly which records will be affected.</div></div>
-            <div class="help-step"><div class="help-step-num">6</div><div>If everything looks right, click <strong>Confirm Merge</strong>. All affected records are updated in Google Sheets automatically.</div></div>
-            <div class="help-note">ℹ️ No records are deleted during a merge — only the vendor name field is updated on each record.</div>`
-      },
-      {
-        q: "What is the vendor card?",
-        a: `The vendor card is the detailed profile for each vendor in the Vendors directory. It shows the vendor name, type, address, phone, email, donation website link, and up to two contact people with their individual contact info. At the bottom of each card is a complete donation history showing every donation record linked to that vendor across all years. The goal over time is to move contact information out of the Notes field and into proper vendor cards so it is easy for the whole team to find.`
-      },
-      {
-        q: "What is the naming convention for vendors with multiple locations?",
-        a: `For vendors with multiple locations that you contact separately, use the format <span class="help-tag">Vendor Name - Location</span>. For example: <span class="help-tag">Home Depot - Schaumburg</span>, <span class="help-tag">Home Depot - Palatine</span>, <span class="help-tag">Target - Crystal Lake</span>. This keeps each location separate (since they have different contacts and donate independently) while making it clear they belong to the same overall chain.`
+        q: "Two vendors have slightly different names for the same place — how do I fix that?",
+        a: `Use the <strong>Merge Vendor Names</strong> tool in the Admin panel. Type the duplicate name in the From field and the correct name in the To field, then click Preview Merge. It will show how many records will be updated. Click Confirm Merge to rename all matching records at once.`
       }
     ]
   },
   {
-    category: "Events",
+    category: "Events & Colors",
     icon: "🎪",
     items: [
       {
         q: "What events are in the system?",
-        a: `The current events are <strong>Cornhole</strong>, <strong>Golf Tournament</strong>, <strong>Trivia</strong>, <strong>Walk</strong>, <strong>Holiday</strong>, and <strong>Signature Event</strong>. These appear in the Event Requested and Used For dropdowns when adding or editing a donation.`
+        a: `The current events are <strong>Cornhole</strong> (amber), <strong>Golf Tournament</strong> (green), <strong>Trivia</strong> (blue), <strong>Walk</strong> (pink), <strong>Holiday</strong> (red), and <strong>Signature Event</strong> (purple). Each event has its own color that appears on all badges throughout the app — on the Donations page, Vendors page, Pickup Tasks, and everywhere else — making it easy to tell events apart at a glance.`
+      },
+      {
+        q: "How do I set the date for an event?",
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click the <strong>Admin</strong> tab (Admin users only).</div></div>
+            <div class="help-step"><div class="help-step-num">2</div><div>Find the <strong>Events</strong> section. Each event is shown with its color badge and current date (or "No date set").</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Click <strong>Edit Date</strong> next to the event.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Enter the event date and click <strong>Save Event</strong>.</div></div>
+            <div class="help-tip">💡 Tip: Setting event dates helps the team know when each event is happening. Dates are shown in the Admin panel alongside each event name.</div>`
       },
       {
         q: "How do I add a new event?",
-        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click the <strong>Admin</strong> tab (Admin users only).</div></div>
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click the <strong>Admin</strong> tab.</div></div>
             <div class="help-step"><div class="help-step-num">2</div><div>Find the <strong>Events</strong> section and click <strong>+ Add Event</strong>.</div></div>
-            <div class="help-step"><div class="help-step-num">3</div><div>Type the event name and optionally the year it applies to.</div></div>
-            <div class="help-step"><div class="help-step-num">4</div><div>Click <strong>Add Event</strong>. The new event will immediately appear in all event dropdowns throughout the app.</div></div>
-            <div class="help-tip">💡 Tip: You can also add an event directly to the Events tab in Google Sheets — just add a row with an ID, Name, Year, and "true" in the Active column.</div>`
-      },
-      {
-        q: "How do I update or rename an existing event?",
-        a: `Currently the easiest way to rename an event is directly in the <strong>Events tab of Google Sheets</strong> — find the event row and change the Name column. The new name will appear in the app dropdowns the next time the page is loaded. For renaming an event across existing donation records, contact your admin as this would require updating the records individually.`
+            <div class="help-step"><div class="help-step-num">3</div><div>Type the event name, optionally the year, and optionally the event date.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Click <strong>Save Event</strong>. The new event will immediately appear in all event dropdowns.</div></div>`
       }
     ]
   },
@@ -2291,24 +2410,24 @@ const HELP_DATA = [
     items: [
       {
         q: "How do I assign a pickup to someone?",
-        a: `<div class="help-step"><div class="help-step-num">1</div><div>Find the donation record in the <strong>Donations</strong> list and click <strong>Edit</strong>.</div></div>
+        a: `<div class="help-step"><div class="help-step-num">1</div><div>Find the donation record and click <strong>Edit</strong>.</div></div>
             <div class="help-step"><div class="help-step-num">2</div><div>Make sure <strong>Granted?</strong> is set to <strong>Yes</strong>.</div></div>
             <div class="help-step"><div class="help-step-num">3</div><div>Set <strong>How Are We Getting It?</strong> to <strong>Pick Up</strong>.</div></div>
-            <div class="help-step"><div class="help-step-num">4</div><div>In the <strong>Assigned To</strong> field that appears, start typing the person's name and select them from the list.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Start typing a name in the <strong>Assigned To</strong> field and select the person.</div></div>
             <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Save Donation</strong>.</div></div>
-            <div class="help-tip">💡 Tip: The assigned person will appear on the Pickup Tasks page so they can see what they need to collect.</div>`
+            <div class="help-tip">💡 The assigned person will appear on the Pickup Tasks page.</div>`
       },
       {
         q: "How do I view all open pickup tasks?",
-        a: `Click <strong>Pickup Tasks</strong> in the top navigation. This shows all donation records where the pickup method is set to Pick Up and the status is Yes. You can filter by year or by the assigned person's name using the dropdowns at the top.`
+        a: `Click <strong>Pickup Tasks</strong> in the top navigation. This shows all Granted = Yes donations where pickup method is Pick Up. Filter by year or assignee using the dropdowns at the top.`
       },
       {
         q: "How do I add someone to the pickup people list?",
         a: `<div class="help-step"><div class="help-step-num">1</div><div>Click the <strong>Admin</strong> tab.</div></div>
-            <div class="help-step"><div class="help-step-num">2</div><div>Find the <strong>Pickup People</strong> section and click <strong>+ Add Person</strong>.</div></div>
-            <div class="help-step"><div class="help-step-num">3</div><div>Enter their name and optionally their phone and email.</div></div>
-            <div class="help-step"><div class="help-step-num">4</div><div>Click <strong>Add Person</strong>. They will now appear in the Pickup Assigned To dropdown when editing donation records.</div></div>
-            <div class="help-note">ℹ️ Pickup people can be app users or volunteers who do not have app access — anyone who might physically pick something up.</div>`
+            <div class="help-step"><div class="help-step-num">2</div><div>Find <strong>Pickup People</strong> and click <strong>+ Add Person</strong>.</div></div>
+            <div class="help-step"><div class="help-step-num">3</div><div>Enter their name and optionally phone and email.</div></div>
+            <div class="help-step"><div class="help-step-num">4</div><div>Click <strong>Add Person</strong>. They now appear in the Pickup Assigned To dropdown.</div></div>
+            <div class="help-note">ℹ️ Pickup people can be app users or outside volunteers who don't have app access.</div>`
       }
     ]
   },
@@ -2317,23 +2436,16 @@ const HELP_DATA = [
     icon: "📄",
     items: [
       {
-        q: "How do I print a report?",
-        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click <strong>Reports</strong> in the top navigation.</div></div>
-            <div class="help-step"><div class="help-step-num">2</div><div>Use the dropdowns to filter by Year, Event, Status, and/or Type to show only what you want to print.</div></div>
-            <div class="help-step"><div class="help-step-num">3</div><div>Click <strong>Print Report</strong>. Your browser's print dialog will open.</div></div>
-            <div class="help-step"><div class="help-step-num">4</div><div>To save as a PDF instead of printing, choose <strong>Save as PDF</strong> in the print dialog's destination dropdown.</div></div>`
+        q: "How do I run a report?",
+        a: `Click <strong>Reports</strong> in the top navigation. Use the dropdowns to filter by Year, Event, Status, and Type. The table updates instantly as you change filters. The count and total donated value are shown above the table.`
       },
       {
         q: "How do I export data to Excel?",
-        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click <strong>Reports</strong> in the top navigation.</div></div>
-            <div class="help-step"><div class="help-step-num">2</div><div>Apply any filters you want — the export will only include the records currently shown.</div></div>
-            <div class="help-step"><div class="help-step-num">3</div><div>Click the green <strong>Export to Excel</strong> button. A CSV file will download automatically.</div></div>
-            <div class="help-step"><div class="help-step-num">4</div><div>Open the downloaded file in Excel. CSV files open directly in Excel and can be saved as .xlsx from there.</div></div>
-            <div class="help-tip">💡 Tip: To export all records with no filters, make sure all dropdowns are set to "All" before clicking Export.</div>`
+        a: `On the Reports page, apply any filters you want, then click the green <strong>Export to Excel</strong> button. A CSV file will download that can be opened in Excel or Google Sheets.`
       },
       {
-        q: "How do I see total donation value for a specific event or year?",
-        a: `Go to <strong>Reports</strong> and use the filter dropdowns to select the Year and/or Event you want. The total donated value of all matching Yes records is shown at the top of the results in bold. You can also see a year-by-year breakdown on the <strong>Dashboard</strong> in the Year Over Year Summary table.`
+        q: "How do I print a report?",
+        a: `On the Reports page, set your filters, then click <strong>Print Report</strong>. Your browser's print dialog will open. Choose "Save as PDF" to save it as a file instead of printing on paper.`
       }
     ]
   },
@@ -2342,29 +2454,20 @@ const HELP_DATA = [
     icon: "👤",
     items: [
       {
+        q: "What are the two user roles?",
+        a: `<strong>Admin</strong> users (Ed and Kris) have full access including deleting records, managing users, adding events, managing pickup people, merging vendor names, and setting event dates. <strong>Standard</strong> users can add and edit donations and vendor details, view all data, and export reports — but cannot delete records or access the Admin panel.`
+      },
+      {
         q: "How do I add a new user?",
-        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click the <strong>Admin</strong> tab (Admin users only).</div></div>
-            <div class="help-step"><div class="help-step-num">2</div><div>In the <strong>Users</strong> section, click <strong>+ Add User</strong>.</div></div>
-            <div class="help-step"><div class="help-step-num">3</div><div>Enter their Display Name (e.g. Brenda), Username (e.g. brenda2026), and a Password.</div></div>
-            <div class="help-step"><div class="help-step-num">4</div><div>Set their Role — <strong>Standard</strong> for team helpers who can read and write but not delete, or <strong>Admin</strong> for full access.</div></div>
-            <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Add User</strong>. They can log in immediately.</div></div>
-            <div class="help-tip">💡 Tip: You can also add users directly in the Users tab of Google Sheets — add a row with Username, Password, Role, and DisplayName.</div>`
+        a: `Click the <strong>Admin</strong> tab, find the Users section, and click <strong>+ Add User</strong>. Enter a display name, username (first + last name, lowercase, no spaces), password, and role. Click Add User.`
       },
       {
-        q: "How do I change someone's password or role?",
-        a: `<div class="help-step"><div class="help-step-num">1</div><div>Click the <strong>Admin</strong> tab.</div></div>
-            <div class="help-step"><div class="help-step-num">2</div><div>Find the user in the Users table and click <strong>Edit</strong>.</div></div>
-            <div class="help-step"><div class="help-step-num">3</div><div>To change the password, type a new one in the Password field. Leave it blank to keep the current password.</div></div>
-            <div class="help-step"><div class="help-step-num">4</div><div>To change the role, select Standard or Admin from the Role dropdown.</div></div>
-            <div class="help-step"><div class="help-step-num">5</div><div>Click <strong>Save Changes</strong>.</div></div>`
-      },
-      {
-        q: "What is the difference between Admin and Standard users?",
-        a: `<strong>Admin users</strong> (currently Ed and Kris) have full access — they can add, edit, and delete any record, manage users, add events, manage pickup people, and use the Merge feature. <strong>Standard users</strong> can add new donation records, edit existing ones, add and edit vendor details, view all data, and export reports — but they cannot delete records and cannot access the Admin panel. This protects the data from accidental deletion by team helpers.`
+        q: "How do I change a user's password or role?",
+        a: `Click the <strong>Admin</strong> tab, find the user in the Users table, and click <strong>Edit</strong>. Enter a new password (leave blank to keep the current one) and change the role if needed. Click Save Changes.`
       },
       {
         q: "How do I remove a user?",
-        a: `Click the <strong>Admin</strong> tab, find the user in the Users table, and click <strong>Remove</strong>. You cannot remove your own account. The user will no longer be able to log in once removed.`
+        a: `Click the <strong>Admin</strong> tab, find the user in the Users table, and click <strong>Remove</strong>. You cannot remove your own account.`
       }
     ]
   },
@@ -2373,32 +2476,36 @@ const HELP_DATA = [
     icon: "💡",
     items: [
       {
-        q: "What is the best way to enter a new contact when I don't know the outcome yet?",
-        a: `Enter the record right away with whatever you know — vendor name, how you contacted them, date, and event requested. Leave Granted? blank. Add the contact person's name and phone number in the Notes field. When you hear back, go back and edit the record to update the status and add donation details if they said yes.`
+        q: "What is the best workflow for tracking a donation from request to use?",
+        a: `<strong>Step 1 — Request:</strong> Add the record with Granted = blank, Event Requested filled in, Used For left blank.<br><br>
+            <strong>Step 2 — Confirmed:</strong> Edit the record, set Granted = Yes, fill in Item and Value. Leave Used For blank — the item now shows as <strong>Available</strong>.<br><br>
+            <strong>Step 3 — Assign:</strong> When you know which event it will go to, edit the record and set Used For. The item is now assigned and will no longer show in Available.<br><br>
+            <div class="help-tip">💡 Using this workflow means the Available filter always gives you an accurate picture of what's in hand and unassigned.</div>`
+      },
+      {
+        q: "How do I handle a prior-year item I want to use this year?",
+        a: `If a prior-year donation was never used (Used For is blank), it will already show in the Available filter regardless of year. To assign it to a 2026 event, simply edit the record and set Used For to the 2026 event. The record will retain its original year so you can always see when it was first requested.`
       },
       {
         q: "How should I handle a vendor who donates multiple times in the same year?",
-        a: `Create a separate donation record for each donation. For example, if Andy's Frozen Custard donates for both Trivia and the Walk in the same year, you should have two separate records — one with Event Requested as Trivia, one with Walk. Both will show up in the vendor's history card and both will count in the reports. Do not try to combine multiple donations into one record.`
+        a: `Create a separate donation record for each donation. For example, if Andy's Frozen Custard donates for both Trivia and the Walk, have two separate records — one with Event Requested as Trivia, one with Walk. Both will show in the vendor's history card and in reports.`
       },
       {
         q: "What is the best way to keep notes about a vendor?",
-        a: `Use both the Notes field on the donation record AND the vendor card. The <strong>donation record Notes</strong> are best for things specific to that particular request — like "Spoke with Jeremy, call back Tuesday" or "Picked up 8/5". The <strong>vendor card</strong> is best for permanent information — contact names, phone numbers, addresses, donation website links, and things like "1 donation per year" or "need to request by February". Over time, moving contact info into the vendor card makes it available to the whole team without having to dig through individual records.`
+        a: `Use both the Notes field on the donation record AND the vendor card. <strong>Donation record Notes</strong> are best for request-specific info — "Spoke with Jeremy, call back Tuesday." The <strong>vendor card</strong> is best for permanent info — contact names, phones, donation links, and recurring notes like "1 donation per year" or "request by February."`
       },
       {
         q: "How do I make sure the app works on my phone?",
-        a: `The app is designed to work on phones and tablets. Open it in <strong>Safari</strong> on iPhone or Chrome on Android using the GitHub Pages URL. To add it to your home screen for easy access: on iPhone, tap the Share button in Safari then tap <strong>Add to Home Screen</strong>. On Android, tap the three-dot menu and tap <strong>Add to Home Screen</strong>. This creates an icon that opens the app directly like a regular app.`
-      },
-      {
-        q: "Does the data save automatically?",
-        a: `Yes — every time you click Save Donation or Save Vendor, the record is immediately saved to Google Sheets. There is no auto-save while you are typing in a form, so make sure to click the Save button when you are done. If you close a form without saving, your changes will be lost.`
+        a: `Open it in <strong>Safari</strong> on iPhone or Chrome on Android. To add it to your home screen: on iPhone, tap the Share button then <strong>Add to Home Screen</strong>. On Android, tap the three-dot menu then <strong>Add to Home Screen</strong>. Safari on iPhone will offer to save your password after a successful login — tap Save to use Face ID or Touch ID for future logins.`
       },
       {
         q: "Can multiple people use the app at the same time?",
-        a: `Yes. Multiple team members can be logged in and adding or editing records simultaneously. Because all data goes to the same Google Sheet, everyone sees the same information. If two people edit the exact same record at the same time, the last save wins — so try to coordinate if you know someone else might be editing the same record.`
+        a: `Yes. Multiple team members can be logged in simultaneously. All data goes to the same Supabase database, so everyone sees the same information. If two people edit the exact same record at the same time, the last save wins.`
       }
     ]
   }
 ];
+
 
 function renderHelp() {
   const container = document.getElementById("helpContent");
