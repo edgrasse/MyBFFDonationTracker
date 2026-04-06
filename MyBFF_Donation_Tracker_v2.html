@@ -368,6 +368,7 @@ if ('serviceWorker' in navigator) {
     </div>
     <div class="header-right">
       <span class="header-user" id="headerUser"></span>
+      <span id="headerBuild" style="font-size:10px;color:rgba(255,255,255,.4);white-space:nowrap;display:none"></span>
       <button class="btn-logout" onclick="doLogout()">Sign Out</button>
     </div>
   </header>
@@ -1088,6 +1089,8 @@ async function launchApp() {
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("appShell").style.display = "flex";
   document.getElementById("headerUser").textContent = `${currentUser.displayName} (${currentUser.role})`;
+  const buildEl = document.getElementById("headerBuild");
+  if (buildEl) { buildEl.textContent = BUILD_VERSION; buildEl.style.display = ""; }
   document.querySelectorAll(".admin-only").forEach(el => {
     el.style.display = currentUser.role.toLowerCase() === "admin" ? "" : "none";
   });
