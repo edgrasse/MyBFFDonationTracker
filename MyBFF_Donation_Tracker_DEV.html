@@ -361,6 +361,17 @@ a:hover { text-decoration: underline; }
 .role-editor      { background: #dbeafe; color: #1e40af; }
 .role-contributor { background: #d1fae5; color: #065f46; }
 .role-member      { background: #f3f4f6; color: #6b7280; }
+/* ── MARKETING ── */
+.ct-draft         { background:#f3f4f6;color:#374151; }
+.ct-in-review     { background:#dbeafe;color:#1e40af; }
+.ct-approved      { background:#d1fae5;color:#065f46; }
+.ct-needs-changes { background:#fee2e2;color:#991b1b; }
+.ct-posted        { background:#ede9fe;color:#5b21b6; }
+.ct-facebook      { background:#dbeafe;color:#1e40af; }
+.ct-instagram     { background:#fce7f3;color:#9d174d; }
+.ct-email         { background:#fef3c7;color:#92400e; }
+.ct-flyer         { background:#d1fae5;color:#065f46; }
+.ct-other         { background:#f3f4f6;color:#374151; }
 </style>
 
 <script>
@@ -470,8 +481,13 @@ if ('serviceWorker' in navigator) {
       <div id="evListView">
         <div class="page-header">
           <div class="section-title" style="margin:0">Events</div>
-          <div id="evAddBtn" style="display:none">
-            <button class="btn btn-gold btn-sm" onclick="openEventModal()">+ Create Event</button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select class="filter-select" id="evYearFilter" onchange="renderEventsPage()" style="font-size:13px">
+              <option value="">All Years</option>
+            </select>
+            <div id="evAddBtn" style="display:none">
+              <button class="btn btn-gold btn-sm" onclick="openEventModal()">+ Create Event</button>
+            </div>
           </div>
         </div>
         <div id="evCardGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;margin-top:8px"></div>
@@ -660,14 +676,43 @@ if ('serviceWorker' in navigator) {
 
     <!-- MARKETING -->
     <div class="page" id="page-marketing">
-      <div class="section-title">Marketing</div>
-      <div class="card" style="text-align:center;padding:48px">
-        <div style="font-size:48px;margin-bottom:16px">📣</div>
-        <div style="font-size:18px;font-weight:700;color:var(--navy);margin-bottom:8px">Marketing Hub</div>
-        <div style="font-size:14px;color:var(--gray);max-width:400px;margin:0 auto;line-height:1.7">
-          Content creation, approval workflow, and posting schedule coming in Phase 3.<br><br>
-          <span id="mktgRoleNote"></span>
+      <div class="page-header">
+        <div class="section-title" style="margin:0">Marketing</div>
+        <div id="mktgAddBtn" style="display:none">
+          <button class="btn btn-gold btn-sm" onclick="openContentModal()">+ Create Content</button>
+          <button class="btn btn-sm btn-outline" onclick="seedTestContent()" style="margin-left:6px;font-size:11px">🌱 Seed Test Data</button>
         </div>
+      </div>
+      <!-- Sub-tabs -->
+      <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px">
+        <button class="sub-tab active" onclick="showSubTab('marketing','sub-mktg-review')">Needs Review</button>
+        <button class="sub-tab" onclick="showSubTab('marketing','sub-mktg-all')">All Content</button>
+      </div>
+      <!-- Needs Review -->
+      <div class="sub-page active" id="sub-mktg-review">
+        <div id="mktgReviewList"></div>
+      </div>
+      <!-- All Content -->
+      <div class="sub-page" id="sub-mktg-all" style="display:none">
+        <div class="filters" style="margin-bottom:16px">
+          <select class="filter-select" id="mktgEventFilter" onchange="renderAllContent()">
+            <option value="">All Events</option>
+          </select>
+          <select class="filter-select" id="mktgChannelFilter" onchange="renderAllContent()">
+            <option value="">All Channels</option>
+            <option>Facebook</option><option>Instagram</option>
+            <option>Email</option><option>Flyer</option><option>Other</option>
+          </select>
+          <select class="filter-select" id="mktgStatusFilter" onchange="renderAllContent()">
+            <option value="">All Statuses</option>
+            <option value="Draft">Draft</option>
+            <option value="In Review">In Review</option>
+            <option value="Approved">Approved</option>
+            <option value="Needs Changes">Needs Changes</option>
+            <option value="Posted">Posted</option>
+          </select>
+        </div>
+        <div id="mktgAllList"></div>
       </div>
     </div>
 
@@ -983,12 +1028,16 @@ if ('serviceWorker' in navigator) {
     <div class="modal-title">Add User</div>
     <div class="form-grid single">
       <div class="form-group">
-        <label class="form-label">Display Name</label>
-        <input type="text" class="form-input" id="uDisplayName" placeholder="e.g. Kris">
+        <label class="form-label">First Name <span class="req">*</span></label>
+        <input type="text" class="form-input" id="uFirstName" placeholder="e.g. Kris">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Last Name</label>
+        <input type="text" class="form-input" id="uLastName" placeholder="e.g. Grasse">
       </div>
       <div class="form-group">
         <label class="form-label">Username</label>
-        <input type="text" class="form-input" id="uUsername" placeholder="e.g. kris123">
+        <input type="text" class="form-input" id="uUsername" placeholder="e.g. krisgrasse">
       </div>
       <div class="form-group">
         <label class="form-label">Password</label>
@@ -1023,8 +1072,8 @@ if ('serviceWorker' in navigator) {
         <input type="text" class="form-input" id="editUserNewUsername" placeholder="lowercase, no spaces">
       </div>
       <div class="form-group">
-        <label class="form-label">Display Name</label>
-        <input type="text" class="form-input" id="editUserDisplay">
+        <label class="form-label">First Name <span class="req">*</span></label>
+        <input type="text" class="form-input" id="editUserDisplay" placeholder="e.g. Kris">
       </div>
       <div class="form-group">
         <label class="form-label">Last Name</label>
@@ -1091,6 +1140,10 @@ if ('serviceWorker' in navigator) {
           <option value="Complete">Complete</option>
           <option value="Cancelled">Cancelled</option>
         </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Revenue Raised ($) <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <input type="number" class="form-input" id="evRevenue" placeholder="0.00" step="0.01" min="0">
       </div>
       <div class="form-group" style="grid-column:1/-1">
         <label class="form-label">Details / Notes</label>
@@ -1277,7 +1330,111 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
-<!-- EVENT TYPE MODAL -->
+<!-- EVENT COMPLETE MODAL -->
+<div class="modal-overlay" id="eventCompleteModal">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" onclick="closeModal('eventCompleteModal')">&#10005;</button>
+    <div class="modal-title">🎉 Mark Event Complete</div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:20px;line-height:1.6">
+      Great work! Before closing out <strong id="ecEventName"></strong>, capture a few final details.
+    </p>
+    <div class="form-grid single">
+      <div class="form-group">
+        <label class="form-label">Total Revenue Raised ($)</label>
+        <input type="number" class="form-input" id="ecRevenue" placeholder="0.00" step="0.01" min="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Final Notes <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <textarea class="form-input form-textarea" id="ecNotes" rows="3" placeholder="Any final thoughts, issues, or wins from the event..."></textarea>
+      </div>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px;font-size:13px;color:#166534">
+        ✅ A <strong>Post-Event Reflection</strong> task will be automatically created for all active team members so everyone can share their thoughts and notes for next year.
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal('eventCompleteModal')">Cancel</button>
+      <button class="btn btn-gold" onclick="confirmCompleteEvent()">Complete Event</button>
+    </div>
+    <input type="hidden" id="ecEventName_hidden">
+  </div>
+</div>
+
+<!-- CONTENT MODAL (create/edit) -->
+<div class="modal-overlay" id="contentModal">
+  <div class="modal" style="max-width:600px">
+    <button class="modal-close" onclick="closeModal('contentModal')">&#10005;</button>
+    <div class="modal-title" id="contentModalTitle">Create Content</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Channel <span class="req">*</span></label>
+        <select class="form-input" id="ctChannel">
+          <option value="">Select...</option>
+          <option>Facebook</option><option>Instagram</option>
+          <option>Email</option><option>Flyer</option><option>Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Event</label>
+        <select class="form-input" id="ctEvent">
+          <option value="">— Not event-specific —</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Title <span class="req">*</span></label>
+        <input type="text" class="form-input" id="ctTitle" placeholder="e.g. Cornhole Tournament Save the Date">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Content / Draft Text</label>
+        <textarea class="form-input form-textarea" id="ctText" rows="5" placeholder="Write the post, email, or describe the flyer content here..."></textarea>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">File Link <span style="font-size:11px;color:var(--gray);font-weight:400">Google Drive, Canva, etc.</span></label>
+        <input type="text" class="form-input" id="ctFileLink" placeholder="https://...">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Assign Reviewers</label>
+        <div id="ctReviewerChecks" style="border:2px solid var(--border);border-radius:7px;padding:8px 12px;max-height:120px;overflow-y:auto;background:white;display:flex;flex-direction:column;gap:4px"></div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal('contentModal')">Cancel</button>
+      <button class="btn btn-outline" onclick="saveContent('Draft')">Save as Draft</button>
+      <button class="btn btn-gold" onclick="saveContent('In Review')">Submit for Review</button>
+    </div>
+    <input type="hidden" id="ctEditingId">
+  </div>
+</div>
+
+<!-- CONTENT DETAIL MODAL -->
+<div class="modal-overlay" id="contentDetailModal">
+  <div class="modal" style="max-width:640px">
+    <button class="modal-close" onclick="closeModal('contentDetailModal')">&#10005;</button>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div>
+        <div class="modal-title" style="margin-bottom:4px" id="cdTitle">Content</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span id="cdChannel" style="font-size:12px;background:var(--gray-light);padding:2px 10px;border-radius:20px;font-weight:600"></span>
+          <span id="cdStatus"></span>
+          <span id="cdEvent" style="font-size:12px;color:var(--gray)"></span>
+        </div>
+      </div>
+      <div id="cdEditorActions" style="display:flex;gap:8px"></div>
+    </div>
+    <div id="cdText" style="background:#f9f7f3;border-radius:8px;padding:14px;font-size:14px;line-height:1.7;margin-bottom:12px;white-space:pre-wrap"></div>
+    <div id="cdFileLink" style="margin-bottom:16px"></div>
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gold);margin-bottom:10px">Comments & Review</div>
+    <div id="cdComments" style="max-height:220px;overflow-y:auto;margin-bottom:14px"></div>
+    <div id="cdReviewActions" style="display:none">
+      <textarea class="form-input form-textarea" id="cdCommentText" rows="2" placeholder="Add a comment, approval note, or change request..." style="margin-bottom:8px"></textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-outline" onclick="submitReview('comment')">💬 Comment</button>
+        <button class="btn btn-sm btn-green" onclick="submitReview('approve')">✅ Approve</button>
+        <button class="btn btn-sm btn-danger" onclick="submitReview('changes')">↩️ Request Changes</button>
+      </div>
+    </div>
+    <input type="hidden" id="cdContentId">
+  </div>
+</div>
 <div class="modal-overlay" id="eventTypeModal">
   <div class="modal" style="max-width:380px">
     <button class="modal-close" onclick="closeModal('eventTypeModal')">&#10005;</button>
@@ -1330,7 +1487,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.3-DEV · Event Types + Donations · Apr 18 2026 · 05:14 PM";
+const BUILD_VERSION = "v5.4-DEV · Apr 18 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -1381,6 +1538,8 @@ let ALL_VENDORS = [];
 let ALL_EVENTS = []; // loaded from MyBFFEvents — no hardcoded fallback
 let ALL_EVENT_TYPES = []; // loaded from MyBFFEventTypes
 let ALL_DON_CATS = [];   // loaded from MyBFFDonationCategories
+let ALL_CONTENT = [];         // loaded from MyBFFContent
+let ALL_CONTENT_COMMENTS = []; // loaded from MyBFFContentComments
 let ALL_EVENTS_DATA = []; // full event objects from Supabase
 let CURRENT_EVENT_VIEW = null; // event name being drilled into
 let PICKUP_PEOPLE = [];
@@ -1480,7 +1639,11 @@ async function launchApp() {
   const role = (currentUser.role || "member").toLowerCase();
   document.getElementById("headerUser").textContent = `${currentUser.displayName} (${role.charAt(0).toUpperCase()+role.slice(1)})`;
   const buildEl = document.getElementById("headerBuild");
-  if (buildEl) { buildEl.textContent = BUILD_VERSION; buildEl.style.display = ""; }
+  if (buildEl) {
+    const loadedTime = new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+    buildEl.textContent = BUILD_VERSION + " · Loaded " + loadedTime;
+    buildEl.style.display = "";
+  }
 
   // Admin-only elements
   document.querySelectorAll(".admin-only").forEach(el => {
@@ -1511,7 +1674,7 @@ async function launchApp() {
 async function loadAll() {
   await loadDonations();
   await Promise.all([loadVendors(), loadEvents(), loadPickups(), loadUsers(), loadEventTypes(), loadDonationCategories()]);
-  await Promise.all([loadTasks(), loadTaskTemplates(), loadTaskNotes()]);
+  await Promise.all([loadTasks(), loadTaskTemplates(), loadTaskNotes(), loadContent(), loadContentComments()]);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1601,6 +1764,7 @@ async function loadEvents() {
     }
   } catch(e) { console.error("loadEvents:", e); }
   populateEventDropdowns();
+  populateEvYearFilter();
 }
 
 async function loadEventTypes() {
@@ -1675,11 +1839,15 @@ async function loadPickups() {
 async function loadUsers() {
   try {
     const rows = await sbGet("MyBFFUsers", "order=display_name.asc");
-    APP_USERS = (rows || []).map(r => ({
-      username: r.username, role: r.role || "member",
-      displayName: r.display_name || r.username,
-      lastName: r.last_name || "", _password: r.password
-    }));
+    APP_USERS = (rows || []).map(r => {
+      const first = r.first_name || r.display_name || r.username;
+      const last = r.last_name || "";
+      const displayName = last ? `${first} ${last}` : first;
+      return {
+        username: r.username, role: r.role || "member",
+        displayName, firstName: first, lastName: last, _password: r.password
+      };
+    });
     populateWhoDropdown();
     renderAdminUsers();
   } catch(e) { console.error("loadUsers:", e); }
@@ -2217,20 +2385,25 @@ function renderDashboard() {
     return assignees.includes(myName) && t.status !== "Done" && t.status !== "N/A";
   });
   const now = new Date();
-  // Find next upcoming event by date
-  const upcomingEvents = Object.entries(EVENT_DATES)
-    .filter(([, d]) => d && new Date(d) >= now)
-    .sort((a, b) => new Date(a[1]) - new Date(b[1]));
+  const upcomingEvents = ALL_EVENTS_DATA
+    .filter(e => e.event_date && new Date(e.event_date+"T12:00:00") >= now)
+    .sort((a,b) => new Date(a.event_date) - new Date(b.event_date));
   const nextEvent = upcomingEvents[0];
+  const totalRevenue = ALL_EVENTS_DATA
+    .filter(e => String(e.year) === String(curYear) && e.revenue_raised)
+    .reduce((s,e) => s + (parseFloat(e.revenue_raised)||0), 0);
   const evCard = document.getElementById("dashEventsCard");
   if (evCard) evCard.innerHTML = `
     <div style="margin-bottom:12px">
       <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:600;margin-bottom:4px">Next Event</div>
       ${nextEvent
-        ? `<div style="font-weight:700;font-size:15px">${nextEvent[0]}</div>
-           <div style="font-size:12px;color:var(--gray)">📅 ${nextEvent[1]}</div>`
+        ? `<div style="font-weight:700;font-size:15px">${esc(nextEvent.name)}</div>
+           <div style="font-size:12px;color:var(--gray)">📅 ${nextEvent.event_date}${nextEvent.event_time ? " · "+formatTime12(nextEvent.event_time) : ""}</div>`
         : `<div style="font-size:13px;color:var(--gray)">No upcoming events with dates set</div>`}
     </div>
+    ${totalRevenue > 0 ? `<div style="background:#d1fae5;border-radius:8px;padding:8px 12px;font-size:13px;color:#065f46;margin-bottom:12px">
+      💰 <strong>$${totalRevenue.toLocaleString("en-US",{maximumFractionDigits:0})}</strong> raised across events in ${curYear}
+    </div>` : ""}
     <div style="border-top:1px solid var(--border);padding-top:12px">
       <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:600;margin-bottom:6px">Your Open Tasks</div>
       ${myTasks.length
@@ -2352,6 +2525,7 @@ function renderEventDetailCard(ev) {
         <div style="display:flex;flex-direction:column;gap:6px;font-size:14px">
           ${dateStr ? `<div>📅 <strong>${dateStr}</strong>${timeStr ? " · " + timeStr : ""}</div>` : ""}
           ${ev.location ? `<div>📍 ${esc(ev.location)}</div>` : ""}
+          ${ev.revenue_raised ? `<div style="color:#065f46;font-weight:600">💰 Revenue Raised: $${parseFloat(ev.revenue_raised).toLocaleString("en-US",{maximumFractionDigits:0})}</div>` : ""}
           ${ev.details ? `<div style="color:var(--gray);margin-top:6px;line-height:1.6">${esc(ev.details)}</div>` : ""}
           ${!dateStr && !ev.location && !ev.details ? `<div style="color:var(--gray);font-style:italic">No details added yet.</div>` : ""}
         </div>
@@ -2512,9 +2686,12 @@ function renderEventsPage() {
   const container = document.getElementById("evCardGrid");
   if (!container) return;
 
-  // Show Create Event button for editor+
+  // Populate year filter and show Create button
+  populateEvYearFilter();
   const addBtn = document.getElementById("evAddBtn");
   if (addBtn) addBtn.style.display = isEditor() ? "" : "none";
+
+  const yearFilter = document.getElementById("evYearFilter")?.value || "";
 
   if (!ALL_EVENTS_DATA.length && !ALL_EVENTS.length) {
     container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--gray)">
@@ -2526,10 +2703,20 @@ function renderEventsPage() {
   // Build cards from ALL_EVENTS_DATA; fall back to name-only entries for legacy events
   const dataNames = new Set(ALL_EVENTS_DATA.map(e => e.name));
   const legacyOnly = ALL_EVENTS.filter(n => !dataNames.has(n));
-  const allEvData = [
+  let allEvData = [
     ...ALL_EVENTS_DATA,
     ...legacyOnly.map(n => ({ name: n, event_date: EVENT_DATES[n] || null }))
   ];
+
+  // Apply year filter
+  if (yearFilter) allEvData = allEvData.filter(e => String(e.year) === String(yearFilter));
+
+  if (!allEvData.length) {
+    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--gray)">
+      No events found for ${yearFilter}.
+    </div>`;
+    return;
+  }
 
   // Sort: active/planning first by date, then complete/cancelled
   const order = { Active:0, Planning:1, Complete:2, Cancelled:3 };
@@ -2577,8 +2764,9 @@ function renderEventsPage() {
             </div>` : `<div style="font-size:12px;color:var(--gray)">No tasks yet</div>`}
         </div>
         <div class="event-card-footer">
-          <div style="font-size:12px;color:var(--gray)">
-            ${myOpenTasks.length ? `<span style="color:var(--gold);font-weight:600">⚡ ${myOpenTasks.length} task${myOpenTasks.length>1?"s":""} assigned to you</span>` : "No tasks assigned to you"}
+          <div style="font-size:12px;color:var(--gray);display:flex;flex-direction:column;gap:2px">
+            ${myOpenTasks.length ? `<span style="color:var(--gold);font-weight:600">⚡ ${myOpenTasks.length} task${myOpenTasks.length>1?"s":""} assigned to you</span>` : `<span>No tasks assigned to you</span>`}
+            ${ev.revenue_raised ? `<span style="color:#065f46;font-weight:600">💰 $${parseFloat(ev.revenue_raised).toLocaleString("en-US",{maximumFractionDigits:0})} raised</span>` : ""}
           </div>
           <span style="font-size:12px;color:var(--gold);font-weight:600">View →</span>
         </div>
@@ -2606,6 +2794,7 @@ function openEventModal() {
   document.getElementById("evYear").value = new Date().getFullYear();
   document.getElementById("evStatus").value = "Planning";
   document.getElementById("evDetails").value = "";
+  document.getElementById("evRevenue").value = "";
   populateEventTypeDropdowns();
   document.getElementById("evEventType").value = "";
   openModal("eventModal");
@@ -2623,6 +2812,7 @@ function openEditEventModal(name) {
   document.getElementById("evYear").value = ev.year || "";
   document.getElementById("evStatus").value = ev.status || "Planning";
   document.getElementById("evDetails").value = ev.details || "";
+  document.getElementById("evRevenue").value = ev.revenue_raised || "";
   populateEventTypeDropdowns();
   document.getElementById("evEventType").value = ev.event_type || "";
   openModal("eventModal");
@@ -2633,45 +2823,131 @@ async function saveEvent() {
   const name = document.getElementById("evName").value.trim();
   if (!name) { showToast("Event name is required.", "error"); return; }
   const editingId = document.getElementById("evEditingId").value;
+  const newStatus = document.getElementById("evStatus").value || "Planning";
+
+  // Check if transitioning to Complete — intercept with completion modal
+  const oldEv = editingId ? ALL_EVENTS_DATA.find(e => String(e.id) === String(editingId)) : null;
+  const wasComplete = oldEv?.status === "Complete";
+  if (newStatus === "Complete" && !wasComplete) {
+    // Store pending save data and open completion modal
+    closeModal("eventModal");
+    document.getElementById("ecEventName").textContent = name;
+    document.getElementById("ecEventName_hidden").value = name;
+    document.getElementById("ecRevenue").value = document.getElementById("evRevenue").value || "";
+    document.getElementById("ecNotes").value = "";
+    // Store the full row in a temp global for confirmCompleteEvent to use
+    window._pendingCompleteEvent = {
+      editingId, name,
+      event_type:  document.getElementById("evEventType").value || null,
+      event_date:  document.getElementById("evDate").value || null,
+      event_time:  document.getElementById("evTime").value || null,
+      location:    document.getElementById("evLocation").value.trim() || null,
+      year:        document.getElementById("evYear").value.trim() || null,
+      details:     document.getElementById("evDetails").value.trim() || null,
+    };
+    openModal("eventCompleteModal");
+    return;
+  }
+
   const row = {
     name,
-    event_type:  document.getElementById("evEventType").value || null,
-    event_date:  document.getElementById("evDate").value || null,
-    event_time:  document.getElementById("evTime").value || null,
-    location:    document.getElementById("evLocation").value.trim() || null,
-    year:        document.getElementById("evYear").value.trim() || null,
-    status:      document.getElementById("evStatus").value || "Planning",
-    details:     document.getElementById("evDetails").value.trim() || null,
+    event_type:     document.getElementById("evEventType").value || null,
+    event_date:     document.getElementById("evDate").value || null,
+    event_time:     document.getElementById("evTime").value || null,
+    location:       document.getElementById("evLocation").value.trim() || null,
+    year:           document.getElementById("evYear").value.trim() || null,
+    status:         newStatus,
+    details:        document.getElementById("evDetails").value.trim() || null,
+    revenue_raised: parseFloat(document.getElementById("evRevenue").value) || null,
   };
+  await _doSaveEvent(editingId, name, row);
+}
+
+async function _doSaveEvent(editingId, name, row) {
   try {
     if (editingId) {
-      // UPDATE existing record by id
       await sbUpdate("MyBFFEvents", editingId, row, "id");
       const idx = ALL_EVENTS_DATA.findIndex(e => String(e.id) === String(editingId));
       if (idx >= 0) ALL_EVENTS_DATA[idx] = { ...ALL_EVENTS_DATA[idx], ...row };
     } else {
-      // INSERT new record
       const result = await sbInsert("MyBFFEvents", row);
       const newRec = Array.isArray(result) ? result[0] : result;
-      if (newRec) ALL_EVENTS_DATA.push(newRec);
-      else ALL_EVENTS_DATA.push(row);
+      ALL_EVENTS_DATA.push(newRec || row);
     }
-    // Rebuild ALL_EVENTS list and EVENT_DATES lookup
     ALL_EVENTS = ALL_EVENTS_DATA.map(e => e.name).filter(Boolean);
     EVENT_DATES = {};
     ALL_EVENTS_DATA.forEach(e => { if (e.name && e.event_date) EVENT_DATES[e.name] = e.event_date; });
     closeModal("eventModal");
     showToast("Event saved!", "success");
     populateEventDropdowns();
-    if (CURRENT_EVENT_VIEW) {
-      CURRENT_EVENT_VIEW = name;
-      showEventDetail(name);
-    } else {
-      renderEventsPage();
-    }
+    populateEvYearFilter();
+    if (CURRENT_EVENT_VIEW) { CURRENT_EVENT_VIEW = name; showEventDetail(name); }
+    else renderEventsPage();
   } catch(e) {
     showToast("Error saving event: " + e.message, "error");
   }
+}
+
+async function confirmCompleteEvent() {
+  const pending = window._pendingCompleteEvent;
+  if (!pending) return;
+  const revenue = parseFloat(document.getElementById("ecRevenue").value) || null;
+  const notes = document.getElementById("ecNotes").value.trim();
+  const row = {
+    ...pending,
+    status: "Complete",
+    revenue_raised: revenue,
+    details: notes
+      ? ((pending.details ? pending.details + "\n\n" : "") + "Completion Notes: " + notes)
+      : pending.details,
+  };
+  await _doSaveEvent(pending.editingId, pending.name, row);
+  closeModal("eventCompleteModal");
+  window._pendingCompleteEvent = null;
+  // Auto-generate Post-Event Reflection tasks for all active users
+  await generateReflectionTasks(pending.name);
+}
+
+async function generateReflectionTasks(eventName) {
+  const now = new Date().toISOString();
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + 14); // 2 weeks to complete
+  const dueDateStr = dueDate.toISOString().split("T")[0];
+  const taskName = `Post-Event Reflection: ${eventName}`;
+  let created = 0;
+  for (const user of APP_USERS) {
+    // Skip if task already exists for this user and event
+    const exists = ALL_TASKS.some(t =>
+      t.task_name === taskName &&
+      (t.assigned_to || "").split(",").map(a=>a.trim()).includes(user.displayName)
+    );
+    if (exists) continue;
+    const row = {
+      id: genId(), event_name: eventName,
+      event_year: new Date().getFullYear(),
+      task_name: taskName,
+      assigned_to: user.displayName,
+      due_date: dueDateStr,
+      status: "Not Started",
+      sort_order: 999,
+      created_at: now, updated_at: now
+    };
+    try { await sbInsert("MyBFFTasks", row); created++; } catch(e) { console.warn("Reflection task error:", e); }
+  }
+  await loadTasks();
+  if (created > 0) showToast(`✅ ${created} Post-Event Reflection task${created>1?"s":""} created for the team.`);
+}
+
+function populateEvYearFilter() {
+  const sel = document.getElementById("evYearFilter");
+  if (!sel) return;
+  const years = [...new Set(ALL_EVENTS_DATA.map(e => e.year).filter(Boolean))].sort((a,b) => b-a);
+  const curYear = String(new Date().getFullYear());
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">All Years</option>` +
+    years.map(y => `<option value="${y}" ${y===cur?"selected":""}>${y}</option>`).join("");
+  // Default to current year if no selection yet
+  if (!cur && years.includes(curYear)) sel.value = curYear;
 }
 
 async function deleteEvent(name) {
@@ -3205,7 +3481,7 @@ function renderAdminUsers() {
   el.innerHTML = `
     <table style="width:100%;border-collapse:collapse;font-size:14px">
       <thead><tr>
-        <th style="text-align:left;padding:8px 12px;background:var(--navy);color:white;font-size:12px;text-transform:uppercase;letter-spacing:.5px">Display Name</th>
+        <th style="text-align:left;padding:8px 12px;background:var(--navy);color:white;font-size:12px;text-transform:uppercase;letter-spacing:.5px">First Name</th>
         <th style="text-align:left;padding:8px 12px;background:var(--navy);color:white;font-size:12px;text-transform:uppercase;letter-spacing:.5px">Last Name</th>
         <th style="text-align:left;padding:8px 12px;background:var(--navy);color:white;font-size:12px;text-transform:uppercase;letter-spacing:.5px">Username</th>
         <th style="text-align:left;padding:8px 12px;background:var(--navy);color:white;font-size:12px;text-transform:uppercase;letter-spacing:.5px">Role</th>
@@ -3231,7 +3507,7 @@ function openEditUserModal(username) {
   if (!u) return;
   document.getElementById("editUserUsername").value = username;
   document.getElementById("editUserNewUsername").value = username;
-  document.getElementById("editUserDisplay").value = u.displayName || "";
+  document.getElementById("editUserDisplay").value = u.firstName || u.displayName || "";
   document.getElementById("editUserLastName").value = u.lastName || "";
   document.getElementById("editUserPassword").value = "";
   const role = (u.role || "member").toLowerCase();
@@ -3243,19 +3519,20 @@ function openEditUserModal(username) {
 async function saveEditUser() {
   const oldUsername = document.getElementById("editUserUsername").value;
   const newUsername = document.getElementById("editUserNewUsername").value.trim().toLowerCase().replace(/\s+/g, "");
-  const displayName = document.getElementById("editUserDisplay").value.trim();
+  const firstName = document.getElementById("editUserDisplay").value.trim();
   const lastName = document.getElementById("editUserLastName").value.trim();
+  const displayName = lastName ? `${firstName} ${lastName}` : firstName;
   const newPassword = document.getElementById("editUserPassword").value.trim();
   const newRole = document.getElementById("editUserRole").value;
   if (!oldUsername || !newUsername) return;
   try {
     if (newUsername !== oldUsername) {
       const existing = APP_USERS.find(x => x.username === oldUsername);
-      const newRow = { username: newUsername, display_name: displayName || newUsername, last_name: lastName, role: newRole, password: newPassword || existing?._password || "" };
+      const newRow = { username: newUsername, display_name: displayName, first_name: firstName, last_name: lastName, role: newRole, password: newPassword || existing?._password || "" };
       await sbInsert("MyBFFUsers", newRow);
       await sbDelete("MyBFFUsers", oldUsername, "username");
     } else {
-      const row = { display_name: displayName, role: newRole, last_name: lastName };
+      const row = { display_name: displayName, first_name: firstName, role: newRole, last_name: lastName };
       if (newPassword) row.password = newPassword;
       await sbUpdate("MyBFFUsers", oldUsername, row, "username");
     }
@@ -3436,14 +3713,16 @@ function openUserModal() { openModal("userModal"); }
 function openPickupModal() { openModal("pickupModal"); }
 
 async function saveUser() {
-  const un = document.getElementById("uUsername").value.trim();
+  const un = document.getElementById("uUsername").value.trim().toLowerCase().replace(/\s+/g,"");
   const pw = document.getElementById("uPassword").value.trim();
-  const dn = document.getElementById("uDisplayName").value.trim();
+  const firstName = document.getElementById("uFirstName").value.trim();
+  const lastName = document.getElementById("uLastName").value.trim();
   const role = document.getElementById("uRole").value;
-  if (!un || !pw) { showToast("Username and password required.", "error"); return; }
+  if (!un || !pw || !firstName) { showToast("First name, username and password required.", "error"); return; }
+  const displayName = lastName ? `${firstName} ${lastName}` : firstName;
   try {
-    await sbInsert("MyBFFUsers", { username: un, password: pw, role, display_name: dn || un });
-    APP_USERS.push({ username: un, role, displayName: dn || un });
+    await sbInsert("MyBFFUsers", { username: un, password: pw, role, display_name: displayName, first_name: firstName, last_name: lastName });
+    APP_USERS.push({ username: un, role, displayName, firstName, lastName });
     closeModal("userModal");
     showToast("User added!", "success");
     renderAdminUsers();
@@ -3693,6 +3972,7 @@ function showPage(name) {
   else if (name === "events") { CURRENT_EVENT_VIEW = null; document.getElementById("evListView").style.display = ""; document.getElementById("evDetailView").style.display = "none"; renderEventsPage(); }
   else if (name === "reports") renderReport();
   else if (name === "admin") { renderAdminUsers(); renderAdminEvents(); renderAdminPickups(); renderTemplates(); renderEventTypes(); renderDonCats(); }
+  else if (name === "marketing") renderMarketing();
   else if (name === "help") renderHelp();
   else if (name === "dashboard") renderDashboard();
 }
@@ -3788,6 +4068,348 @@ function grantedBadge(g) {
   if (g === "No") return "badge-no";
   if (g === "No Answer") return "badge-noanswer";
   return "badge-blank";
+}
+
+// ═══════════════════════════════════════════════════════════
+// MARKETING — PHASE 2
+// ═══════════════════════════════════════════════════════════
+async function loadContent() {
+  try {
+    const rows = await sbGet("MyBFFContent", "order=created_at.desc");
+    ALL_CONTENT = (rows || []).filter(r => r.id);
+  } catch(e) { console.warn("loadContent:", e.message); ALL_CONTENT = []; }
+}
+
+async function loadContentComments() {
+  try {
+    const rows = await sbGet("MyBFFContentComments", "order=created_at.asc");
+    ALL_CONTENT_COMMENTS = (rows || []).filter(r => r.id);
+  } catch(e) { console.warn("loadContentComments:", e.message); ALL_CONTENT_COMMENTS = []; }
+}
+
+function ctStatusClass(status) {
+  return "ct-" + (status||"draft").toLowerCase().replace(/\s+/g,"-").replace(/[^a-z-]/g,"");
+}
+function ctChannelClass(ch) {
+  return "ct-" + (ch||"other").toLowerCase().replace(/\s+/g,"-");
+}
+function ctStatusBadge(status) {
+  return `<span class="badge ${ctStatusClass(status)}" style="font-size:11px">${status||"Draft"}</span>`;
+}
+function ctChannelBadge(ch) {
+  return `<span class="badge ${ctChannelClass(ch)}" style="font-size:11px">${ch||"Other"}</span>`;
+}
+
+function renderMarketing() {
+  // Show create button for editors+
+  const addBtn = document.getElementById("mktgAddBtn");
+  if (addBtn) addBtn.style.display = isEditor() ? "" : "none";
+  // Populate event filter
+  const evFilter = document.getElementById("mktgEventFilter");
+  if (evFilter) {
+    const names = ALL_EVENTS.map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join("");
+    evFilter.innerHTML = `<option value="">All Events</option>` + names;
+  }
+  renderReviewQueue();
+  renderAllContent();
+}
+
+function renderReviewQueue() {
+  const container = document.getElementById("mktgReviewList");
+  if (!container) return;
+  const myName = currentUser?.displayName || "";
+  // Show items "In Review" — editors see all, contributors see ones assigned to them
+  let items = ALL_CONTENT.filter(c => c.status === "In Review");
+  if (!isEditor()) {
+    // Contributors only see items where they are a reviewer
+    items = items.filter(c => {
+      const comments = ALL_CONTENT_COMMENTS.filter(x => x.content_id === c.id);
+      // Show if assigned reviewer (stored as comma-separated in reviewers field)
+      return (c.reviewers||"").split(",").map(r=>r.trim()).includes(myName);
+    });
+  }
+  if (!items.length) {
+    container.innerHTML = `<div class="empty-state" style="padding:40px 0">
+      <div style="font-size:40px;margin-bottom:12px">✅</div>
+      <div style="font-weight:600;margin-bottom:6px">Nothing pending review</div>
+      <div style="font-size:14px;color:var(--gray)">All content is up to date.</div>
+    </div>`;
+    return;
+  }
+  container.innerHTML = items.map(c => contentCard(c, true)).join("");
+}
+
+function renderAllContent() {
+  const container = document.getElementById("mktgAllList");
+  if (!container) return;
+  const evFilter = document.getElementById("mktgEventFilter")?.value || "";
+  const chFilter = document.getElementById("mktgChannelFilter")?.value || "";
+  const stFilter = document.getElementById("mktgStatusFilter")?.value || "";
+  let items = [...ALL_CONTENT];
+  if (evFilter) items = items.filter(c => c.event_name === evFilter);
+  if (chFilter) items = items.filter(c => c.channel === chFilter);
+  if (stFilter) items = items.filter(c => c.status === stFilter);
+  if (!items.length) {
+    container.innerHTML = `<div style="color:var(--gray);font-size:14px;padding:24px 0;text-align:center">
+      No content found.${isEditor() ? " Use <strong>+ Create Content</strong> to add the first piece." : ""}
+    </div>`;
+    return;
+  }
+  container.innerHTML = items.map(c => contentCard(c, false)).join("");
+}
+
+function contentCard(c, reviewMode) {
+  const comments = ALL_CONTENT_COMMENTS.filter(x => x.content_id === c.id);
+  const approvals = comments.filter(x => x.action === "approve").length;
+  const changeReqs = comments.filter(x => x.action === "changes").length;
+  const snippet = (c.content_text||"").substring(0,120);
+  return `
+    <div class="card" style="margin-bottom:14px;cursor:pointer" onclick="openContentDetail('${c.id}')">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div>
+          <div style="font-weight:700;font-size:15px;margin-bottom:6px">${esc(c.title||"Untitled")}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            ${ctChannelBadge(c.channel)}
+            ${ctStatusBadge(c.status)}
+            ${c.event_name ? `<span style="font-size:12px;color:var(--gray)">${esc(c.event_name)}</span>` : ""}
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--gray);text-align:right;flex-shrink:0">
+          <div>v${c.version||1} · by ${esc(c.created_by||"")}</div>
+          ${approvals ? `<div style="color:#065f46;font-weight:600">✅ ${approvals} approved</div>` : ""}
+          ${changeReqs ? `<div style="color:#991b1b;font-weight:600">↩️ ${changeReqs} change req.</div>` : ""}
+        </div>
+      </div>
+      ${snippet ? `<div style="font-size:13px;color:var(--gray);line-height:1.5">${esc(snippet)}${c.content_text?.length>120?"…":""}</div>` : ""}
+      ${c.file_link ? `<div style="margin-top:8px"><a href="${esc(c.file_link)}" target="_blank" onclick="event.stopPropagation()" style="font-size:13px">📎 View File</a></div>` : ""}
+      <div style="margin-top:10px;font-size:12px;color:var(--gray)">💬 ${comments.length} comment${comments.length!==1?"s":""}</div>
+    </div>`;
+}
+
+function openContentDetail(contentId) {
+  const c = ALL_CONTENT.find(x => x.id === contentId);
+  if (!c) return;
+  document.getElementById("cdContentId").value = contentId;
+  document.getElementById("cdTitle").textContent = c.title || "Untitled";
+  document.getElementById("cdChannel").innerHTML = ctChannelBadge(c.channel);
+  document.getElementById("cdStatus").innerHTML = ctStatusBadge(c.status);
+  document.getElementById("cdEvent").textContent = c.event_name || "";
+  document.getElementById("cdText").textContent = c.content_text || "(No content text)";
+  const fileLinkEl = document.getElementById("cdFileLink");
+  fileLinkEl.innerHTML = c.file_link
+    ? `<a href="${esc(c.file_link)}" target="_blank" style="font-size:13px">📎 View File / Design</a>`
+    : "";
+  // Editor actions
+  const editorActions = document.getElementById("cdEditorActions");
+  if (isEditor()) {
+    editorActions.innerHTML = `
+      <button class="btn btn-outline btn-sm" onclick="openContentModalEdit('${contentId}')">✏️ Edit</button>
+      ${c.status === "Draft" ? `<button class="btn btn-gold btn-sm" onclick="updateContentStatus('${contentId}','In Review')">Submit for Review</button>` : ""}
+      ${c.status === "Approved" ? `<button class="btn btn-sm" style="background:#5b21b6;color:white" onclick="updateContentStatus('${contentId}','Posted')">Mark Posted</button>` : ""}`;
+  } else { editorActions.innerHTML = ""; }
+  // Review actions — contributors and above
+  const reviewArea = document.getElementById("cdReviewActions");
+  reviewArea.style.display = isContributor() && c.status === "In Review" ? "" : "none";
+  document.getElementById("cdCommentText").value = "";
+  // Render comments
+  renderContentComments(contentId);
+  openModal("contentDetailModal");
+}
+
+function renderContentComments(contentId) {
+  const container = document.getElementById("cdComments");
+  const comments = ALL_CONTENT_COMMENTS.filter(c => c.content_id === contentId);
+  if (!comments.length) {
+    container.innerHTML = `<div style="color:var(--gray);font-size:13px;padding:8px 0">No comments yet.</div>`;
+    return;
+  }
+  container.innerHTML = comments.map(cm => {
+    const actionTag = cm.action === "approve"
+      ? `<span style="background:#d1fae5;color:#065f46;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">✅ Approved</span>`
+      : cm.action === "changes"
+      ? `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">↩️ Changes Requested</span>`
+      : "";
+    return `<div style="border-left:3px solid var(--gold);padding:8px 12px;margin-bottom:10px;background:#fffbf0;border-radius:0 6px 6px 0">
+      <div style="font-size:12px;color:var(--gray);margin-bottom:4px;display:flex;gap:8px;align-items:center">
+        <strong>${esc(cm.author||"Unknown")}</strong>
+        <span>${cm.created_at ? new Date(cm.created_at).toLocaleString() : ""}</span>
+        ${actionTag}
+      </div>
+      <div style="font-size:14px">${esc(cm.comment||"")}</div>
+    </div>`;
+  }).join("");
+}
+
+async function submitReview(action) {
+  const contentId = document.getElementById("cdContentId").value;
+  const text = document.getElementById("cdCommentText").value.trim();
+  if (!text && action === "comment") { showToast("Please enter a comment.", "error"); return; }
+  const comment = text || (action === "approve" ? "Approved." : "Changes requested.");
+  const row = {
+    id: genId(), content_id: contentId,
+    author: currentUser?.displayName || "",
+    comment, action,
+    created_at: new Date().toISOString()
+  };
+  try {
+    await sbInsert("MyBFFContentComments", row);
+    ALL_CONTENT_COMMENTS.push(row);
+    // Update content status
+    if (action === "approve") await updateContentStatus(contentId, "Approved", false);
+    if (action === "changes") await updateContentStatus(contentId, "Needs Changes", false);
+    document.getElementById("cdCommentText").value = "";
+    renderContentComments(contentId);
+    renderReviewQueue();
+    renderAllContent();
+    showToast(action === "approve" ? "✅ Approved!" : action === "changes" ? "↩️ Changes requested" : "💬 Comment added");
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+async function updateContentStatus(contentId, newStatus, closeAfter = true) {
+  try {
+    await sbUpdate("MyBFFContent", contentId, { status: newStatus }, "id");
+    const idx = ALL_CONTENT.findIndex(c => c.id === contentId);
+    if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], status: newStatus };
+    if (closeAfter) {
+      closeModal("contentDetailModal");
+      renderMarketing();
+      showToast("Status updated to: " + newStatus);
+    }
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+function openContentModal() {
+  document.getElementById("contentModalTitle").textContent = "Create Content";
+  document.getElementById("ctEditingId").value = "";
+  document.getElementById("ctChannel").value = "";
+  document.getElementById("ctTitle").value = "";
+  document.getElementById("ctText").value = "";
+  document.getElementById("ctFileLink").value = "";
+  // Populate event dropdown
+  const evSel = document.getElementById("ctEvent");
+  if (evSel) evSel.innerHTML = `<option value="">— Not event-specific —</option>` +
+    ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
+  // Build reviewer checkboxes
+  buildReviewerChecks([]);
+  openModal("contentModal");
+}
+
+function openContentModalEdit(contentId) {
+  closeModal("contentDetailModal");
+  const c = ALL_CONTENT.find(x => x.id === contentId);
+  if (!c) return;
+  document.getElementById("contentModalTitle").textContent = "Edit Content";
+  document.getElementById("ctEditingId").value = contentId;
+  document.getElementById("ctChannel").value = c.channel || "";
+  document.getElementById("ctTitle").value = c.title || "";
+  document.getElementById("ctText").value = c.content_text || "";
+  document.getElementById("ctFileLink").value = c.file_link || "";
+  const evSel = document.getElementById("ctEvent");
+  if (evSel) {
+    evSel.innerHTML = `<option value="">— Not event-specific —</option>` +
+      ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}" ${e.name===c.event_name?"selected":""}>${esc(e.name)}</option>`).join("");
+  }
+  const selected = (c.reviewers||"").split(",").map(r=>r.trim()).filter(Boolean);
+  buildReviewerChecks(selected);
+  openModal("contentModal");
+}
+
+function buildReviewerChecks(selectedList) {
+  const names = APP_USERS.map(u => u.displayName).filter(Boolean).sort();
+  const container = document.getElementById("ctReviewerChecks");
+  if (!container) return;
+  container.innerHTML = names.map(n => `
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;font-size:14px">
+      <input type="checkbox" value="${esc(n)}" ${selectedList.includes(n)?"checked":""} style="width:16px;height:16px;accent-color:var(--gold)">
+      ${esc(n)}
+    </label>`).join("");
+}
+
+function getCheckedReviewers() {
+  const checks = document.querySelectorAll("#ctReviewerChecks input[type=checkbox]:checked");
+  return Array.from(checks).map(c => c.value).join(", ");
+}
+
+async function saveContent(status) {
+  const title = document.getElementById("ctTitle").value.trim();
+  const channel = document.getElementById("ctChannel").value;
+  if (!title) { showToast("Title is required.", "error"); return; }
+  if (!channel) { showToast("Please select a channel.", "error"); return; }
+  const editingId = document.getElementById("ctEditingId").value;
+  const now = new Date().toISOString();
+  const row = {
+    title, channel, status,
+    content_text: document.getElementById("ctText").value.trim() || null,
+    file_link:    document.getElementById("ctFileLink").value.trim() || null,
+    event_name:   document.getElementById("ctEvent").value || null,
+    event_year:   new Date().getFullYear(),
+    reviewers:    getCheckedReviewers(),
+    updated_at:   now
+  };
+  try {
+    if (editingId) {
+      await sbUpdate("MyBFFContent", editingId, row, "id");
+      const idx = ALL_CONTENT.findIndex(c => c.id === editingId);
+      if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], ...row };
+    } else {
+      row.id = genId();
+      row.version = 1;
+      row.created_by = currentUser?.displayName || "";
+      row.created_at = now;
+      await sbInsert("MyBFFContent", row);
+      ALL_CONTENT.unshift(row);
+    }
+    closeModal("contentModal");
+    showToast(status === "Draft" ? "Saved as draft." : "Submitted for review!");
+    renderMarketing();
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+// ── Seed test content (DEV only) ─────────────────────────────
+async function seedTestContent() {
+  if (ALL_CONTENT.length > 0) return; // only seed if empty
+  const now = new Date().toISOString();
+  const eventName = ALL_EVENTS_DATA[0]?.name || "5th Annual MyBFF Cornhole Tournament";
+  const seeds = [
+    { id: genId(), title: "Cornhole Tournament — Save the Date", channel: "Facebook",
+      content_text: "🎯 Mark your calendars! The 5th Annual MyBFF Cornhole Tournament is coming June 13th at Mikerphone Brewing. Grab your partner and get ready for a great day of cornhole, music, and community. Tickets on sale soon — stay tuned!",
+      status: "In Review", event_name: eventName, event_year: 2026, version: 1,
+      created_by: "Ed Grasse", reviewers: APP_USERS.map(u=>u.displayName).join(", "),
+      created_at: now, updated_at: now },
+    { id: genId(), title: "Cornhole — Instagram Countdown", channel: "Instagram",
+      content_text: "⏳ 8 weeks until the big day! The #MyBFF Cornhole Tournament is filling up fast. Tag your team and register before spots run out. Link in bio. 🌽🪙",
+      status: "Draft", event_name: eventName, event_year: 2026, version: 1,
+      created_by: "Megan Wittig", reviewers: "",
+      created_at: now, updated_at: now },
+    { id: genId(), title: "Event Sponsor Thank You Email", channel: "Email",
+      content_text: "Subject: Thank You for Supporting My Best Friends Foundation!\n\nDear [Sponsor Name],\n\nThank you so much for your generous support of the 5th Annual MyBFF Cornhole Tournament. Because of sponsors like you, we're able to make a real difference in the lives of the animals we serve...",
+      status: "Approved", event_name: eventName, event_year: 2026, version: 2,
+      created_by: "Ed Grasse", reviewers: APP_USERS.map(u=>u.displayName).join(", "),
+      created_at: now, updated_at: now },
+    { id: genId(), title: "Tournament Flyer — Print Version", channel: "Flyer",
+      content_text: "5th Annual MyBFF Cornhole Tournament\nJune 13, 2026 · Mikerphone Brewing\n$40/team · Food, Drinks & Live Music\nAll proceeds benefit My Best Friends Foundation\nRegister at mybff.org",
+      status: "Needs Changes", event_name: eventName, event_year: 2026, version: 1,
+      created_by: "Megan Wittig", reviewers: APP_USERS.map(u=>u.displayName).join(", "),
+      created_at: now, updated_at: now },
+  ];
+  for (const s of seeds) {
+    try { await sbInsert("MyBFFContent", s); ALL_CONTENT.push(s); } catch(e) { console.warn("seed:", e); }
+  }
+  // Add sample comments
+  const reviewItem = ALL_CONTENT.find(c => c.status === "In Review");
+  const changesItem = ALL_CONTENT.find(c => c.status === "Needs Changes");
+  const approvedItem = ALL_CONTENT.find(c => c.status === "Approved");
+  const commentSeeds = [
+    reviewItem && { id: genId(), content_id: reviewItem.id, author: "Jay Wadhwa", comment: "Love the tone! Maybe add the ticket price so people know what to expect?", action: "comment", created_at: now },
+    changesItem && { id: genId(), content_id: changesItem.id, author: "Kris Grasse", comment: "The date is missing from the flyer and the logo needs to be larger. Can you update and resubmit?", action: "changes", created_at: now },
+    approvedItem && { id: genId(), content_id: approvedItem.id, author: "Jay Wadhwa", comment: "This looks great — warm and professional. Good to go!", action: "approve", created_at: now },
+    approvedItem && { id: genId(), content_id: approvedItem.id, author: "Kris Grasse", comment: "Approved from my end too.", action: "approve", created_at: now },
+  ].filter(Boolean);
+  for (const cm of commentSeeds) {
+    try { await sbInsert("MyBFFContentComments", cm); ALL_CONTENT_COMMENTS.push(cm); } catch(e) { console.warn("seed comment:", e); }
+  }
+  renderMarketing();
+  showToast("✅ Test marketing content seeded!");
 }
 
 const HELP_DATA = [
