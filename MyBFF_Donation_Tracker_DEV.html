@@ -1431,8 +1431,8 @@ if ('serviceWorker' in navigator) {
 <!-- CONTENT DETAIL MODAL -->
 <div class="modal-overlay" id="contentDetailModal">
   <div class="modal" style="max-width:640px">
-    <button class="modal-close" onclick="closeModal('contentDetailModal')">&#10005;</button>
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+    <button class="modal-close" onclick="closeModal('contentDetailModal')" style="top:14px;right:14px">&#10005;</button>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;padding-right:36px">
       <div>
         <div class="modal-title" style="margin-bottom:4px" id="cdTitle">Content</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1514,7 +1514,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.5-DEV · Apr 19 2026";
+const BUILD_VERSION = "v5.6-DEV · Apr 19 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -4253,13 +4253,18 @@ function renderAllContent() {
   const container = document.getElementById("mktgAllList");
   if (!container) return;
   const myName = currentUser?.displayName || "";
-  const evFilter = document.getElementById("mktgEventFilter")?.value || "";
+  // Always ensure event filter is populated before reading its value
+  const evFilterEl = document.getElementById("mktgEventFilter");
+  if (evFilterEl && evFilterEl.options.length <= 1) {
+    const names = ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
+    evFilterEl.innerHTML = `<option value="">All Events</option>` + names;
+  }
+  const evFilter = evFilterEl?.value || "";
   const chFilter = document.getElementById("mktgChannelFilter")?.value || "";
   const stFilter = document.getElementById("mktgStatusFilter")?.value || "";
   let items = [...ALL_CONTENT];
-  // Role-based visibility
+  // Admin and Editor see everything; Contributors see limited set
   if (!isEditor()) {
-    // Contributors see: In Review (assigned to them), Approved, Posted
     items = items.filter(c => {
       if (c.status === "Approved" || c.status === "Posted") return true;
       if (c.status === "In Review") {
@@ -4349,13 +4354,16 @@ async function openContentDetail(contentId) {
       (c.status === "Needs Changes" ? `<button class="btn btn-gold btn-sm" onclick="resubmitContent('${contentId}')">↻ Resubmit</button>` : "") +
       (c.status === "Approved" ? `<button class="btn btn-sm" style="background:#5b21b6;color:white" onclick="updateContentStatus('${contentId}','Posted')">Mark Posted</button>` : "");
   } else { editorActions.innerHTML = ""; }
-  // Comment thread — ALWAYS visible and writable for contributors+
+  // Comment thread — always visible and writable for contributors+
   const reviewArea = document.getElementById("cdReviewActions");
   reviewArea.style.display = isContributor() ? "" : "none";
-  // Show approve/request-changes only if in review and reviewer hasn't acted
+  // Approve/Changes visible if: content is In Review AND
+  // (Admin/Editor always can, OR is an assigned reviewer who hasn't acted yet)
   const myStatus = getMyReviewStatus(contentId);
-  const isAssignedReviewer = ALL_CONTENT_REVIEWERS.some(r => r.content_id === contentId && r.reviewer === currentUser?.displayName);
-  const canFormalReview = c.status === "In Review" && isAssignedReviewer && myStatus === "pending";
+  const myName2 = currentUser?.displayName || "";
+  const isAssignedReviewer = ALL_CONTENT_REVIEWERS.some(r => r.content_id === contentId && r.reviewer === myName2);
+  const canFormalReview = c.status === "In Review" &&
+    (isEditor() || (isAssignedReviewer && myStatus === "pending"));
   document.getElementById("cdApproveBtn").style.display = canFormalReview ? "" : "none";
   document.getElementById("cdChangesBtn").style.display = canFormalReview ? "" : "none";
   document.getElementById("cdCommentText").value = "";
@@ -4433,19 +4441,30 @@ async function submitReview(action) {
       if (newStatus) await updateContentStatus(contentId, newStatus, false);
     }
     document.getElementById("cdCommentText").value = "";
+    // Refresh reviewer summary and comments inline
     renderContentComments(contentId);
     renderReviewerSummary(contentId);
+    // Update status badge inline
+    const c2 = ALL_CONTENT.find(x => x.id === contentId);
+    document.getElementById("cdStatus").innerHTML = ctStatusBadge(c2?.status || "In Review");
     // Refresh approve/changes button visibility
-    const c = ALL_CONTENT.find(x => x.id === contentId);
     const myNewStatus = getMyReviewStatus(contentId);
-    const isAssigned = ALL_CONTENT_REVIEWERS.some(r => r.content_id === contentId && r.reviewer === myName);
-    const canStill = c?.status === "In Review" && isAssigned && myNewStatus === "pending";
+    const myName2 = currentUser?.displayName || "";
+    const isAssigned = ALL_CONTENT_REVIEWERS.some(r => r.content_id === contentId && r.reviewer === myName2);
+    const canStill = c2?.status === "In Review" && (isEditor() || (isAssigned && myNewStatus === "pending"));
     document.getElementById("cdApproveBtn").style.display = canStill ? "" : "none";
     document.getElementById("cdChangesBtn").style.display = canStill ? "" : "none";
     renderReviewQueue();
     renderAllContent();
     updateMktgBadge();
-    showToast(action === "approve" ? "✅ Approved!" : action === "changes" ? "↩️ Changes requested" : "💬 Comment added");
+    const toastMsg = action === "approve" ? "✅ Approved!" : action === "changes" ? "↩️ Changes requested — item moved to Needs Changes" : "💬 Comment added";
+    // If status changed to something other than In Review, close modal after brief delay
+    if ((action === "approve" || action === "changes") && c2?.status !== "In Review") {
+      showToast(toastMsg);
+      setTimeout(() => closeModal("contentDetailModal"), 1200);
+    } else {
+      showToast(toastMsg);
+    }
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
@@ -4607,6 +4626,24 @@ async function saveContent(status) {
       await sbUpdate("MyBFFContent", editingId, row, "id");
       const idx = ALL_CONTENT.findIndex(c => c.id === editingId);
       if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], ...row };
+      // Sync reviewer rows — add new reviewers, keep existing ones
+      const newReviewerList = row.reviewers ? row.reviewers.split(",").map(r=>r.trim()).filter(Boolean) : [];
+      const existingReviewers = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === editingId);
+      const existingNames = existingReviewers.map(r => r.reviewer);
+      // Add any newly checked reviewers
+      for (const rev of newReviewerList) {
+        if (!existingNames.includes(rev)) {
+          const rRow = { id: genId(), content_id: editingId, reviewer: rev, status: "pending", action: null, reviewed_at: null };
+          try { await sbInsert("MyBFFContentReviewers", rRow); ALL_CONTENT_REVIEWERS.push(rRow); } catch(e) {}
+        }
+      }
+      // Remove unchecked reviewers (only if still pending — don't remove those who already acted)
+      for (const r of existingReviewers) {
+        if (!newReviewerList.includes(r.reviewer) && r.status === "pending") {
+          try { await sbDelete("MyBFFContentReviewers", r.id, "id"); } catch(e) {}
+          ALL_CONTENT_REVIEWERS.splice(ALL_CONTENT_REVIEWERS.indexOf(r), 1);
+        }
+      }
     } else {
       row.id = genId(); row.version = 1;
       row.created_by = currentUser?.displayName || "";
@@ -4658,110 +4695,140 @@ async function seedTestContent() {
   const statusEl = document.getElementById("seedStatus");
   if (statusEl) statusEl.textContent = "Seeding...";
   const now = new Date().toISOString();
+  const minsAgo = (m) => new Date(Date.now() - m*60000).toISOString();
+
   const ev1 = ALL_EVENTS_DATA.find(e => e.event_type === "Cornhole" || e.name.toLowerCase().includes("cornhole"))?.name || "5th Annual MyBFF Cornhole Tournament";
   const ev2 = ALL_EVENTS_DATA.find(e => e.event_type === "Trivia" || e.name.toLowerCase().includes("trivia"))?.name || "6th Annual MyBFF Trivia Night";
   const ev3 = ALL_EVENTS_DATA.find(e => e.event_type === "Walk" || e.name.toLowerCase().includes("walk"))?.name || "7th Annual MyBFF 5K/8.13K Walk/Run";
-  const ed = APP_USERS.find(u => u.role === "admin" && u.displayName.toLowerCase().includes("ed"))?.displayName || "Ed Grasse";
-  const kris = APP_USERS.find(u => u.role === "admin" && u.displayName.toLowerCase().includes("kris"))?.displayName || "Kris Grasse";
+
+  const ed    = APP_USERS.find(u => u.role === "admin" && u.displayName.toLowerCase().includes("ed"))?.displayName || "Ed Grasse";
+  const kris  = APP_USERS.find(u => u.role === "admin" && u.displayName.toLowerCase().includes("kris"))?.displayName || "Kris Grasse";
   const megan = APP_USERS.find(u => u.role === "editor")?.displayName || "Megan Wittig";
-  const jay = APP_USERS.find(u => u.displayName.toLowerCase().includes("jay"))?.displayName || "Jay Wadhwa";
-  const allReviewers = [ed, kris, jay].join(", ");
-  const jayKris = [kris, jay].join(", ");
+  const jay   = APP_USERS.find(u => u.displayName.toLowerCase().includes("jay"))?.displayName || "Jay Wadhwa";
+  const brenda = APP_USERS.find(u => u.displayName.toLowerCase().includes("brenda"))?.displayName || "Brenda Percupchick";
+
+  const allThree = [ed, kris, jay].join(", ");
+  const jayKris  = [kris, jay].join(", ");
+  const edKris   = [ed, kris].join(", ");
 
   const seeds = [
-    // 1. Draft — not yet submitted
-    { id: genId(), title: "Walk/Run — Early Registration Push", channel: "Facebook",
-      content_text: "👟 Registration is open for the 7th Annual MyBFF Walk/Run! Sign up early and save. Whether you walk, jog, or run — every step helps animals in need. Register at mybff.org/walk. 🐾",
+    // 1. DRAFT — not submitted yet, created by Megan
+    { id: genId(), title: "Walk/Run — Early Bird Registration", channel: "Facebook",
+      content_text: "👟 Early bird registration is now open for the 7th Annual MyBFF Walk/Run! Sign up before May 15th and save $5. Every step you take helps animals in need. Register at mybff.org/walk 🐾",
       status: "Draft", event_name: ev3, event_year: 2026, version: 1, photo_url: null,
-      created_by: megan, reviewers: jayKris, created_at: now, updated_at: now },
-    // 2. In Review — Jay acted, Kris pending
-    { id: genId(), title: "Cornhole Save the Date", channel: "Facebook",
+      created_by: megan, reviewers: jayKris, created_at: minsAgo(120), updated_at: minsAgo(120) },
+
+    // 2. IN REVIEW — Jay approved, Ed & Kris still pending (mixed state)
+    { id: genId(), title: "Cornhole Tournament — Save the Date", channel: "Facebook",
       content_text: "🎯 Save the Date! The 5th Annual MyBFF Cornhole Tournament returns June 13th at Mikerphone Brewing in Evergreen Park. Grab your partner, register your team, and get ready for a day of fun, music, and community. All proceeds benefit My Best Friends Foundation. 🍺🌽",
       status: "In Review", event_name: ev1, event_year: 2026, version: 1, photo_url: null,
-      created_by: ed, reviewers: allReviewers, created_at: now, updated_at: now },
-    // 3. In Review — nobody has acted yet
+      created_by: ed, reviewers: allThree, created_at: minsAgo(90), updated_at: minsAgo(90) },
+
+    // 3. IN REVIEW — nobody has acted yet, both Kris and Jay assigned
     { id: genId(), title: "Trivia Night — Instagram Countdown", channel: "Instagram",
-      content_text: "🧠 4 weeks until Trivia Night! Test your knowledge and help a great cause. Teams of up to 6, prizes for top 3 finishers, and plenty of laughs along the way. Tickets link in bio! #MyBFF #TriviaForGood",
+      content_text: "🧠 4 weeks until Trivia Night at More Brewery! Teams of up to 6, prizes for the top 3 finishers, and plenty of laughs along the way. Grab your team before spots run out — tickets link in bio! #MyBFF #TriviaForGood",
       status: "In Review", event_name: ev2, event_year: 2026, version: 1, photo_url: null,
-      created_by: megan, reviewers: jayKris, created_at: now, updated_at: now },
-    // 4. Needs Changes — v1 sent back, changes requested
+      created_by: megan, reviewers: jayKris, created_at: minsAgo(60), updated_at: minsAgo(60) },
+
+    // 4. NEEDS CHANGES — v1 sent back by both Kris and Jay
     { id: genId(), title: "Cornhole Tournament Flyer", channel: "Flyer",
       content_text: "5th Annual MyBFF Cornhole Tournament\nJune 13, 2026 · Mikerphone Brewing, Evergreen Park IL\n$40/team entry · Food, Drinks & Live Music\nAll proceeds benefit My Best Friends Foundation\nRegister: mybff.org/cornhole",
       status: "Needs Changes", event_name: ev1, event_year: 2026, version: 1, photo_url: null,
-      created_by: megan, reviewers: allReviewers, created_at: now, updated_at: now },
-    // 5. Approved — all reviewers approved
+      created_by: megan, reviewers: allThree, created_at: minsAgo(200), updated_at: minsAgo(45) },
+
+    // 5. APPROVED — v2 after revisions, all three approved
     { id: genId(), title: "Sponsor Thank You Email", channel: "Email",
       content_text: "Subject: Thank You for Supporting My Best Friends Foundation!\n\nDear [Sponsor Name],\n\nOn behalf of the entire team at My Best Friends Foundation, thank you for your generous support of the 5th Annual MyBFF Cornhole Tournament. Because of sponsors like you, we are able to continue our mission and make a real difference for the animals and families we serve.\n\nYour support means everything to us. We look forward to celebrating with you on June 13th!\n\nWith gratitude,\nThe MyBFF Team",
       status: "Approved", event_name: ev1, event_year: 2026, version: 2, photo_url: null,
-      created_by: ed, reviewers: allReviewers, created_at: now, updated_at: now },
-    // 6. Posted — fully complete
+      created_by: ed, reviewers: allThree, created_at: minsAgo(300), updated_at: minsAgo(30) },
+
+    // 6. POSTED — Walk/Run save the date, fully done
     { id: genId(), title: "Walk/Run Save the Date", channel: "Instagram",
       content_text: "📣 Mark your calendars — the 7th Annual MyBFF Walk/Run is coming August 8th at Judson University! Join us for 5K or 8.13K options, post-race festivities, and a whole lot of good vibes. Registration opens soon. 🐾❤️",
       status: "Posted", event_name: ev3, event_year: 2026, version: 1, photo_url: null,
-      created_by: megan, reviewers: jayKris, created_at: now, updated_at: now },
+      created_by: megan, reviewers: jayKris, created_at: minsAgo(400), updated_at: minsAgo(20) },
+
+    // 7. IN REVIEW — Ed assigned as reviewer to test Admin reviewer flow
+    { id: genId(), title: "Trivia Night — Event Announcement Email", channel: "Email",
+      content_text: "Subject: Trivia Night is Back — April 12th at More Brewery!\n\nHi [First Name],\n\nWe are thrilled to announce the 6th Annual MyBFF Trivia Night! Join us on April 12th at More Brewery for a fun evening of trivia, prizes, and great company. All proceeds support My Best Friends Foundation.\n\nTeams of up to 6 · Registration at mybff.org/trivia\n\nWe hope to see you there!\nThe MyBFF Team",
+      status: "In Review", event_name: ev2, event_year: 2026, version: 1, photo_url: null,
+      created_by: megan, reviewers: [ed, kris].join(", "), created_at: minsAgo(30), updated_at: minsAgo(30) },
+
+    // 8. NEEDS CHANGES — v1 of Walk email, one reviewer requested changes
+    { id: genId(), title: "Walk/Run Sponsor Outreach Email", channel: "Email",
+      content_text: "Subject: Partner With Us — MyBFF Walk/Run 2026\n\nDear [Business Name],\n\nWe are reaching out to invite you to sponsor the 7th Annual MyBFF 5K/8.13K Walk/Run on August 8th at Judson University. Sponsorship packages start at $250 and include event signage, social media recognition, and more.\n\nPlease reply to learn more. Thank you for your consideration.",
+      status: "Needs Changes", event_name: ev3, event_year: 2026, version: 1, photo_url: null,
+      created_by: ed, reviewers: edKris, created_at: minsAgo(180), updated_at: minsAgo(50) },
   ];
 
   for (const s of seeds) {
     try { await sbInsert("MyBFFContent", s); ALL_CONTENT.unshift(s); } catch(e) { console.warn("seed:", e); }
   }
 
-  // Seed reviewer rows
-  const reviewerSeeds = [];
-  const inReview1 = ALL_CONTENT.find(c => c.title === "Cornhole Save the Date");
-  const inReview2 = ALL_CONTENT.find(c => c.title === "Trivia Night — Instagram Countdown");
-  const needsChanges = ALL_CONTENT.find(c => c.title === "Cornhole Tournament Flyer");
-  const approved = ALL_CONTENT.find(c => c.title === "Sponsor Thank You Email");
-  const posted = ALL_CONTENT.find(c => c.title === "Walk/Run Save the Date");
+  // ── Seed reviewer rows ──────────────────────────────────────
+  const c1 = ALL_CONTENT.find(c => c.title === "Walk/Run — Early Bird Registration");
+  const c2 = ALL_CONTENT.find(c => c.title === "Cornhole Tournament — Save the Date");
+  const c3 = ALL_CONTENT.find(c => c.title === "Trivia Night — Instagram Countdown");
+  const c4 = ALL_CONTENT.find(c => c.title === "Cornhole Tournament Flyer");
+  const c5 = ALL_CONTENT.find(c => c.title === "Sponsor Thank You Email");
+  const c6 = ALL_CONTENT.find(c => c.title === "Walk/Run Save the Date");
+  const c7 = ALL_CONTENT.find(c => c.title === "Trivia Night — Event Announcement Email");
+  const c8 = ALL_CONTENT.find(c => c.title === "Walk/Run Sponsor Outreach Email");
 
-  if (inReview1) {
-    reviewerSeeds.push(
-      { id: genId(), content_id: inReview1.id, reviewer: ed, status: "pending", action: null, reviewed_at: null },
-      { id: genId(), content_id: inReview1.id, reviewer: kris, status: "pending", action: null, reviewed_at: null },
-      { id: genId(), content_id: inReview1.id, reviewer: jay, status: "approved", action: "approve", reviewed_at: now }
-    );
-  }
-  if (inReview2) {
-    reviewerSeeds.push(
-      { id: genId(), content_id: inReview2.id, reviewer: kris, status: "pending", action: null, reviewed_at: null },
-      { id: genId(), content_id: inReview2.id, reviewer: jay, status: "pending", action: null, reviewed_at: null }
-    );
-  }
-  if (needsChanges) {
-    reviewerSeeds.push(
-      { id: genId(), content_id: needsChanges.id, reviewer: ed, status: "pending", action: null, reviewed_at: null },
-      { id: genId(), content_id: needsChanges.id, reviewer: kris, status: "changes", action: "changes", reviewed_at: now },
-      { id: genId(), content_id: needsChanges.id, reviewer: jay, status: "changes", action: "changes", reviewed_at: now }
-    );
-  }
-  if (approved) {
-    reviewerSeeds.push(
-      { id: genId(), content_id: approved.id, reviewer: ed, status: "approved", action: "approve", reviewed_at: now },
-      { id: genId(), content_id: approved.id, reviewer: kris, status: "approved", action: "approve", reviewed_at: now },
-      { id: genId(), content_id: approved.id, reviewer: jay, status: "approved", action: "approve", reviewed_at: now }
-    );
-  }
-  if (posted) {
-    reviewerSeeds.push(
-      { id: genId(), content_id: posted.id, reviewer: kris, status: "approved", action: "approve", reviewed_at: now },
-      { id: genId(), content_id: posted.id, reviewer: jay, status: "approved", action: "approve", reviewed_at: now }
-    );
-  }
+  const reviewerSeeds = [
+    // c2: Jay approved, Ed & Kris pending
+    c2 && { id: genId(), content_id: c2.id, reviewer: ed,   status: "pending",  action: null,       reviewed_at: null },
+    c2 && { id: genId(), content_id: c2.id, reviewer: kris,  status: "pending",  action: null,       reviewed_at: null },
+    c2 && { id: genId(), content_id: c2.id, reviewer: jay,   status: "approved", action: "approve",  reviewed_at: minsAgo(60) },
+    // c3: both pending
+    c3 && { id: genId(), content_id: c3.id, reviewer: kris,  status: "pending",  action: null,       reviewed_at: null },
+    c3 && { id: genId(), content_id: c3.id, reviewer: jay,   status: "pending",  action: null,       reviewed_at: null },
+    // c4: both requested changes
+    c4 && { id: genId(), content_id: c4.id, reviewer: ed,    status: "pending",  action: null,       reviewed_at: null },
+    c4 && { id: genId(), content_id: c4.id, reviewer: kris,  status: "changes",  action: "changes",  reviewed_at: minsAgo(45) },
+    c4 && { id: genId(), content_id: c4.id, reviewer: jay,   status: "changes",  action: "changes",  reviewed_at: minsAgo(40) },
+    // c5: all approved v2
+    c5 && { id: genId(), content_id: c5.id, reviewer: ed,    status: "approved", action: "approve",  reviewed_at: minsAgo(35) },
+    c5 && { id: genId(), content_id: c5.id, reviewer: kris,  status: "approved", action: "approve",  reviewed_at: minsAgo(32) },
+    c5 && { id: genId(), content_id: c5.id, reviewer: jay,   status: "approved", action: "approve",  reviewed_at: minsAgo(30) },
+    // c6: posted — kris & jay approved
+    c6 && { id: genId(), content_id: c6.id, reviewer: kris,  status: "approved", action: "approve",  reviewed_at: minsAgo(25) },
+    c6 && { id: genId(), content_id: c6.id, reviewer: jay,   status: "approved", action: "approve",  reviewed_at: minsAgo(22) },
+    // c7: Ed pending, Kris pending — Ed is a reviewer here (for Admin review test)
+    c7 && { id: genId(), content_id: c7.id, reviewer: ed,    status: "pending",  action: null,       reviewed_at: null },
+    c7 && { id: genId(), content_id: c7.id, reviewer: kris,  status: "pending",  action: null,       reviewed_at: null },
+    // c8: Ed approved, Kris requested changes
+    c8 && { id: genId(), content_id: c8.id, reviewer: ed,    status: "approved", action: "approve",  reviewed_at: minsAgo(55) },
+    c8 && { id: genId(), content_id: c8.id, reviewer: kris,  status: "changes",  action: "changes",  reviewed_at: minsAgo(50) },
+  ].filter(Boolean);
 
   for (const r of reviewerSeeds) {
     try { await sbInsert("MyBFFContentReviewers", r); ALL_CONTENT_REVIEWERS.push(r); } catch(e) {}
   }
 
-  // Seed comments
+  // ── Seed comments ───────────────────────────────────────────
   const commentSeeds = [
-    inReview1 && { id: genId(), content_id: inReview1.id, author: jay, comment: "Love the energy! Maybe add the ticket price so people know what to expect upfront?", action: "approve", created_at: now },
-    inReview2 && { id: genId(), content_id: inReview2.id, author: kris, comment: "This is fun! Can we add the venue? Some people might not know where More Brewery is.", action: "comment", created_at: now },
-    needsChanges && { id: genId(), content_id: needsChanges.id, author: kris, comment: "We need the MyBFF logo prominently featured at the top. Also the address is missing — Mikerphone is in Evergreen Park not Chicago.", action: "changes", created_at: now },
-    needsChanges && { id: genId(), content_id: needsChanges.id, author: jay, comment: "Agreed on the logo. Also think the font size on the date should be bigger — that's the most important thing to see at a glance.", action: "changes", created_at: now },
-    approved && { id: genId(), content_id: approved.id, author: kris, comment: "Warm and professional — exactly the right tone. Approved!", action: "approve", created_at: now },
-    approved && { id: genId(), content_id: approved.id, author: jay, comment: "Great work. Sponsor will love this.", action: "approve", created_at: now },
-    approved && { id: genId(), content_id: approved.id, author: ed, comment: "Approved. Sending week of May 15th.", action: "approve", created_at: now },
-    posted && { id: genId(), content_id: posted.id, author: kris, comment: "Approved — go ahead and post.", action: "approve", created_at: now },
-    posted && { id: genId(), content_id: posted.id, author: jay, comment: "Posted April 5th at 10am. Good engagement so far — 47 likes in the first hour.", action: "comment", created_at: now },
+    // c2: Jay's approval comment
+    c2 && { id: genId(), content_id: c2.id, author: jay, comment: "Love the energy! Should we add the ticket price so people know what to expect upfront?", action: "approve", created_at: minsAgo(60) },
+    // c3: Kris plain comment, no action yet
+    c3 && { id: genId(), content_id: c3.id, author: kris, comment: "This is fun! Can we add the venue address? Some people might not know where More Brewery is.", action: "comment", created_at: minsAgo(45) },
+    // c4: both requested changes with specific feedback
+    c4 && { id: genId(), content_id: c4.id, author: kris, comment: "The MyBFF logo needs to be prominent at the top. Also Mikerphone is in Evergreen Park, not Chicago — please fix the address.", action: "changes", created_at: minsAgo(45) },
+    c4 && { id: genId(), content_id: c4.id, author: jay, comment: "Agreed on the logo. Also the date font should be much larger — that's what people scan for first on a flyer.", action: "changes", created_at: minsAgo(40) },
+    // c5: v1 had an issue, then was fixed and resubmitted
+    c5 && { id: genId(), content_id: c5.id, author: kris, comment: "v1: The sign-off was too formal. Can we warm it up a bit?", action: "changes", created_at: minsAgo(120) },
+    c5 && { id: genId(), content_id: c5.id, author: ed, comment: "Updated the closing — much warmer now. Resubmitting as v2.", action: "comment", created_at: minsAgo(80) },
+    c5 && { id: genId(), content_id: c5.id, author: kris, comment: "Much better — this is the right tone. Approved!", action: "approve", created_at: minsAgo(35) },
+    c5 && { id: genId(), content_id: c5.id, author: jay, comment: "Great work. Sponsors will appreciate this.", action: "approve", created_at: minsAgo(32) },
+    c5 && { id: genId(), content_id: c5.id, author: ed, comment: "Approved. Sending week of May 15th.", action: "approve", created_at: minsAgo(30) },
+    // c6: posted with engagement note
+    c6 && { id: genId(), content_id: c6.id, author: kris, comment: "Approved — go ahead and post.", action: "approve", created_at: minsAgo(25) },
+    c6 && { id: genId(), content_id: c6.id, author: jay, comment: "Posted April 5th at 10am. 47 likes in the first hour — good engagement!", action: "comment", created_at: minsAgo(20) },
+    // c7: Ed assigned as reviewer — to test admin review flow
+    c7 && { id: genId(), content_id: c7.id, author: megan, comment: "Drafted this for the trivia announcement email blast. Ed and Kris please review — want to send by end of week.", action: "comment", created_at: minsAgo(30) },
+    // c8: back-and-forth on sponsor email
+    c8 && { id: genId(), content_id: c8.id, author: ed, comment: "Good start! The sponsorship tiers should be listed more clearly.", action: "approve", created_at: minsAgo(55) },
+    c8 && { id: genId(), content_id: c8.id, author: kris, comment: "The subject line needs to be more compelling — 'Partner With Us' is too generic. Also we should mention the animal shelter connection in the first paragraph.", action: "changes", created_at: minsAgo(50) },
   ].filter(Boolean);
 
   for (const cm of commentSeeds) {
@@ -4770,9 +4837,10 @@ async function seedTestContent() {
 
   renderMarketing();
   updateMktgBadge();
-  if (statusEl) statusEl.textContent = `✅ Seeded ${seeds.length} content items with reviewer tracking and comments.`;
-  showToast("✅ Marketing test data seeded!");
+  if (statusEl) statusEl.textContent = `✅ Seeded ${seeds.length} items across all statuses with reviewer tracking and comments.`;
+  showToast("✅ Marketing test data seeded — 8 items!");
 }
+
 
 const HELP_DATA = [
   {
