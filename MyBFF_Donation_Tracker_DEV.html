@@ -1514,7 +1514,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.6-DEV · Apr 19 2026";
+const BUILD_VERSION = "v5.6-DEV · Apr 19 2026b";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -4208,13 +4208,16 @@ function ctChannelBadge(ch) {
 function renderMarketing() {
   const addBtn = document.getElementById("mktgAddBtn");
   if (addBtn) addBtn.style.display = isEditor() ? "" : "none";
+  // Always repopulate the event filter from current data and reset to "All Events"
   const evFilter = document.getElementById("mktgEventFilter");
   if (evFilter) {
+    const cur = evFilter.value; // preserve if user has already selected something
     const names = ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
     evFilter.innerHTML = `<option value="">All Events</option>` + names;
+    // Only restore selection if events are loaded; otherwise default to All
+    if (cur && ALL_EVENTS_DATA.some(e => e.name === cur)) evFilter.value = cur;
   }
   updateMktgBadge();
-  // Re-render whichever sub-tab is active
   const activeSubPage = document.querySelector("#page-marketing .sub-page.active")?.id;
   if (activeSubPage === "sub-mktg-all") renderAllContent();
   else renderReviewQueue();
@@ -4253,13 +4256,9 @@ function renderAllContent() {
   const container = document.getElementById("mktgAllList");
   if (!container) return;
   const myName = currentUser?.displayName || "";
-  // Always ensure event filter is populated before reading its value
   const evFilterEl = document.getElementById("mktgEventFilter");
-  if (evFilterEl && evFilterEl.options.length <= 1) {
-    const names = ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
-    evFilterEl.innerHTML = `<option value="">All Events</option>` + names;
-  }
-  const evFilter = evFilterEl?.value || "";
+  // Only filter by event if events are loaded and user has actually selected one
+  const evFilter = (ALL_EVENTS_DATA.length > 0 && evFilterEl?.value) ? evFilterEl.value : "";
   const chFilter = document.getElementById("mktgChannelFilter")?.value || "";
   const stFilter = document.getElementById("mktgStatusFilter")?.value || "";
   let items = [...ALL_CONTENT];
