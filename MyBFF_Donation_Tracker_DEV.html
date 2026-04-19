@@ -417,7 +417,7 @@ if ('serviceWorker' in navigator) {
     <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
     <button class="nav-tab" onclick="showPage('events')">Events</button>
     <button class="nav-tab" onclick="showPage('donations')">Donations</button>
-    <button class="nav-tab marketing-tab" onclick="showPage('marketing')" style="display:none">Marketing</button>
+    <button class="nav-tab marketing-tab" onclick="showPage('marketing')" style="display:none">Marketing <span id="mktgBadge" style="display:none;background:#dc2626;color:white;border-radius:9999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px"></span></button>
     <button class="nav-tab admin-only" onclick="showPage('admin')" style="display:none">Admin</button>
   </nav>
   <main>
@@ -678,9 +678,11 @@ if ('serviceWorker' in navigator) {
     <div class="page" id="page-marketing">
       <div class="page-header">
         <div class="section-title" style="margin:0">Marketing</div>
-        <div id="mktgAddBtn" style="display:none">
-          <button class="btn btn-gold btn-sm" onclick="openContentModal()">+ Create Content</button>
-          <button class="btn btn-sm btn-outline" onclick="seedTestContent()" style="margin-left:6px;font-size:11px">🌱 Seed Test Data</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-outline btn-sm" onclick="manualRefresh()" id="mktgRefreshBtn" title="Refresh content">↻ Refresh</button>
+          <div id="mktgAddBtn" style="display:none">
+            <button class="btn btn-gold btn-sm" onclick="openContentModal()">+ Create Content</button>
+          </div>
         </div>
       </div>
       <!-- Sub-tabs -->
@@ -798,6 +800,18 @@ if ('serviceWorker' in navigator) {
           </div>
           <div style="font-size:13px;color:var(--gray);margin-bottom:12px">How donations are used at events: Raffle, Prize, Silent Auction, etc.</div>
           <div id="donCatList"></div>
+        </div>
+        <!-- DEV Tools -->
+        <div class="card" style="grid-column:1/-1;border:2px dashed var(--gold);background:#fffbf0">
+          <div style="font-weight:700;font-size:16px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
+            🛠️ DEV Tools <span style="font-size:11px;color:var(--gray);font-weight:400">Visible in DEV build only</span>
+          </div>
+          <div style="font-size:13px;color:var(--gray);margin-bottom:14px">Seed test data for demonstrations. Only seeds if the target data is empty.</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-gold btn-sm" onclick="seedTestContent()">🌱 Seed Marketing Test Data</button>
+            <button class="btn btn-outline btn-sm" onclick="clearSeedContent()" style="color:var(--red);border-color:var(--red)">🗑️ Clear Seeded Content</button>
+          </div>
+          <div id="seedStatus" style="margin-top:10px;font-size:13px;color:var(--gray)"></div>
         </div>
       </div>
     </div>
@@ -1392,6 +1406,15 @@ if ('serviceWorker' in navigator) {
         <input type="text" class="form-input" id="ctFileLink" placeholder="https://...">
       </div>
       <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Upload Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — JPG, PNG, GIF</span></label>
+        <input type="file" class="form-input" id="ctPhotoFile" accept="image/*" onchange="previewContentPhoto(this)" style="padding:6px">
+        <div id="ctPhotoPreview" style="margin-top:8px;display:none">
+          <img id="ctPhotoImg" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--border)">
+          <button class="btn btn-sm" style="margin-top:6px;color:var(--red)" onclick="clearContentPhoto()">✕ Remove Photo</button>
+        </div>
+        <input type="hidden" id="ctPhotoUrl">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
         <label class="form-label">Assign Reviewers</label>
         <div id="ctReviewerChecks" style="border:2px solid var(--border);border-radius:7px;padding:8px 12px;max-height:120px;overflow-y:auto;background:white;display:flex;flex-direction:column;gap:4px"></div>
       </div>
@@ -1420,7 +1443,11 @@ if ('serviceWorker' in navigator) {
       </div>
       <div id="cdEditorActions" style="display:flex;gap:8px"></div>
     </div>
+    <div id="cdReviewerSummary"></div>
     <div id="cdText" style="background:#f9f7f3;border-radius:8px;padding:14px;font-size:14px;line-height:1.7;margin-bottom:12px;white-space:pre-wrap"></div>
+    <div id="cdPhotoWrap" style="margin-bottom:12px;display:none">
+      <img id="cdPhoto" style="max-width:100%;border-radius:8px;border:1px solid var(--border)">
+    </div>
     <div id="cdFileLink" style="margin-bottom:16px"></div>
     <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gold);margin-bottom:10px">Comments & Review</div>
     <div id="cdComments" style="max-height:220px;overflow-y:auto;margin-bottom:14px"></div>
@@ -1428,8 +1455,8 @@ if ('serviceWorker' in navigator) {
       <textarea class="form-input form-textarea" id="cdCommentText" rows="2" placeholder="Add a comment, approval note, or change request..." style="margin-bottom:8px"></textarea>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-sm btn-outline" onclick="submitReview('comment')">💬 Comment</button>
-        <button class="btn btn-sm btn-green" onclick="submitReview('approve')">✅ Approve</button>
-        <button class="btn btn-sm btn-danger" onclick="submitReview('changes')">↩️ Request Changes</button>
+        <button class="btn btn-sm btn-green" id="cdApproveBtn" onclick="submitReview('approve')">✅ Approve</button>
+        <button class="btn btn-sm btn-danger" id="cdChangesBtn" onclick="submitReview('changes')">↩️ Request Changes</button>
       </div>
     </div>
     <input type="hidden" id="cdContentId">
@@ -1487,7 +1514,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.4-DEV · Apr 18 2026";
+const BUILD_VERSION = "v5.5-DEV · Apr 19 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -1540,6 +1567,8 @@ let ALL_EVENT_TYPES = []; // loaded from MyBFFEventTypes
 let ALL_DON_CATS = [];   // loaded from MyBFFDonationCategories
 let ALL_CONTENT = [];         // loaded from MyBFFContent
 let ALL_CONTENT_COMMENTS = []; // loaded from MyBFFContentComments
+let ALL_CONTENT_REVIEWERS = []; // loaded from MyBFFContentReviewers
+let _refreshTimer = null;      // auto-refresh interval handle
 let ALL_EVENTS_DATA = []; // full event objects from Supabase
 let CURRENT_EVENT_VIEW = null; // event name being drilled into
 let PICKUP_PEOPLE = [];
@@ -1666,6 +1695,7 @@ async function launchApp() {
   }
 
   await loadAll();
+  updateMktgBadge();
   const yearEl = document.getElementById("donYear");
   if (yearEl) yearEl.value = String(new Date().getFullYear());
   renderDashboard();
@@ -1674,7 +1704,8 @@ async function launchApp() {
 async function loadAll() {
   await loadDonations();
   await Promise.all([loadVendors(), loadEvents(), loadPickups(), loadUsers(), loadEventTypes(), loadDonationCategories()]);
-  await Promise.all([loadTasks(), loadTaskTemplates(), loadTaskNotes(), loadContent(), loadContentComments()]);
+  await Promise.all([loadTasks(), loadTaskTemplates(), loadTaskNotes(), loadContent(), loadContentComments(), loadContentReviewers()]);
+  startAutoRefresh();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -4071,7 +4102,7 @@ function grantedBadge(g) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// MARKETING — PHASE 2
+// MARKETING — PHASE 2 (v5.5 — per-reviewer tracking)
 // ═══════════════════════════════════════════════════════════
 async function loadContent() {
   try {
@@ -4087,6 +4118,79 @@ async function loadContentComments() {
   } catch(e) { console.warn("loadContentComments:", e.message); ALL_CONTENT_COMMENTS = []; }
 }
 
+async function loadContentReviewers() {
+  try {
+    const rows = await sbGet("MyBFFContentReviewers", "order=content_id.asc");
+    ALL_CONTENT_REVIEWERS = (rows || []).filter(r => r.id);
+  } catch(e) { console.warn("loadContentReviewers:", e.message); ALL_CONTENT_REVIEWERS = []; }
+}
+
+// ── Auto-refresh ─────────────────────────────────────────────
+function startAutoRefresh() {
+  if (_refreshTimer) clearInterval(_refreshTimer);
+  _refreshTimer = setInterval(async () => {
+    // Pause if any modal is open
+    if (document.querySelector(".modal-overlay.open")) return;
+    const prev = { content: ALL_CONTENT.length, comments: ALL_CONTENT_COMMENTS.length, reviewers: ALL_CONTENT_REVIEWERS.length };
+    await Promise.all([loadContent(), loadContentComments(), loadContentReviewers(), loadTasks()]);
+    // Only re-render if data changed
+    if (ALL_CONTENT.length !== prev.content || ALL_CONTENT_COMMENTS.length !== prev.comments || ALL_CONTENT_REVIEWERS.length !== prev.reviewers) {
+      const activePage = document.querySelector(".page.active")?.id;
+      if (activePage === "page-marketing") renderMarketing();
+      if (activePage === "page-events") { if (CURRENT_EVENT_VIEW) renderEventDetailTasks(); else renderEventsPage(); }
+      updateMktgBadge();
+    }
+  }, 300000); // 5 minutes
+}
+
+async function manualRefresh() {
+  const btn = document.getElementById("mktgRefreshBtn");
+  if (btn) { btn.textContent = "↻ Refreshing…"; btn.disabled = true; }
+  await Promise.all([loadContent(), loadContentComments(), loadContentReviewers(), loadTasks(), loadDonations()]);
+  renderMarketing();
+  updateMktgBadge();
+  if (btn) { btn.textContent = "↻ Refresh"; btn.disabled = false; showToast("Content refreshed."); }
+}
+
+function updateMktgBadge() {
+  const myName = currentUser?.displayName || "";
+  const pending = ALL_CONTENT.filter(c => {
+    if (c.status !== "In Review") return false;
+    const myReview = ALL_CONTENT_REVIEWERS.find(r => r.content_id === c.id && r.reviewer === myName);
+    return !myReview || myReview.status === "pending";
+  }).length;
+  const badge = document.getElementById("mktgBadge");
+  if (badge) {
+    badge.textContent = pending;
+    badge.style.display = pending > 0 ? "" : "none";
+  }
+}
+
+// ── Reviewer helpers ─────────────────────────────────────────
+function getMyReviewStatus(contentId) {
+  const myName = currentUser?.displayName || "";
+  const r = ALL_CONTENT_REVIEWERS.find(x => x.content_id === contentId && x.reviewer === myName);
+  return r?.status || "pending"; // pending | approved | changes
+}
+
+function getReviewerSummary(contentId) {
+  const reviewers = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === contentId);
+  const approved = reviewers.filter(r => r.status === "approved").length;
+  const changes = reviewers.filter(r => r.status === "changes").length;
+  const pending = reviewers.filter(r => r.status === "pending").length;
+  return { total: reviewers.length, approved, changes, pending, reviewers };
+}
+
+function checkAllReviewersActed(contentId) {
+  const summary = getReviewerSummary(contentId);
+  if (summary.total === 0) return null;
+  if (summary.pending > 0) return null; // still waiting
+  if (summary.changes > 0) return "Needs Changes";
+  if (summary.approved === summary.total) return "Approved";
+  return null;
+}
+
+// ── Status helpers ────────────────────────────────────────────
 function ctStatusClass(status) {
   return "ct-" + (status||"draft").toLowerCase().replace(/\s+/g,"-").replace(/[^a-z-]/g,"");
 }
@@ -4100,52 +4204,70 @@ function ctChannelBadge(ch) {
   return `<span class="badge ${ctChannelClass(ch)}" style="font-size:11px">${ch||"Other"}</span>`;
 }
 
+// ── Render ────────────────────────────────────────────────────
 function renderMarketing() {
-  // Show create button for editors+
   const addBtn = document.getElementById("mktgAddBtn");
   if (addBtn) addBtn.style.display = isEditor() ? "" : "none";
-  // Populate event filter
   const evFilter = document.getElementById("mktgEventFilter");
   if (evFilter) {
-    const names = ALL_EVENTS.map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join("");
+    const names = ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
     evFilter.innerHTML = `<option value="">All Events</option>` + names;
   }
-  renderReviewQueue();
-  renderAllContent();
+  updateMktgBadge();
+  // Re-render whichever sub-tab is active
+  const activeSubPage = document.querySelector("#page-marketing .sub-page.active")?.id;
+  if (activeSubPage === "sub-mktg-all") renderAllContent();
+  else renderReviewQueue();
 }
 
 function renderReviewQueue() {
   const container = document.getElementById("mktgReviewList");
   if (!container) return;
   const myName = currentUser?.displayName || "";
-  // Show items "In Review" — editors see all, contributors see ones assigned to them
-  let items = ALL_CONTENT.filter(c => c.status === "In Review");
-  if (!isEditor()) {
-    // Contributors only see items where they are a reviewer
-    items = items.filter(c => {
-      const comments = ALL_CONTENT_COMMENTS.filter(x => x.content_id === c.id);
-      // Show if assigned reviewer (stored as comma-separated in reviewers field)
-      return (c.reviewers||"").split(",").map(r=>r.trim()).includes(myName);
+  let items;
+  if (isEditor()) {
+    // Editors see all In Review items
+    items = ALL_CONTENT.filter(c => c.status === "In Review");
+  } else {
+    // Contributors see only items where they are an assigned reviewer and haven't acted yet
+    items = ALL_CONTENT.filter(c => {
+      if (c.status !== "In Review") return false;
+      const assignedReviewers = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === c.id);
+      if (!assignedReviewers.some(r => r.reviewer === myName)) return false;
+      const myAction = assignedReviewers.find(r => r.reviewer === myName);
+      return !myAction || myAction.status === "pending";
     });
   }
   if (!items.length) {
     container.innerHTML = `<div class="empty-state" style="padding:40px 0">
       <div style="font-size:40px;margin-bottom:12px">✅</div>
-      <div style="font-weight:600;margin-bottom:6px">Nothing pending review</div>
+      <div style="font-weight:600;margin-bottom:6px">Nothing pending your review</div>
       <div style="font-size:14px;color:var(--gray)">All content is up to date.</div>
     </div>`;
     return;
   }
-  container.innerHTML = items.map(c => contentCard(c, true)).join("");
+  container.innerHTML = items.map(c => contentCard(c)).join("");
 }
 
 function renderAllContent() {
   const container = document.getElementById("mktgAllList");
   if (!container) return;
+  const myName = currentUser?.displayName || "";
   const evFilter = document.getElementById("mktgEventFilter")?.value || "";
   const chFilter = document.getElementById("mktgChannelFilter")?.value || "";
   const stFilter = document.getElementById("mktgStatusFilter")?.value || "";
   let items = [...ALL_CONTENT];
+  // Role-based visibility
+  if (!isEditor()) {
+    // Contributors see: In Review (assigned to them), Approved, Posted
+    items = items.filter(c => {
+      if (c.status === "Approved" || c.status === "Posted") return true;
+      if (c.status === "In Review") {
+        return ALL_CONTENT_REVIEWERS.some(r => r.content_id === c.id && r.reviewer === myName);
+      }
+      return false;
+    });
+  }
   if (evFilter) items = items.filter(c => c.event_name === evFilter);
   if (chFilter) items = items.filter(c => c.channel === chFilter);
   if (stFilter) items = items.filter(c => c.status === stFilter);
@@ -4155,14 +4277,19 @@ function renderAllContent() {
     </div>`;
     return;
   }
-  container.innerHTML = items.map(c => contentCard(c, false)).join("");
+  container.innerHTML = items.map(c => contentCard(c)).join("");
 }
 
-function contentCard(c, reviewMode) {
+function contentCard(c) {
   const comments = ALL_CONTENT_COMMENTS.filter(x => x.content_id === c.id);
-  const approvals = comments.filter(x => x.action === "approve").length;
-  const changeReqs = comments.filter(x => x.action === "changes").length;
+  const summary = getReviewerSummary(c.id);
+  const myStatus = getMyReviewStatus(c.id);
   const snippet = (c.content_text||"").substring(0,120);
+  const myReviewTag = c.status === "In Review" && ALL_CONTENT_REVIEWERS.some(r => r.content_id === c.id && r.reviewer === currentUser?.displayName)
+    ? myStatus === "pending" ? `<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">⏳ Awaiting your review</span>`
+    : myStatus === "approved" ? `<span style="background:#d1fae5;color:#065f46;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">✅ You approved</span>`
+    : `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">↩️ You requested changes</span>`
+    : "";
   return `
     <div class="card" style="margin-bottom:14px;cursor:pointer" onclick="openContentDetail('${c.id}')">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
@@ -4176,17 +4303,24 @@ function contentCard(c, reviewMode) {
         </div>
         <div style="font-size:12px;color:var(--gray);text-align:right;flex-shrink:0">
           <div>v${c.version||1} · by ${esc(c.created_by||"")}</div>
-          ${approvals ? `<div style="color:#065f46;font-weight:600">✅ ${approvals} approved</div>` : ""}
-          ${changeReqs ? `<div style="color:#991b1b;font-weight:600">↩️ ${changeReqs} change req.</div>` : ""}
+          ${summary.total > 0 ? `<div style="margin-top:2px">
+            ${summary.approved > 0 ? `<span style="color:#065f46">✅${summary.approved}</span> ` : ""}
+            ${summary.changes > 0 ? `<span style="color:#991b1b">↩️${summary.changes}</span> ` : ""}
+            ${summary.pending > 0 ? `<span style="color:#92400e">⏳${summary.pending}</span>` : ""}
+          </div>` : ""}
         </div>
       </div>
-      ${snippet ? `<div style="font-size:13px;color:var(--gray);line-height:1.5">${esc(snippet)}${c.content_text?.length>120?"…":""}</div>` : ""}
+      ${myReviewTag ? `<div style="margin-bottom:8px">${myReviewTag}</div>` : ""}
+      ${c.photo_url ? `<img src="${esc(c.photo_url)}" style="max-width:100%;max-height:100px;border-radius:6px;margin-bottom:8px;object-fit:cover">` : ""}
+      ${snippet ? `<div style="font-size:13px;color:var(--gray);line-height:1.5">${esc(snippet)}${(c.content_text?.length||0)>120?"…":""}</div>` : ""}
       ${c.file_link ? `<div style="margin-top:8px"><a href="${esc(c.file_link)}" target="_blank" onclick="event.stopPropagation()" style="font-size:13px">📎 View File</a></div>` : ""}
       <div style="margin-top:10px;font-size:12px;color:var(--gray)">💬 ${comments.length} comment${comments.length!==1?"s":""}</div>
     </div>`;
 }
 
-function openContentDetail(contentId) {
+async function openContentDetail(contentId) {
+  // Always reload fresh comments and reviewer data before showing
+  await Promise.all([loadContentComments(), loadContentReviewers()]);
   const c = ALL_CONTENT.find(x => x.id === contentId);
   if (!c) return;
   document.getElementById("cdContentId").value = contentId;
@@ -4195,25 +4329,56 @@ function openContentDetail(contentId) {
   document.getElementById("cdStatus").innerHTML = ctStatusBadge(c.status);
   document.getElementById("cdEvent").textContent = c.event_name || "";
   document.getElementById("cdText").textContent = c.content_text || "(No content text)";
+  // Photo
+  const photoWrap = document.getElementById("cdPhotoWrap");
+  const photoImg = document.getElementById("cdPhoto");
+  if (c.photo_url) { photoImg.src = c.photo_url; photoWrap.style.display = ""; }
+  else photoWrap.style.display = "none";
+  // File link
   const fileLinkEl = document.getElementById("cdFileLink");
   fileLinkEl.innerHTML = c.file_link
-    ? `<a href="${esc(c.file_link)}" target="_blank" style="font-size:13px">📎 View File / Design</a>`
-    : "";
+    ? `<a href="${esc(c.file_link)}" target="_blank" style="font-size:13px">📎 View File / Design</a>` : "";
+  // Reviewer summary
+  renderReviewerSummary(contentId);
   // Editor actions
   const editorActions = document.getElementById("cdEditorActions");
   if (isEditor()) {
-    editorActions.innerHTML = `
-      <button class="btn btn-outline btn-sm" onclick="openContentModalEdit('${contentId}')">✏️ Edit</button>
-      ${c.status === "Draft" ? `<button class="btn btn-gold btn-sm" onclick="updateContentStatus('${contentId}','In Review')">Submit for Review</button>` : ""}
-      ${c.status === "Approved" ? `<button class="btn btn-sm" style="background:#5b21b6;color:white" onclick="updateContentStatus('${contentId}','Posted')">Mark Posted</button>` : ""}`;
+    editorActions.innerHTML =
+      `<button class="btn btn-outline btn-sm" onclick="openContentModalEdit('${contentId}')">✏️ Edit</button>` +
+      (c.status === "Draft" ? `<button class="btn btn-gold btn-sm" onclick="submitForReview('${contentId}')">Submit for Review</button>` : "") +
+      (c.status === "Needs Changes" ? `<button class="btn btn-gold btn-sm" onclick="resubmitContent('${contentId}')">↻ Resubmit</button>` : "") +
+      (c.status === "Approved" ? `<button class="btn btn-sm" style="background:#5b21b6;color:white" onclick="updateContentStatus('${contentId}','Posted')">Mark Posted</button>` : "");
   } else { editorActions.innerHTML = ""; }
-  // Review actions — contributors and above
+  // Comment thread — ALWAYS visible and writable for contributors+
   const reviewArea = document.getElementById("cdReviewActions");
-  reviewArea.style.display = isContributor() && c.status === "In Review" ? "" : "none";
+  reviewArea.style.display = isContributor() ? "" : "none";
+  // Show approve/request-changes only if in review and reviewer hasn't acted
+  const myStatus = getMyReviewStatus(contentId);
+  const isAssignedReviewer = ALL_CONTENT_REVIEWERS.some(r => r.content_id === contentId && r.reviewer === currentUser?.displayName);
+  const canFormalReview = c.status === "In Review" && isAssignedReviewer && myStatus === "pending";
+  document.getElementById("cdApproveBtn").style.display = canFormalReview ? "" : "none";
+  document.getElementById("cdChangesBtn").style.display = canFormalReview ? "" : "none";
   document.getElementById("cdCommentText").value = "";
-  // Render comments
   renderContentComments(contentId);
   openModal("contentDetailModal");
+}
+
+function renderReviewerSummary(contentId) {
+  const reviewers = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === contentId);
+  const el = document.getElementById("cdReviewerSummary");
+  if (!el || !reviewers.length) { if (el) el.innerHTML = ""; return; }
+  el.innerHTML = `<div style="margin-bottom:12px">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray);margin-bottom:6px">Reviewers</div>
+    ${reviewers.map(r => {
+      const icon = r.status === "approved" ? "✅" : r.status === "changes" ? "↩️" : "⏳";
+      const col = r.status === "approved" ? "#065f46" : r.status === "changes" ? "#991b1b" : "#92400e";
+      return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px">
+        <span>${icon}</span>
+        <span style="flex:1">${esc(r.reviewer)}</span>
+        <span style="color:${col};font-size:12px;font-weight:600">${r.status||"pending"}</span>
+      </div>`;
+    }).join("")}
+  </div>`;
 }
 
 function renderContentComments(contentId) {
@@ -4230,7 +4395,7 @@ function renderContentComments(contentId) {
       ? `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">↩️ Changes Requested</span>`
       : "";
     return `<div style="border-left:3px solid var(--gold);padding:8px 12px;margin-bottom:10px;background:#fffbf0;border-radius:0 6px 6px 0">
-      <div style="font-size:12px;color:var(--gray);margin-bottom:4px;display:flex;gap:8px;align-items:center">
+      <div style="font-size:12px;color:var(--gray);margin-bottom:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <strong>${esc(cm.author||"Unknown")}</strong>
         <span>${cm.created_at ? new Date(cm.created_at).toLocaleString() : ""}</span>
         ${actionTag}
@@ -4245,24 +4410,83 @@ async function submitReview(action) {
   const text = document.getElementById("cdCommentText").value.trim();
   if (!text && action === "comment") { showToast("Please enter a comment.", "error"); return; }
   const comment = text || (action === "approve" ? "Approved." : "Changes requested.");
-  const row = {
-    id: genId(), content_id: contentId,
-    author: currentUser?.displayName || "",
-    comment, action,
-    created_at: new Date().toISOString()
-  };
+  const myName = currentUser?.displayName || "";
+  const now = new Date().toISOString();
+  const commentRow = { id: genId(), content_id: contentId, author: myName, comment, action, created_at: now };
   try {
-    await sbInsert("MyBFFContentComments", row);
-    ALL_CONTENT_COMMENTS.push(row);
-    // Update content status
-    if (action === "approve") await updateContentStatus(contentId, "Approved", false);
-    if (action === "changes") await updateContentStatus(contentId, "Needs Changes", false);
+    await sbInsert("MyBFFContentComments", commentRow);
+    ALL_CONTENT_COMMENTS.push(commentRow);
+    // Update per-reviewer status if formal action
+    if (action === "approve" || action === "changes") {
+      const existing = ALL_CONTENT_REVIEWERS.find(r => r.content_id === contentId && r.reviewer === myName);
+      const reviewerStatus = action === "approve" ? "approved" : "changes";
+      if (existing) {
+        await sbUpdateWhere("MyBFFContentReviewers", "id", existing.id, { status: reviewerStatus, action, reviewed_at: now });
+        existing.status = reviewerStatus; existing.action = action;
+      } else {
+        const newRow = { id: genId(), content_id: contentId, reviewer: myName, status: reviewerStatus, action, reviewed_at: now };
+        await sbInsert("MyBFFContentReviewers", newRow);
+        ALL_CONTENT_REVIEWERS.push(newRow);
+      }
+      // Check if all reviewers have acted → auto-advance status
+      const newStatus = checkAllReviewersActed(contentId);
+      if (newStatus) await updateContentStatus(contentId, newStatus, false);
+    }
     document.getElementById("cdCommentText").value = "";
     renderContentComments(contentId);
+    renderReviewerSummary(contentId);
+    // Refresh approve/changes button visibility
+    const c = ALL_CONTENT.find(x => x.id === contentId);
+    const myNewStatus = getMyReviewStatus(contentId);
+    const isAssigned = ALL_CONTENT_REVIEWERS.some(r => r.content_id === contentId && r.reviewer === myName);
+    const canStill = c?.status === "In Review" && isAssigned && myNewStatus === "pending";
+    document.getElementById("cdApproveBtn").style.display = canStill ? "" : "none";
+    document.getElementById("cdChangesBtn").style.display = canStill ? "" : "none";
     renderReviewQueue();
     renderAllContent();
+    updateMktgBadge();
     showToast(action === "approve" ? "✅ Approved!" : action === "changes" ? "↩️ Changes requested" : "💬 Comment added");
   } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+async function submitForReview(contentId) {
+  const c = ALL_CONTENT.find(x => x.id === contentId);
+  if (!c) return;
+  // Insert reviewer rows for all assigned reviewers
+  const reviewerList = (c.reviewers||"").split(",").map(r=>r.trim()).filter(Boolean);
+  const now = new Date().toISOString();
+  for (const rev of reviewerList) {
+    const exists = ALL_CONTENT_REVIEWERS.find(r => r.content_id === contentId && r.reviewer === rev);
+    if (!exists) {
+      const row = { id: genId(), content_id: contentId, reviewer: rev, status: "pending", reviewed_at: null };
+      try { await sbInsert("MyBFFContentReviewers", row); ALL_CONTENT_REVIEWERS.push(row); } catch(e) {}
+    }
+  }
+  await updateContentStatus(contentId, "In Review");
+}
+
+async function resubmitContent(contentId) {
+  const c = ALL_CONTENT.find(x => x.id === contentId);
+  if (!c) return;
+  const now = new Date().toISOString();
+  const newVersion = (c.version || 1) + 1;
+  // Reset all reviewer statuses to pending
+  const reviewers = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === contentId);
+  for (const r of reviewers) {
+    try {
+      await sbUpdateWhere("MyBFFContentReviewers", "id", r.id, { status: "pending", action: null, reviewed_at: null });
+      r.status = "pending"; r.action = null;
+    } catch(e) {}
+  }
+  await sbUpdate("MyBFFContent", contentId, { status: "In Review", version: newVersion, updated_at: now }, "id");
+  const idx = ALL_CONTENT.findIndex(x => x.id === contentId);
+  if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], status: "In Review", version: newVersion };
+  // Add resubmit comment
+  const commentRow = { id: genId(), content_id: contentId, author: currentUser?.displayName || "", comment: `Content updated and resubmitted for review (v${newVersion}).`, action: "comment", created_at: now };
+  try { await sbInsert("MyBFFContentComments", commentRow); ALL_CONTENT_COMMENTS.push(commentRow); } catch(e) {}
+  closeModal("contentDetailModal");
+  showToast(`↻ Resubmitted as v${newVersion}`);
+  renderMarketing();
 }
 
 async function updateContentStatus(contentId, newStatus, closeAfter = true) {
@@ -4270,11 +4494,8 @@ async function updateContentStatus(contentId, newStatus, closeAfter = true) {
     await sbUpdate("MyBFFContent", contentId, { status: newStatus }, "id");
     const idx = ALL_CONTENT.findIndex(c => c.id === contentId);
     if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], status: newStatus };
-    if (closeAfter) {
-      closeModal("contentDetailModal");
-      renderMarketing();
-      showToast("Status updated to: " + newStatus);
-    }
+    if (closeAfter) { closeModal("contentDetailModal"); renderMarketing(); showToast("Status: " + newStatus); }
+    else { updateMktgBadge(); }
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
@@ -4285,11 +4506,11 @@ function openContentModal() {
   document.getElementById("ctTitle").value = "";
   document.getElementById("ctText").value = "";
   document.getElementById("ctFileLink").value = "";
-  // Populate event dropdown
+  document.getElementById("ctPhotoUrl").value = "";
+  document.getElementById("ctPhotoPreview").style.display = "none";
   const evSel = document.getElementById("ctEvent");
   if (evSel) evSel.innerHTML = `<option value="">— Not event-specific —</option>` +
     ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
-  // Build reviewer checkboxes
   buildReviewerChecks([]);
   openModal("contentModal");
 }
@@ -4304,14 +4525,36 @@ function openContentModalEdit(contentId) {
   document.getElementById("ctTitle").value = c.title || "";
   document.getElementById("ctText").value = c.content_text || "";
   document.getElementById("ctFileLink").value = c.file_link || "";
+  document.getElementById("ctPhotoUrl").value = c.photo_url || "";
+  if (c.photo_url) {
+    document.getElementById("ctPhotoImg").src = c.photo_url;
+    document.getElementById("ctPhotoPreview").style.display = "";
+  } else { document.getElementById("ctPhotoPreview").style.display = "none"; }
   const evSel = document.getElementById("ctEvent");
-  if (evSel) {
-    evSel.innerHTML = `<option value="">— Not event-specific —</option>` +
-      ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}" ${e.name===c.event_name?"selected":""}>${esc(e.name)}</option>`).join("");
-  }
-  const selected = (c.reviewers||"").split(",").map(r=>r.trim()).filter(Boolean);
-  buildReviewerChecks(selected);
+  if (evSel) evSel.innerHTML = `<option value="">— Not event-specific —</option>` +
+    ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}" ${e.name===c.event_name?"selected":""}>${esc(e.name)}</option>`).join("");
+  const selected = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === contentId).map(r => r.reviewer);
+  buildReviewerChecks(selected.length ? selected : (c.reviewers||"").split(",").map(r=>r.trim()).filter(Boolean));
   openModal("contentModal");
+}
+
+function previewContentPhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById("ctPhotoImg").src = e.target.result;
+    document.getElementById("ctPhotoPreview").style.display = "";
+    // Store as data URI temporarily — uploaded to Supabase Storage on save
+    document.getElementById("ctPhotoUrl").value = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearContentPhoto() {
+  document.getElementById("ctPhotoFile").value = "";
+  document.getElementById("ctPhotoUrl").value = "";
+  document.getElementById("ctPhotoPreview").style.display = "none";
 }
 
 function buildReviewerChecks(selectedList) {
@@ -4337,10 +4580,23 @@ async function saveContent(status) {
   if (!channel) { showToast("Please select a channel.", "error"); return; }
   const editingId = document.getElementById("ctEditingId").value;
   const now = new Date().toISOString();
+  let photoUrl = document.getElementById("ctPhotoUrl").value || null;
+  // If photo is a data URI, upload to Supabase Storage
+  if (photoUrl && photoUrl.startsWith("data:image")) {
+    try {
+      const base64Data = photoUrl.split(",")[1];
+      const mediaType = photoUrl.split(";")[0].split(":")[1];
+      const ext = mediaType.split("/")[1] || "jpg";
+      const filePath = `content/${genId()}.${ext}`;
+      const result = await workerCall({ method: "STORAGE_UPLOAD", appId: APP_ID, bucket: "mybff-content", filePath, base64Data, contentType: mediaType });
+      if (result?.publicUrl) photoUrl = result.publicUrl;
+    } catch(e) { console.warn("Photo upload failed:", e); photoUrl = null; }
+  }
   const row = {
     title, channel, status,
     content_text: document.getElementById("ctText").value.trim() || null,
     file_link:    document.getElementById("ctFileLink").value.trim() || null,
+    photo_url:    photoUrl,
     event_name:   document.getElementById("ctEvent").value || null,
     event_year:   new Date().getFullYear(),
     reviewers:    getCheckedReviewers(),
@@ -4352,12 +4608,19 @@ async function saveContent(status) {
       const idx = ALL_CONTENT.findIndex(c => c.id === editingId);
       if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], ...row };
     } else {
-      row.id = genId();
-      row.version = 1;
+      row.id = genId(); row.version = 1;
       row.created_by = currentUser?.displayName || "";
       row.created_at = now;
       await sbInsert("MyBFFContent", row);
       ALL_CONTENT.unshift(row);
+      // If submitting for review, create reviewer rows
+      if (status === "In Review") {
+        const reviewerList = row.reviewers.split(",").map(r=>r.trim()).filter(Boolean);
+        for (const rev of reviewerList) {
+          const rRow = { id: genId(), content_id: row.id, reviewer: rev, status: "pending", reviewed_at: null };
+          try { await sbInsert("MyBFFContentReviewers", rRow); ALL_CONTENT_REVIEWERS.push(rRow); } catch(e) {}
+        }
+      }
     }
     closeModal("contentModal");
     showToast(status === "Draft" ? "Saved as draft." : "Submitted for review!");
@@ -4365,51 +4628,150 @@ async function saveContent(status) {
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
-// ── Seed test content (DEV only) ─────────────────────────────
-async function seedTestContent() {
-  if (ALL_CONTENT.length > 0) return; // only seed if empty
-  const now = new Date().toISOString();
-  const eventName = ALL_EVENTS_DATA[0]?.name || "5th Annual MyBFF Cornhole Tournament";
-  const seeds = [
-    { id: genId(), title: "Cornhole Tournament — Save the Date", channel: "Facebook",
-      content_text: "🎯 Mark your calendars! The 5th Annual MyBFF Cornhole Tournament is coming June 13th at Mikerphone Brewing. Grab your partner and get ready for a great day of cornhole, music, and community. Tickets on sale soon — stay tuned!",
-      status: "In Review", event_name: eventName, event_year: 2026, version: 1,
-      created_by: "Ed Grasse", reviewers: APP_USERS.map(u=>u.displayName).join(", "),
-      created_at: now, updated_at: now },
-    { id: genId(), title: "Cornhole — Instagram Countdown", channel: "Instagram",
-      content_text: "⏳ 8 weeks until the big day! The #MyBFF Cornhole Tournament is filling up fast. Tag your team and register before spots run out. Link in bio. 🌽🪙",
-      status: "Draft", event_name: eventName, event_year: 2026, version: 1,
-      created_by: "Megan Wittig", reviewers: "",
-      created_at: now, updated_at: now },
-    { id: genId(), title: "Event Sponsor Thank You Email", channel: "Email",
-      content_text: "Subject: Thank You for Supporting My Best Friends Foundation!\n\nDear [Sponsor Name],\n\nThank you so much for your generous support of the 5th Annual MyBFF Cornhole Tournament. Because of sponsors like you, we're able to make a real difference in the lives of the animals we serve...",
-      status: "Approved", event_name: eventName, event_year: 2026, version: 2,
-      created_by: "Ed Grasse", reviewers: APP_USERS.map(u=>u.displayName).join(", "),
-      created_at: now, updated_at: now },
-    { id: genId(), title: "Tournament Flyer — Print Version", channel: "Flyer",
-      content_text: "5th Annual MyBFF Cornhole Tournament\nJune 13, 2026 · Mikerphone Brewing\n$40/team · Food, Drinks & Live Music\nAll proceeds benefit My Best Friends Foundation\nRegister at mybff.org",
-      status: "Needs Changes", event_name: eventName, event_year: 2026, version: 1,
-      created_by: "Megan Wittig", reviewers: APP_USERS.map(u=>u.displayName).join(", "),
-      created_at: now, updated_at: now },
-  ];
-  for (const s of seeds) {
-    try { await sbInsert("MyBFFContent", s); ALL_CONTENT.push(s); } catch(e) { console.warn("seed:", e); }
+// ── Seed & Clear ──────────────────────────────────────────────
+async function clearSeedContent() {
+  if (!confirm("Delete all seeded test content and comments? This cannot be undone.")) return;
+  const statusEl = document.getElementById("seedStatus");
+  if (statusEl) statusEl.textContent = "Clearing...";
+  let deleted = 0;
+  for (const c of [...ALL_CONTENT]) {
+    try {
+      // Delete comments
+      for (const cm of ALL_CONTENT_COMMENTS.filter(x => x.content_id === c.id)) {
+        await sbDelete("MyBFFContentComments", cm.id, "id");
+      }
+      // Delete reviewers
+      for (const r of ALL_CONTENT_REVIEWERS.filter(x => x.content_id === c.id)) {
+        await sbDelete("MyBFFContentReviewers", r.id, "id");
+      }
+      await sbDelete("MyBFFContent", c.id, "id");
+      deleted++;
+    } catch(e) { console.warn("clear:", e); }
   }
-  // Add sample comments
-  const reviewItem = ALL_CONTENT.find(c => c.status === "In Review");
-  const changesItem = ALL_CONTENT.find(c => c.status === "Needs Changes");
-  const approvedItem = ALL_CONTENT.find(c => c.status === "Approved");
-  const commentSeeds = [
-    reviewItem && { id: genId(), content_id: reviewItem.id, author: "Jay Wadhwa", comment: "Love the tone! Maybe add the ticket price so people know what to expect?", action: "comment", created_at: now },
-    changesItem && { id: genId(), content_id: changesItem.id, author: "Kris Grasse", comment: "The date is missing from the flyer and the logo needs to be larger. Can you update and resubmit?", action: "changes", created_at: now },
-    approvedItem && { id: genId(), content_id: approvedItem.id, author: "Jay Wadhwa", comment: "This looks great — warm and professional. Good to go!", action: "approve", created_at: now },
-    approvedItem && { id: genId(), content_id: approvedItem.id, author: "Kris Grasse", comment: "Approved from my end too.", action: "approve", created_at: now },
-  ].filter(Boolean);
-  for (const cm of commentSeeds) {
-    try { await sbInsert("MyBFFContentComments", cm); ALL_CONTENT_COMMENTS.push(cm); } catch(e) { console.warn("seed comment:", e); }
-  }
+  await Promise.all([loadContent(), loadContentComments(), loadContentReviewers()]);
   renderMarketing();
-  showToast("✅ Test marketing content seeded!");
+  if (statusEl) statusEl.textContent = `Cleared ${deleted} content items.`;
+  showToast("Test content cleared.");
+}
+
+async function seedTestContent() {
+  const statusEl = document.getElementById("seedStatus");
+  if (statusEl) statusEl.textContent = "Seeding...";
+  const now = new Date().toISOString();
+  const ev1 = ALL_EVENTS_DATA.find(e => e.event_type === "Cornhole" || e.name.toLowerCase().includes("cornhole"))?.name || "5th Annual MyBFF Cornhole Tournament";
+  const ev2 = ALL_EVENTS_DATA.find(e => e.event_type === "Trivia" || e.name.toLowerCase().includes("trivia"))?.name || "6th Annual MyBFF Trivia Night";
+  const ev3 = ALL_EVENTS_DATA.find(e => e.event_type === "Walk" || e.name.toLowerCase().includes("walk"))?.name || "7th Annual MyBFF 5K/8.13K Walk/Run";
+  const ed = APP_USERS.find(u => u.role === "admin" && u.displayName.toLowerCase().includes("ed"))?.displayName || "Ed Grasse";
+  const kris = APP_USERS.find(u => u.role === "admin" && u.displayName.toLowerCase().includes("kris"))?.displayName || "Kris Grasse";
+  const megan = APP_USERS.find(u => u.role === "editor")?.displayName || "Megan Wittig";
+  const jay = APP_USERS.find(u => u.displayName.toLowerCase().includes("jay"))?.displayName || "Jay Wadhwa";
+  const allReviewers = [ed, kris, jay].join(", ");
+  const jayKris = [kris, jay].join(", ");
+
+  const seeds = [
+    // 1. Draft — not yet submitted
+    { id: genId(), title: "Walk/Run — Early Registration Push", channel: "Facebook",
+      content_text: "👟 Registration is open for the 7th Annual MyBFF Walk/Run! Sign up early and save. Whether you walk, jog, or run — every step helps animals in need. Register at mybff.org/walk. 🐾",
+      status: "Draft", event_name: ev3, event_year: 2026, version: 1, photo_url: null,
+      created_by: megan, reviewers: jayKris, created_at: now, updated_at: now },
+    // 2. In Review — Jay acted, Kris pending
+    { id: genId(), title: "Cornhole Save the Date", channel: "Facebook",
+      content_text: "🎯 Save the Date! The 5th Annual MyBFF Cornhole Tournament returns June 13th at Mikerphone Brewing in Evergreen Park. Grab your partner, register your team, and get ready for a day of fun, music, and community. All proceeds benefit My Best Friends Foundation. 🍺🌽",
+      status: "In Review", event_name: ev1, event_year: 2026, version: 1, photo_url: null,
+      created_by: ed, reviewers: allReviewers, created_at: now, updated_at: now },
+    // 3. In Review — nobody has acted yet
+    { id: genId(), title: "Trivia Night — Instagram Countdown", channel: "Instagram",
+      content_text: "🧠 4 weeks until Trivia Night! Test your knowledge and help a great cause. Teams of up to 6, prizes for top 3 finishers, and plenty of laughs along the way. Tickets link in bio! #MyBFF #TriviaForGood",
+      status: "In Review", event_name: ev2, event_year: 2026, version: 1, photo_url: null,
+      created_by: megan, reviewers: jayKris, created_at: now, updated_at: now },
+    // 4. Needs Changes — v1 sent back, changes requested
+    { id: genId(), title: "Cornhole Tournament Flyer", channel: "Flyer",
+      content_text: "5th Annual MyBFF Cornhole Tournament\nJune 13, 2026 · Mikerphone Brewing, Evergreen Park IL\n$40/team entry · Food, Drinks & Live Music\nAll proceeds benefit My Best Friends Foundation\nRegister: mybff.org/cornhole",
+      status: "Needs Changes", event_name: ev1, event_year: 2026, version: 1, photo_url: null,
+      created_by: megan, reviewers: allReviewers, created_at: now, updated_at: now },
+    // 5. Approved — all reviewers approved
+    { id: genId(), title: "Sponsor Thank You Email", channel: "Email",
+      content_text: "Subject: Thank You for Supporting My Best Friends Foundation!\n\nDear [Sponsor Name],\n\nOn behalf of the entire team at My Best Friends Foundation, thank you for your generous support of the 5th Annual MyBFF Cornhole Tournament. Because of sponsors like you, we are able to continue our mission and make a real difference for the animals and families we serve.\n\nYour support means everything to us. We look forward to celebrating with you on June 13th!\n\nWith gratitude,\nThe MyBFF Team",
+      status: "Approved", event_name: ev1, event_year: 2026, version: 2, photo_url: null,
+      created_by: ed, reviewers: allReviewers, created_at: now, updated_at: now },
+    // 6. Posted — fully complete
+    { id: genId(), title: "Walk/Run Save the Date", channel: "Instagram",
+      content_text: "📣 Mark your calendars — the 7th Annual MyBFF Walk/Run is coming August 8th at Judson University! Join us for 5K or 8.13K options, post-race festivities, and a whole lot of good vibes. Registration opens soon. 🐾❤️",
+      status: "Posted", event_name: ev3, event_year: 2026, version: 1, photo_url: null,
+      created_by: megan, reviewers: jayKris, created_at: now, updated_at: now },
+  ];
+
+  for (const s of seeds) {
+    try { await sbInsert("MyBFFContent", s); ALL_CONTENT.unshift(s); } catch(e) { console.warn("seed:", e); }
+  }
+
+  // Seed reviewer rows
+  const reviewerSeeds = [];
+  const inReview1 = ALL_CONTENT.find(c => c.title === "Cornhole Save the Date");
+  const inReview2 = ALL_CONTENT.find(c => c.title === "Trivia Night — Instagram Countdown");
+  const needsChanges = ALL_CONTENT.find(c => c.title === "Cornhole Tournament Flyer");
+  const approved = ALL_CONTENT.find(c => c.title === "Sponsor Thank You Email");
+  const posted = ALL_CONTENT.find(c => c.title === "Walk/Run Save the Date");
+
+  if (inReview1) {
+    reviewerSeeds.push(
+      { id: genId(), content_id: inReview1.id, reviewer: ed, status: "pending", action: null, reviewed_at: null },
+      { id: genId(), content_id: inReview1.id, reviewer: kris, status: "pending", action: null, reviewed_at: null },
+      { id: genId(), content_id: inReview1.id, reviewer: jay, status: "approved", action: "approve", reviewed_at: now }
+    );
+  }
+  if (inReview2) {
+    reviewerSeeds.push(
+      { id: genId(), content_id: inReview2.id, reviewer: kris, status: "pending", action: null, reviewed_at: null },
+      { id: genId(), content_id: inReview2.id, reviewer: jay, status: "pending", action: null, reviewed_at: null }
+    );
+  }
+  if (needsChanges) {
+    reviewerSeeds.push(
+      { id: genId(), content_id: needsChanges.id, reviewer: ed, status: "pending", action: null, reviewed_at: null },
+      { id: genId(), content_id: needsChanges.id, reviewer: kris, status: "changes", action: "changes", reviewed_at: now },
+      { id: genId(), content_id: needsChanges.id, reviewer: jay, status: "changes", action: "changes", reviewed_at: now }
+    );
+  }
+  if (approved) {
+    reviewerSeeds.push(
+      { id: genId(), content_id: approved.id, reviewer: ed, status: "approved", action: "approve", reviewed_at: now },
+      { id: genId(), content_id: approved.id, reviewer: kris, status: "approved", action: "approve", reviewed_at: now },
+      { id: genId(), content_id: approved.id, reviewer: jay, status: "approved", action: "approve", reviewed_at: now }
+    );
+  }
+  if (posted) {
+    reviewerSeeds.push(
+      { id: genId(), content_id: posted.id, reviewer: kris, status: "approved", action: "approve", reviewed_at: now },
+      { id: genId(), content_id: posted.id, reviewer: jay, status: "approved", action: "approve", reviewed_at: now }
+    );
+  }
+
+  for (const r of reviewerSeeds) {
+    try { await sbInsert("MyBFFContentReviewers", r); ALL_CONTENT_REVIEWERS.push(r); } catch(e) {}
+  }
+
+  // Seed comments
+  const commentSeeds = [
+    inReview1 && { id: genId(), content_id: inReview1.id, author: jay, comment: "Love the energy! Maybe add the ticket price so people know what to expect upfront?", action: "approve", created_at: now },
+    inReview2 && { id: genId(), content_id: inReview2.id, author: kris, comment: "This is fun! Can we add the venue? Some people might not know where More Brewery is.", action: "comment", created_at: now },
+    needsChanges && { id: genId(), content_id: needsChanges.id, author: kris, comment: "We need the MyBFF logo prominently featured at the top. Also the address is missing — Mikerphone is in Evergreen Park not Chicago.", action: "changes", created_at: now },
+    needsChanges && { id: genId(), content_id: needsChanges.id, author: jay, comment: "Agreed on the logo. Also think the font size on the date should be bigger — that's the most important thing to see at a glance.", action: "changes", created_at: now },
+    approved && { id: genId(), content_id: approved.id, author: kris, comment: "Warm and professional — exactly the right tone. Approved!", action: "approve", created_at: now },
+    approved && { id: genId(), content_id: approved.id, author: jay, comment: "Great work. Sponsor will love this.", action: "approve", created_at: now },
+    approved && { id: genId(), content_id: approved.id, author: ed, comment: "Approved. Sending week of May 15th.", action: "approve", created_at: now },
+    posted && { id: genId(), content_id: posted.id, author: kris, comment: "Approved — go ahead and post.", action: "approve", created_at: now },
+    posted && { id: genId(), content_id: posted.id, author: jay, comment: "Posted April 5th at 10am. Good engagement so far — 47 likes in the first hour.", action: "comment", created_at: now },
+  ].filter(Boolean);
+
+  for (const cm of commentSeeds) {
+    try { await sbInsert("MyBFFContentComments", cm); ALL_CONTENT_COMMENTS.push(cm); } catch(e) {}
+  }
+
+  renderMarketing();
+  updateMktgBadge();
+  if (statusEl) statusEl.textContent = `✅ Seeded ${seeds.length} content items with reviewer tracking and comments.`;
+  showToast("✅ Marketing test data seeded!");
 }
 
 const HELP_DATA = [
