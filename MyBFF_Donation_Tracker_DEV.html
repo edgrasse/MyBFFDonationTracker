@@ -687,10 +687,10 @@ if ('serviceWorker' in navigator) {
       </div>
       <!-- Sub-tabs -->
       <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px">
-        <button class="sub-tab active" onclick="showSubTab('marketing','sub-mktg-review')">Needs Review</button>
+        <button class="sub-tab active" id="mktgTabPipeline" onclick="showSubTab('marketing','sub-mktg-review')">Pipeline</button>
         <button class="sub-tab" onclick="showSubTab('marketing','sub-mktg-all')">All Content</button>
       </div>
-      <!-- Needs Review -->
+      <!-- Pipeline / Needs Review -->
       <div class="sub-page active" id="sub-mktg-review">
         <div id="mktgReviewList"></div>
       </div>
@@ -1418,6 +1418,14 @@ if ('serviceWorker' in navigator) {
         <label class="form-label">Assign Reviewers</label>
         <div id="ctReviewerChecks" style="border:2px solid var(--border);border-radius:7px;padding:8px 12px;max-height:120px;overflow-y:auto;background:white;display:flex;flex-direction:column;gap:4px"></div>
       </div>
+      <div class="form-group">
+        <label class="form-label">Review Deadline <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <input type="date" class="form-input" id="ctReviewDeadline">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Planned Post Date <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <input type="date" class="form-input" id="ctPostDate">
+      </div>
     </div>
     <div class="form-actions">
       <button class="btn btn-outline" onclick="closeModal('contentModal')">Cancel</button>
@@ -1449,10 +1457,12 @@ if ('serviceWorker' in navigator) {
       <img id="cdPhoto" style="max-width:100%;border-radius:8px;border:1px solid var(--border)">
     </div>
     <div id="cdFileLink" style="margin-bottom:16px"></div>
+    <div id="cdDates" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;color:var(--gray)"></div>
     <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gold);margin-bottom:10px">Comments & Review</div>
     <div id="cdComments" style="max-height:220px;overflow-y:auto;margin-bottom:14px"></div>
     <div id="cdReviewActions" style="display:none">
-      <textarea class="form-input form-textarea" id="cdCommentText" rows="2" placeholder="Add a comment, approval note, or change request..." style="margin-bottom:8px"></textarea>
+      <textarea class="form-input form-textarea" id="cdCommentText" rows="2" placeholder="Add a comment, approval note, or change request..." style="margin-bottom:6px"></textarea>
+      <div style="font-size:12px;color:var(--gray);margin-bottom:8px" id="cdReviewHint"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-sm btn-outline" onclick="submitReview('comment')">💬 Comment</button>
         <button class="btn btn-sm btn-green" id="cdApproveBtn" onclick="submitReview('approve')">✅ Approve</button>
@@ -1514,7 +1524,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.6-DEV · Apr 19 2026b";
+const BUILD_VERSION = "v5.7-DEV · Apr 19 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -4003,7 +4013,12 @@ function showPage(name) {
   else if (name === "events") { CURRENT_EVENT_VIEW = null; document.getElementById("evListView").style.display = ""; document.getElementById("evDetailView").style.display = "none"; renderEventsPage(); }
   else if (name === "reports") renderReport();
   else if (name === "admin") { renderAdminUsers(); renderAdminEvents(); renderAdminPickups(); renderTemplates(); renderEventTypes(); renderDonCats(); }
-  else if (name === "marketing") renderMarketing();
+  else if (name === "marketing") {
+    // Tab label: pipeline view for editors/admins, personal queue for contributors
+    const tabEl = document.getElementById("mktgTabPipeline");
+    if (tabEl) tabEl.textContent = isEditor() ? "Pipeline" : "Needs Review";
+    renderMarketing();
+  }
   else if (name === "help") renderHelp();
   else if (name === "dashboard") renderDashboard();
 }
@@ -4154,15 +4169,21 @@ async function manualRefresh() {
 
 function updateMktgBadge() {
   const myName = currentUser?.displayName || "";
-  const pending = ALL_CONTENT.filter(c => {
-    if (c.status !== "In Review") return false;
-    const myReview = ALL_CONTENT_REVIEWERS.find(r => r.content_id === c.id && r.reviewer === myName);
-    return !myReview || myReview.status === "pending";
+  // Count items where I specifically need to take action:
+  // 1. In Review items where I'm an assigned reviewer with pending status
+  // 2. Items I created that have Needs Changes status
+  const needsMyAction = ALL_CONTENT.filter(c => {
+    if (c.status === "In Review") {
+      const myReview = ALL_CONTENT_REVIEWERS.find(r => r.content_id === c.id && r.reviewer === myName);
+      return myReview && myReview.status === "pending";
+    }
+    if (c.status === "Needs Changes" && c.created_by === myName) return true;
+    return false;
   }).length;
   const badge = document.getElementById("mktgBadge");
   if (badge) {
-    badge.textContent = pending;
-    badge.style.display = pending > 0 ? "" : "none";
+    badge.textContent = needsMyAction;
+    badge.style.display = needsMyAction > 0 ? "" : "none";
   }
 }
 
@@ -4208,13 +4229,12 @@ function ctChannelBadge(ch) {
 function renderMarketing() {
   const addBtn = document.getElementById("mktgAddBtn");
   if (addBtn) addBtn.style.display = isEditor() ? "" : "none";
-  // Always repopulate the event filter from current data and reset to "All Events"
+  // Always repopulate event filter from current data
   const evFilter = document.getElementById("mktgEventFilter");
   if (evFilter) {
-    const cur = evFilter.value; // preserve if user has already selected something
+    const cur = evFilter.value;
     const names = ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
     evFilter.innerHTML = `<option value="">All Events</option>` + names;
-    // Only restore selection if events are loaded; otherwise default to All
     if (cur && ALL_EVENTS_DATA.some(e => e.name === cur)) evFilter.value = cur;
   }
   updateMktgBadge();
@@ -4227,29 +4247,130 @@ function renderReviewQueue() {
   const container = document.getElementById("mktgReviewList");
   if (!container) return;
   const myName = currentUser?.displayName || "";
-  let items;
+
   if (isEditor()) {
-    // Editors see all In Review items
-    items = ALL_CONTENT.filter(c => c.status === "In Review");
+    // Editors/Admins: pipeline view grouped by status
+    renderPipelineView(container);
   } else {
-    // Contributors see only items where they are an assigned reviewer and haven't acted yet
-    items = ALL_CONTENT.filter(c => {
+    // Contributors: personal queue — items assigned to them, pending their action
+    const items = ALL_CONTENT.filter(c => {
       if (c.status !== "In Review") return false;
       const assignedReviewers = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === c.id);
       if (!assignedReviewers.some(r => r.reviewer === myName)) return false;
       const myAction = assignedReviewers.find(r => r.reviewer === myName);
       return !myAction || myAction.status === "pending";
     });
+    if (!items.length) {
+      container.innerHTML = `<div class="empty-state" style="padding:40px 0">
+        <div style="font-size:40px;margin-bottom:12px">✅</div>
+        <div style="font-weight:600;margin-bottom:6px">Nothing pending your review</div>
+        <div style="font-size:14px;color:var(--gray)">All content is up to date.</div>
+      </div>`;
+      return;
+    }
+    container.innerHTML = items.map(c => contentCard(c)).join("");
   }
-  if (!items.length) {
-    container.innerHTML = `<div class="empty-state" style="padding:40px 0">
-      <div style="font-size:40px;margin-bottom:12px">✅</div>
-      <div style="font-weight:600;margin-bottom:6px">Nothing pending your review</div>
-      <div style="font-size:14px;color:var(--gray)">All content is up to date.</div>
-    </div>`;
-    return;
-  }
-  container.innerHTML = items.map(c => contentCard(c)).join("");
+}
+
+function renderPipelineView(container) {
+  const myName = currentUser?.displayName || "";
+  const today = new Date().toISOString().split("T")[0];
+
+  // Define pipeline sections in priority order
+  const sections = [
+    {
+      key: "attention",
+      label: "Needs Your Attention",
+      color: "#dc2626",
+      bg: "#fee2e2",
+      filter: c => {
+        if (c.status === "In Review") {
+          const myReview = ALL_CONTENT_REVIEWERS.find(r => r.content_id === c.id && r.reviewer === myName);
+          return myReview && myReview.status === "pending";
+        }
+        if (c.status === "Needs Changes" && c.created_by === myName) return true;
+        return false;
+      }
+    },
+    {
+      key: "review",
+      label: "In Review",
+      color: "#1e40af",
+      bg: "#dbeafe",
+      filter: c => c.status === "In Review"
+    },
+    {
+      key: "changes",
+      label: "Needs Changes",
+      color: "#92400e",
+      bg: "#fef3c7",
+      filter: c => c.status === "Needs Changes"
+    },
+    {
+      key: "approved",
+      label: "Approved — Ready to Post",
+      color: "#065f46",
+      bg: "#d1fae5",
+      filter: c => c.status === "Approved"
+    },
+    {
+      key: "draft",
+      label: "Drafts",
+      color: "#374151",
+      bg: "#f3f4f6",
+      filter: c => c.status === "Draft"
+    },
+    {
+      key: "posted",
+      label: "Posted",
+      color: "#5b21b6",
+      bg: "#ede9fe",
+      filter: c => c.status === "Posted"
+    },
+  ];
+
+  // Apply event filter if set
+  const evFilterVal = document.getElementById("mktgEventFilter")?.value || "";
+  let allItems = evFilterVal ? ALL_CONTENT.filter(c => c.event_name === evFilterVal) : ALL_CONTENT;
+
+  const html = sections.map(sec => {
+    const items = allItems.filter(sec.filter);
+    if (!items.length && sec.key !== "attention") return ""; // hide empty non-critical sections
+    const isAttention = sec.key === "attention";
+    const defaultOpen = isAttention || sec.key === "review" || sec.key === "changes";
+    return `
+      <div style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${sec.bg};border-radius:8px;cursor:pointer;user-select:none"
+             onclick="togglePipelineSection('pipeline-${sec.key}')">
+          <span style="font-weight:700;font-size:14px;color:${sec.color};flex:1">${sec.label}</span>
+          <span style="background:${sec.color};color:white;border-radius:9999px;font-size:11px;font-weight:700;padding:1px 8px;min-width:20px;text-align:center">${items.length}</span>
+          <span id="pipeline-${sec.key}-arrow" style="color:${sec.color};font-size:12px">${defaultOpen ? "▲" : "▼"}</span>
+        </div>
+        <div id="pipeline-${sec.key}" style="display:${defaultOpen ? "" : "none"};padding:8px 0 0 0">
+          ${items.length
+            ? items.map(c => {
+                // Add overdue indicator
+                const overdue = c.review_deadline && c.review_deadline < today && c.status === "In Review"
+                  ? `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600;margin-left:6px">⚠️ Review overdue</span>` : "";
+                const postAlert = c.post_date && c.post_date <= new Date(Date.now()+3*86400000).toISOString().split("T")[0] && c.status !== "Posted"
+                  ? `<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600;margin-left:6px">📅 Post date soon</span>` : "";
+                return contentCard(c, overdue + postAlert);
+              }).join("")
+            : `<div style="font-size:13px;color:var(--gray);padding:12px 4px">Nothing here yet.</div>`}
+        </div>
+      </div>`;
+  }).join("");
+
+  container.innerHTML = html || `<div style="color:var(--gray);font-size:14px;padding:24px 0;text-align:center">No content found.</div>`;
+}
+
+function togglePipelineSection(id) {
+  const el = document.getElementById(id);
+  const arrow = document.getElementById(id + "-arrow");
+  if (!el) return;
+  const open = el.style.display !== "none";
+  el.style.display = open ? "none" : "";
+  if (arrow) arrow.textContent = open ? "▼" : "▲";
 }
 
 function renderAllContent() {
@@ -4284,7 +4405,7 @@ function renderAllContent() {
   container.innerHTML = items.map(c => contentCard(c)).join("");
 }
 
-function contentCard(c) {
+function contentCard(c, extraBadges = "") {
   const comments = ALL_CONTENT_COMMENTS.filter(x => x.content_id === c.id);
   const summary = getReviewerSummary(c.id);
   const myStatus = getMyReviewStatus(c.id);
@@ -4314,11 +4435,15 @@ function contentCard(c) {
           </div>` : ""}
         </div>
       </div>
-      ${myReviewTag ? `<div style="margin-bottom:8px">${myReviewTag}</div>` : ""}
+      ${myReviewTag ? `<div style="margin-bottom:8px">${myReviewTag}${extraBadges}</div>` : extraBadges ? `<div style="margin-bottom:8px">${extraBadges}</div>` : ""}
       ${c.photo_url ? `<img src="${esc(c.photo_url)}" style="max-width:100%;max-height:100px;border-radius:6px;margin-bottom:8px;object-fit:cover">` : ""}
       ${snippet ? `<div style="font-size:13px;color:var(--gray);line-height:1.5">${esc(snippet)}${(c.content_text?.length||0)>120?"…":""}</div>` : ""}
       ${c.file_link ? `<div style="margin-top:8px"><a href="${esc(c.file_link)}" target="_blank" onclick="event.stopPropagation()" style="font-size:13px">📎 View File</a></div>` : ""}
-      <div style="margin-top:10px;font-size:12px;color:var(--gray)">💬 ${comments.length} comment${comments.length!==1?"s":""}</div>
+      <div style="margin-top:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--gray)">💬 ${comments.length} comment${comments.length!==1?"s":""}</span>
+        ${c.review_deadline ? `<span style="font-size:12px;color:var(--gray)">🔍 Review by ${c.review_deadline}</span>` : ""}
+        ${c.post_date ? `<span style="font-size:12px;color:var(--gray)">📅 Post ${c.post_date}</span>` : ""}
+      </div>
     </div>`;
 }
 
@@ -4338,8 +4463,15 @@ async function openContentDetail(contentId) {
   const photoImg = document.getElementById("cdPhoto");
   if (c.photo_url) { photoImg.src = c.photo_url; photoWrap.style.display = ""; }
   else photoWrap.style.display = "none";
-  // File link
-  const fileLinkEl = document.getElementById("cdFileLink");
+  // Dates
+  const datesEl = document.getElementById("cdDates");
+  if (datesEl) {
+    const parts = [];
+    if (c.review_deadline) parts.push(`🔍 Review deadline: <strong>${c.review_deadline}</strong>`);
+    if (c.post_date) parts.push(`📅 Planned post date: <strong>${c.post_date}</strong>`);
+    datesEl.innerHTML = parts.length ? parts.join(" &nbsp;·&nbsp; ") : "";
+    datesEl.style.display = parts.length ? "" : "none";
+  }
   fileLinkEl.innerHTML = c.file_link
     ? `<a href="${esc(c.file_link)}" target="_blank" style="font-size:13px">📎 View File / Design</a>` : "";
   // Reviewer summary
@@ -4365,6 +4497,17 @@ async function openContentDetail(contentId) {
     (isEditor() || (isAssignedReviewer && myStatus === "pending"));
   document.getElementById("cdApproveBtn").style.display = canFormalReview ? "" : "none";
   document.getElementById("cdChangesBtn").style.display = canFormalReview ? "" : "none";
+  // Hint text for review area
+  const hintEl = document.getElementById("cdReviewHint");
+  if (hintEl) {
+    if (canFormalReview) {
+      hintEl.textContent = "💬 Comment to ask questions. Use Approve or Request Changes to complete your review.";
+    } else if (c.status === "In Review" && isAssignedReviewer) {
+      hintEl.textContent = "You have already submitted your review. You can still add comments below.";
+    } else {
+      hintEl.textContent = "";
+    }
+  }
   document.getElementById("cdCommentText").value = "";
   renderContentComments(contentId);
   openModal("contentDetailModal");
@@ -4416,7 +4559,8 @@ async function submitReview(action) {
   const contentId = document.getElementById("cdContentId").value;
   const text = document.getElementById("cdCommentText").value.trim();
   if (!text && action === "comment") { showToast("Please enter a comment.", "error"); return; }
-  const comment = text || (action === "approve" ? "Approved." : "Changes requested.");
+  if (!text && action === "changes") { showToast("Please describe what needs to change.", "error"); return; }
+  const comment = text || "Approved.";
   const myName = currentUser?.displayName || "";
   const now = new Date().toISOString();
   const commentRow = { id: genId(), content_id: contentId, author: myName, comment, action, created_at: now };
@@ -4526,6 +4670,8 @@ function openContentModal() {
   document.getElementById("ctFileLink").value = "";
   document.getElementById("ctPhotoUrl").value = "";
   document.getElementById("ctPhotoPreview").style.display = "none";
+  document.getElementById("ctReviewDeadline").value = "";
+  document.getElementById("ctPostDate").value = "";
   const evSel = document.getElementById("ctEvent");
   if (evSel) evSel.innerHTML = `<option value="">— Not event-specific —</option>` +
     ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
@@ -4551,6 +4697,8 @@ function openContentModalEdit(contentId) {
   const evSel = document.getElementById("ctEvent");
   if (evSel) evSel.innerHTML = `<option value="">— Not event-specific —</option>` +
     ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}" ${e.name===c.event_name?"selected":""}>${esc(e.name)}</option>`).join("");
+  document.getElementById("ctReviewDeadline").value = c.review_deadline || "";
+  document.getElementById("ctPostDate").value = c.post_date || "";
   const selected = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === contentId).map(r => r.reviewer);
   buildReviewerChecks(selected.length ? selected : (c.reviewers||"").split(",").map(r=>r.trim()).filter(Boolean));
   openModal("contentModal");
@@ -4612,13 +4760,15 @@ async function saveContent(status) {
   }
   const row = {
     title, channel, status,
-    content_text: document.getElementById("ctText").value.trim() || null,
-    file_link:    document.getElementById("ctFileLink").value.trim() || null,
-    photo_url:    photoUrl,
-    event_name:   document.getElementById("ctEvent").value || null,
-    event_year:   new Date().getFullYear(),
-    reviewers:    getCheckedReviewers(),
-    updated_at:   now
+    content_text:     document.getElementById("ctText").value.trim() || null,
+    file_link:        document.getElementById("ctFileLink").value.trim() || null,
+    photo_url:        photoUrl,
+    event_name:       document.getElementById("ctEvent").value || null,
+    event_year:       new Date().getFullYear(),
+    reviewers:        getCheckedReviewers(),
+    review_deadline:  document.getElementById("ctReviewDeadline").value || null,
+    post_date:        document.getElementById("ctPostDate").value || null,
+    updated_at:       now
   };
   try {
     if (editingId) {
@@ -4721,12 +4871,16 @@ async function seedTestContent() {
     { id: genId(), title: "Cornhole Tournament — Save the Date", channel: "Facebook",
       content_text: "🎯 Save the Date! The 5th Annual MyBFF Cornhole Tournament returns June 13th at Mikerphone Brewing in Evergreen Park. Grab your partner, register your team, and get ready for a day of fun, music, and community. All proceeds benefit My Best Friends Foundation. 🍺🌽",
       status: "In Review", event_name: ev1, event_year: 2026, version: 1, photo_url: null,
+      review_deadline: new Date(Date.now()+3*86400000).toISOString().split("T")[0],
+      post_date: new Date(Date.now()+14*86400000).toISOString().split("T")[0],
       created_by: ed, reviewers: allThree, created_at: minsAgo(90), updated_at: minsAgo(90) },
 
     // 3. IN REVIEW — nobody has acted yet, both Kris and Jay assigned
     { id: genId(), title: "Trivia Night — Instagram Countdown", channel: "Instagram",
       content_text: "🧠 4 weeks until Trivia Night at More Brewery! Teams of up to 6, prizes for the top 3 finishers, and plenty of laughs along the way. Grab your team before spots run out — tickets link in bio! #MyBFF #TriviaForGood",
       status: "In Review", event_name: ev2, event_year: 2026, version: 1, photo_url: null,
+      review_deadline: new Date(Date.now()+7*86400000).toISOString().split("T")[0],
+      post_date: new Date(Date.now()+21*86400000).toISOString().split("T")[0],
       created_by: megan, reviewers: jayKris, created_at: minsAgo(60), updated_at: minsAgo(60) },
 
     // 4. NEEDS CHANGES — v1 sent back by both Kris and Jay
@@ -4739,6 +4893,7 @@ async function seedTestContent() {
     { id: genId(), title: "Sponsor Thank You Email", channel: "Email",
       content_text: "Subject: Thank You for Supporting My Best Friends Foundation!\n\nDear [Sponsor Name],\n\nOn behalf of the entire team at My Best Friends Foundation, thank you for your generous support of the 5th Annual MyBFF Cornhole Tournament. Because of sponsors like you, we are able to continue our mission and make a real difference for the animals and families we serve.\n\nYour support means everything to us. We look forward to celebrating with you on June 13th!\n\nWith gratitude,\nThe MyBFF Team",
       status: "Approved", event_name: ev1, event_year: 2026, version: 2, photo_url: null,
+      post_date: new Date(Date.now()+5*86400000).toISOString().split("T")[0],
       created_by: ed, reviewers: allThree, created_at: minsAgo(300), updated_at: minsAgo(30) },
 
     // 6. POSTED — Walk/Run save the date, fully done
@@ -4751,6 +4906,8 @@ async function seedTestContent() {
     { id: genId(), title: "Trivia Night — Event Announcement Email", channel: "Email",
       content_text: "Subject: Trivia Night is Back — April 12th at More Brewery!\n\nHi [First Name],\n\nWe are thrilled to announce the 6th Annual MyBFF Trivia Night! Join us on April 12th at More Brewery for a fun evening of trivia, prizes, and great company. All proceeds support My Best Friends Foundation.\n\nTeams of up to 6 · Registration at mybff.org/trivia\n\nWe hope to see you there!\nThe MyBFF Team",
       status: "In Review", event_name: ev2, event_year: 2026, version: 1, photo_url: null,
+      review_deadline: new Date(Date.now()+1*86400000).toISOString().split("T")[0],
+      post_date: new Date(Date.now()+10*86400000).toISOString().split("T")[0],
       created_by: megan, reviewers: [ed, kris].join(", "), created_at: minsAgo(30), updated_at: minsAgo(30) },
 
     // 8. NEEDS CHANGES — v1 of Walk email, one reviewer requested changes
