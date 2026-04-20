@@ -1,6 +1,6 @@
 // sw.js — MyBFF Donation Tracker Service Worker
 // v5.5-DEV — iOS-optimized: HTML always network-first, never cached
-const CACHE_VERSION = "mybff-v5.7-DEV-Apr19-2026";
+const CACHE_VERSION = "mybff-v5.8-DEV-Apr20-2026";
 const CACHE_NAME = `mybff-cache-${CACHE_VERSION}`;
 
 self.addEventListener("install", event => {

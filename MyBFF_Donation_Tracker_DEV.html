@@ -362,6 +362,7 @@ a:hover { text-decoration: underline; }
 .role-contributor { background: #d1fae5; color: #065f46; }
 .role-member      { background: #f3f4f6; color: #6b7280; }
 /* ── MARKETING ── */
+.mktg-panel { }
 .ct-draft         { background:#f3f4f6;color:#374151; }
 .ct-in-review     { background:#dbeafe;color:#1e40af; }
 .ct-approved      { background:#d1fae5;color:#065f46; }
@@ -675,46 +676,46 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- MARKETING -->
+    <!-- MARKETING HUB -->
     <div class="page" id="page-marketing">
       <div class="page-header">
         <div class="section-title" style="margin:0">Marketing</div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-outline btn-sm" onclick="manualRefresh()" id="mktgRefreshBtn" title="Refresh content">↻ Refresh</button>
-          <div id="mktgAddBtn" style="display:none">
-            <button class="btn btn-gold btn-sm" onclick="openContentModal()">+ Create Content</button>
-          </div>
+          <button class="btn btn-outline btn-sm" onclick="manualRefresh()" id="mktgRefreshBtn">↻ Refresh</button>
         </div>
       </div>
-      <!-- Sub-tabs -->
-      <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px">
-        <button class="sub-tab active" id="mktgTabPipeline" onclick="showSubTab('marketing','sub-mktg-review')">Pipeline</button>
-        <button class="sub-tab" onclick="showSubTab('marketing','sub-mktg-all')">All Content</button>
+      <!-- Main tabs -->
+      <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto">
+        <button class="sub-tab active" id="mktgTabStatus" onclick="showMktgTab('status')">
+          Status Board <span id="mktgBadgeStatus" style="display:none;background:#dc2626;color:white;border-radius:9999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px"></span>
+        </button>
+        <button class="sub-tab" id="mktgTabCreate" onclick="showMktgTab('create')">Create Content</button>
+        <button class="sub-tab" id="mktgTabAssets" onclick="showMktgTab('assets')">Asset Library</button>
       </div>
-      <!-- Pipeline / Needs Review -->
-      <div class="sub-page active" id="sub-mktg-review">
-        <div id="mktgReviewList"></div>
-      </div>
-      <!-- All Content -->
-      <div class="sub-page" id="sub-mktg-all" style="display:none">
+
+      <!-- STATUS BOARD -->
+      <div id="mktg-status" class="mktg-panel">
         <div class="filters" style="margin-bottom:16px">
-          <select class="filter-select" id="mktgEventFilter" onchange="renderAllContent()">
+          <select class="filter-select" id="mktgEventFilter" onchange="renderStatusBoard()">
             <option value="">All Events</option>
           </select>
-          <select class="filter-select" id="mktgChannelFilter" onchange="renderAllContent()">
+          <select class="filter-select" id="mktgChannelFilter" onchange="renderStatusBoard()">
             <option value="">All Channels</option>
             <option>Facebook</option><option>Instagram</option>
             <option>Email</option><option>Flyer</option><option>Other</option>
           </select>
-          <select class="filter-select" id="mktgStatusFilter" onchange="renderAllContent()">
-            <option value="">All Statuses</option>
-            <option value="Draft">Draft</option>
-            <option value="In Review">In Review</option>
-            <option value="Approved">Approved</option>
-            <option value="Needs Changes">Needs Changes</option>
-            <option value="Posted">Posted</option>
-          </select>
         </div>
-        <div id="mktgAllList"></div>
+        <div id="mktgStatusBoard"></div>
+      </div>
+
+      <!-- CREATE CONTENT -->
+      <div id="mktg-create" class="mktg-panel" style="display:none">
+        <div id="mktgCreatePanel"></div>
+      </div>
+
+      <!-- ASSET LIBRARY -->
+      <div id="mktg-assets" class="mktg-panel" style="display:none">
+        <div id="mktgAssetLibrary"></div>
       </div>
     </div>
 
@@ -1524,7 +1525,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.7-DEV · Apr 19 2026";
+const BUILD_VERSION = "v5.8-DEV · Apr 20 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -4014,9 +4015,8 @@ function showPage(name) {
   else if (name === "reports") renderReport();
   else if (name === "admin") { renderAdminUsers(); renderAdminEvents(); renderAdminPickups(); renderTemplates(); renderEventTypes(); renderDonCats(); }
   else if (name === "marketing") {
-    // Tab label: pipeline view for editors/admins, personal queue for contributors
-    const tabEl = document.getElementById("mktgTabPipeline");
-    if (tabEl) tabEl.textContent = isEditor() ? "Pipeline" : "Needs Review";
+    const tabEl = document.getElementById("mktgTabStatus");
+    if (tabEl) tabEl.textContent = isEditor() ? "Status Board" : "Needs Review";
     renderMarketing();
   }
   else if (name === "help") renderHelp();
@@ -4115,24 +4115,23 @@ function grantedBadge(g) {
   if (g === "No Answer") return "badge-noanswer";
   return "badge-blank";
 }
+// ═══════════════════════════════════════════════════════════
+// MARKETING HUB — v5.8
+// ═══════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════════
-// MARKETING — PHASE 2 (v5.5 — per-reviewer tracking)
-// ═══════════════════════════════════════════════════════════
+// ── Data loading ─────────────────────────────────────────────
 async function loadContent() {
   try {
     const rows = await sbGet("MyBFFContent", "order=created_at.desc");
     ALL_CONTENT = (rows || []).filter(r => r.id);
   } catch(e) { console.warn("loadContent:", e.message); ALL_CONTENT = []; }
 }
-
 async function loadContentComments() {
   try {
     const rows = await sbGet("MyBFFContentComments", "order=created_at.asc");
     ALL_CONTENT_COMMENTS = (rows || []).filter(r => r.id);
   } catch(e) { console.warn("loadContentComments:", e.message); ALL_CONTENT_COMMENTS = []; }
 }
-
 async function loadContentReviewers() {
   try {
     const rows = await sbGet("MyBFFContentReviewers", "order=content_id.asc");
@@ -4140,22 +4139,19 @@ async function loadContentReviewers() {
   } catch(e) { console.warn("loadContentReviewers:", e.message); ALL_CONTENT_REVIEWERS = []; }
 }
 
-// ── Auto-refresh ─────────────────────────────────────────────
+// ── Auto-refresh ──────────────────────────────────────────────
 function startAutoRefresh() {
   if (_refreshTimer) clearInterval(_refreshTimer);
   _refreshTimer = setInterval(async () => {
-    // Pause if any modal is open
     if (document.querySelector(".modal-overlay.open")) return;
-    const prev = { content: ALL_CONTENT.length, comments: ALL_CONTENT_COMMENTS.length, reviewers: ALL_CONTENT_REVIEWERS.length };
+    const prev = { c: ALL_CONTENT.length, cm: ALL_CONTENT_COMMENTS.length, r: ALL_CONTENT_REVIEWERS.length };
     await Promise.all([loadContent(), loadContentComments(), loadContentReviewers(), loadTasks()]);
-    // Only re-render if data changed
-    if (ALL_CONTENT.length !== prev.content || ALL_CONTENT_COMMENTS.length !== prev.comments || ALL_CONTENT_REVIEWERS.length !== prev.reviewers) {
+    if (ALL_CONTENT.length !== prev.c || ALL_CONTENT_COMMENTS.length !== prev.cm || ALL_CONTENT_REVIEWERS.length !== prev.r) {
       const activePage = document.querySelector(".page.active")?.id;
       if (activePage === "page-marketing") renderMarketing();
-      if (activePage === "page-events") { if (CURRENT_EVENT_VIEW) renderEventDetailTasks(); else renderEventsPage(); }
       updateMktgBadge();
     }
-  }, 300000); // 5 minutes
+  }, 300000);
 }
 
 async function manualRefresh() {
@@ -4167,291 +4163,220 @@ async function manualRefresh() {
   if (btn) { btn.textContent = "↻ Refresh"; btn.disabled = false; showToast("Content refreshed."); }
 }
 
+// ── Badge ─────────────────────────────────────────────────────
 function updateMktgBadge() {
   const myName = currentUser?.displayName || "";
-  // Count items where I specifically need to take action:
-  // 1. In Review items where I'm an assigned reviewer with pending status
-  // 2. Items I created that have Needs Changes status
-  const needsMyAction = ALL_CONTENT.filter(c => {
+  const count = ALL_CONTENT.filter(c => {
     if (c.status === "In Review") {
       const myReview = ALL_CONTENT_REVIEWERS.find(r => r.content_id === c.id && r.reviewer === myName);
       return myReview && myReview.status === "pending";
     }
-    if (c.status === "Needs Changes" && c.created_by === myName) return true;
-    return false;
+    return c.status === "Needs Changes" && c.created_by === myName;
   }).length;
-  const badge = document.getElementById("mktgBadge");
-  if (badge) {
-    badge.textContent = needsMyAction;
-    badge.style.display = needsMyAction > 0 ? "" : "none";
-  }
+  // Nav badge
+  const navBadge = document.getElementById("mktgBadge");
+  if (navBadge) { navBadge.textContent = count; navBadge.style.display = count > 0 ? "" : "none"; }
+  // Status tab badge
+  const statusBadge = document.getElementById("mktgBadgeStatus");
+  if (statusBadge) { statusBadge.textContent = count; statusBadge.style.display = count > 0 ? "" : "none"; }
 }
 
-// ── Reviewer helpers ─────────────────────────────────────────
-function getMyReviewStatus(contentId) {
-  const myName = currentUser?.displayName || "";
-  const r = ALL_CONTENT_REVIEWERS.find(x => x.content_id === contentId && x.reviewer === myName);
-  return r?.status || "pending"; // pending | approved | changes
-}
-
-function getReviewerSummary(contentId) {
-  const reviewers = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === contentId);
-  const approved = reviewers.filter(r => r.status === "approved").length;
-  const changes = reviewers.filter(r => r.status === "changes").length;
-  const pending = reviewers.filter(r => r.status === "pending").length;
-  return { total: reviewers.length, approved, changes, pending, reviewers };
-}
-
-function checkAllReviewersActed(contentId) {
-  const summary = getReviewerSummary(contentId);
-  if (summary.total === 0) return null;
-  if (summary.pending > 0) return null; // still waiting
-  if (summary.changes > 0) return "Needs Changes";
-  if (summary.approved === summary.total) return "Approved";
-  return null;
+// ── Tab switching ─────────────────────────────────────────────
+function showMktgTab(tab) {
+  ["status","create","assets"].forEach(t => {
+    const panel = document.getElementById("mktg-" + t);
+    const btn = document.getElementById("mktgTab" + t.charAt(0).toUpperCase() + t.slice(1));
+    if (panel) panel.style.display = t === tab ? "" : "none";
+    if (btn) btn.classList.toggle("active", t === tab);
+  });
+  if (tab === "status") renderStatusBoard();
+  if (tab === "create") renderCreatePanel();
+  if (tab === "assets") renderAssetLibrary();
 }
 
 // ── Status helpers ────────────────────────────────────────────
-function ctStatusClass(status) {
-  return "ct-" + (status||"draft").toLowerCase().replace(/\s+/g,"-").replace(/[^a-z-]/g,"");
+function ctStatusClass(s) { return "ct-" + (s||"draft").toLowerCase().replace(/\s+/g,"-").replace(/[^a-z-]/g,""); }
+function ctChannelClass(ch) { return "ct-" + (ch||"other").toLowerCase().replace(/\s+/g,"-"); }
+function ctStatusBadge(s) { return `<span class="badge ${ctStatusClass(s)}" style="font-size:11px">${s||"Draft"}</span>`; }
+function ctChannelBadge(ch) { return `<span class="badge ${ctChannelClass(ch)}" style="font-size:11px">${ch||"Other"}</span>`; }
+
+function getMyReviewStatus(contentId) {
+  const myName = currentUser?.displayName || "";
+  const r = ALL_CONTENT_REVIEWERS.find(x => x.content_id === contentId && x.reviewer === myName);
+  return r?.status || "pending";
 }
-function ctChannelClass(ch) {
-  return "ct-" + (ch||"other").toLowerCase().replace(/\s+/g,"-");
+function getReviewerSummary(contentId) {
+  const reviewers = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === contentId);
+  return {
+    total: reviewers.length,
+    approved: reviewers.filter(r => r.status === "approved").length,
+    changes: reviewers.filter(r => r.status === "changes").length,
+    pending: reviewers.filter(r => r.status === "pending").length,
+    reviewers
+  };
 }
-function ctStatusBadge(status) {
-  return `<span class="badge ${ctStatusClass(status)}" style="font-size:11px">${status||"Draft"}</span>`;
-}
-function ctChannelBadge(ch) {
-  return `<span class="badge ${ctChannelClass(ch)}" style="font-size:11px">${ch||"Other"}</span>`;
+function checkAllReviewersActed(contentId) {
+  const s = getReviewerSummary(contentId);
+  if (!s.total || s.pending > 0) return null;
+  return s.changes > 0 ? "Needs Changes" : "Approved";
 }
 
-// ── Render ────────────────────────────────────────────────────
+// ── renderMarketing (entry point) ─────────────────────────────
 function renderMarketing() {
-  const addBtn = document.getElementById("mktgAddBtn");
-  if (addBtn) addBtn.style.display = isEditor() ? "" : "none";
-  // Always repopulate event filter from current data
+  // Populate event filter
   const evFilter = document.getElementById("mktgEventFilter");
   if (evFilter) {
     const cur = evFilter.value;
-    const names = ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
-    evFilter.innerHTML = `<option value="">All Events</option>` + names;
+    evFilter.innerHTML = `<option value="">All Events</option>` +
+      ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
     if (cur && ALL_EVENTS_DATA.some(e => e.name === cur)) evFilter.value = cur;
   }
   updateMktgBadge();
-  const activeSubPage = document.querySelector("#page-marketing .sub-page.active")?.id;
-  if (activeSubPage === "sub-mktg-all") renderAllContent();
-  else renderReviewQueue();
+  // Render whichever panel is active
+  const activePanel = ["status","create","assets"].find(t => {
+    const el = document.getElementById("mktg-" + t);
+    return el && el.style.display !== "none";
+  }) || "status";
+  if (activePanel === "status") renderStatusBoard();
+  else if (activePanel === "create") renderCreatePanel();
+  else if (activePanel === "assets") renderAssetLibrary();
 }
 
-function renderReviewQueue() {
-  const container = document.getElementById("mktgReviewList");
+// ── STATUS BOARD ──────────────────────────────────────────────
+function renderStatusBoard() {
+  const container = document.getElementById("mktgStatusBoard");
   if (!container) return;
   const myName = currentUser?.displayName || "";
-
-  if (isEditor()) {
-    // Editors/Admins: pipeline view grouped by status
-    renderPipelineView(container);
-  } else {
-    // Contributors: personal queue — items assigned to them, pending their action
-    const items = ALL_CONTENT.filter(c => {
-      if (c.status !== "In Review") return false;
-      const assignedReviewers = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === c.id);
-      if (!assignedReviewers.some(r => r.reviewer === myName)) return false;
-      const myAction = assignedReviewers.find(r => r.reviewer === myName);
-      return !myAction || myAction.status === "pending";
-    });
-    if (!items.length) {
-      container.innerHTML = `<div class="empty-state" style="padding:40px 0">
-        <div style="font-size:40px;margin-bottom:12px">✅</div>
-        <div style="font-weight:600;margin-bottom:6px">Nothing pending your review</div>
-        <div style="font-size:14px;color:var(--gray)">All content is up to date.</div>
-      </div>`;
-      return;
-    }
-    container.innerHTML = items.map(c => contentCard(c)).join("");
-  }
-}
-
-function renderPipelineView(container) {
-  const myName = currentUser?.displayName || "";
+  const evFilter = document.getElementById("mktgEventFilter")?.value || "";
+  const chFilter = document.getElementById("mktgChannelFilter")?.value || "";
   const today = new Date().toISOString().split("T")[0];
+  const soon = new Date(Date.now()+3*86400000).toISOString().split("T")[0];
 
-  // Define pipeline sections in priority order
+  let allItems = [...ALL_CONTENT];
+  if (evFilter) allItems = allItems.filter(c => c.event_name === evFilter);
+  if (chFilter) allItems = allItems.filter(c => c.channel === chFilter);
+
+  // For contributors, limit visibility
+  if (!isEditor()) {
+    allItems = allItems.filter(c => {
+      if (c.status === "Approved" || c.status === "Posted") return true;
+      if (c.status === "In Review") return ALL_CONTENT_REVIEWERS.some(r => r.content_id === c.id && r.reviewer === myName);
+      return false;
+    });
+  }
+
   const sections = [
-    {
-      key: "attention",
-      label: "Needs Your Attention",
-      color: "#dc2626",
-      bg: "#fee2e2",
-      filter: c => {
+    { key:"attention", label:"🔴 Needs Your Attention", open:true,
+      items: allItems.filter(c => {
         if (c.status === "In Review") {
-          const myReview = ALL_CONTENT_REVIEWERS.find(r => r.content_id === c.id && r.reviewer === myName);
-          return myReview && myReview.status === "pending";
+          const r = ALL_CONTENT_REVIEWERS.find(x => x.content_id === c.id && x.reviewer === myName);
+          return r && r.status === "pending";
         }
-        if (c.status === "Needs Changes" && c.created_by === myName) return true;
-        return false;
-      }
-    },
-    {
-      key: "review",
-      label: "In Review",
-      color: "#1e40af",
-      bg: "#dbeafe",
-      filter: c => c.status === "In Review"
-    },
-    {
-      key: "changes",
-      label: "Needs Changes",
-      color: "#92400e",
-      bg: "#fef3c7",
-      filter: c => c.status === "Needs Changes"
-    },
-    {
-      key: "approved",
-      label: "Approved — Ready to Post",
-      color: "#065f46",
-      bg: "#d1fae5",
-      filter: c => c.status === "Approved"
-    },
-    {
-      key: "draft",
-      label: "Drafts",
-      color: "#374151",
-      bg: "#f3f4f6",
-      filter: c => c.status === "Draft"
-    },
-    {
-      key: "posted",
-      label: "Posted",
-      color: "#5b21b6",
-      bg: "#ede9fe",
-      filter: c => c.status === "Posted"
-    },
+        return c.status === "Needs Changes" && c.created_by === myName;
+      })},
+    { key:"review", label:"🔵 In Review", open:true,
+      items: allItems.filter(c => c.status === "In Review") },
+    { key:"changes", label:"🟡 Needs Changes", open:true,
+      items: allItems.filter(c => c.status === "Needs Changes") },
+    { key:"approved", label:"🟢 Approved — Ready to Post", open:true,
+      items: allItems.filter(c => c.status === "Approved") },
+    { key:"draft", label:"⚪ Drafts", open:false,
+      items: allItems.filter(c => c.status === "Draft") },
+    { key:"posted", label:"🟣 Posted", open:false,
+      items: allItems.filter(c => c.status === "Posted") },
   ];
 
-  // Apply event filter if set
-  const evFilterVal = document.getElementById("mktgEventFilter")?.value || "";
-  let allItems = evFilterVal ? ALL_CONTENT.filter(c => c.event_name === evFilterVal) : ALL_CONTENT;
-
-  const html = sections.map(sec => {
-    const items = allItems.filter(sec.filter);
-    if (!items.length && sec.key !== "attention") return ""; // hide empty non-critical sections
-    const isAttention = sec.key === "attention";
-    const defaultOpen = isAttention || sec.key === "review" || sec.key === "changes";
+  container.innerHTML = sections.map(sec => {
+    if (!sec.items.length && sec.key !== "attention") return "";
     return `
       <div style="margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${sec.bg};border-radius:8px;cursor:pointer;user-select:none"
-             onclick="togglePipelineSection('pipeline-${sec.key}')">
-          <span style="font-weight:700;font-size:14px;color:${sec.color};flex:1">${sec.label}</span>
-          <span style="background:${sec.color};color:white;border-radius:9999px;font-size:11px;font-weight:700;padding:1px 8px;min-width:20px;text-align:center">${items.length}</span>
-          <span id="pipeline-${sec.key}-arrow" style="color:${sec.color};font-size:12px">${defaultOpen ? "▲" : "▼"}</span>
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--gray-light);border-radius:8px;cursor:pointer"
+             onclick="toggleSection('sb-${sec.key}')">
+          <span style="font-weight:700;font-size:14px;flex:1">${sec.label}</span>
+          <span style="background:var(--navy);color:white;border-radius:9999px;font-size:11px;font-weight:700;padding:1px 8px">${sec.items.length}</span>
+          <span id="sb-${sec.key}-arr">${sec.open?"▲":"▼"}</span>
         </div>
-        <div id="pipeline-${sec.key}" style="display:${defaultOpen ? "" : "none"};padding:8px 0 0 0">
-          ${items.length
-            ? items.map(c => {
-                // Add overdue indicator
-                const overdue = c.review_deadline && c.review_deadline < today && c.status === "In Review"
-                  ? `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600;margin-left:6px">⚠️ Review overdue</span>` : "";
-                const postAlert = c.post_date && c.post_date <= new Date(Date.now()+3*86400000).toISOString().split("T")[0] && c.status !== "Posted"
-                  ? `<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600;margin-left:6px">📅 Post date soon</span>` : "";
-                return contentCard(c, overdue + postAlert);
+        <div id="sb-${sec.key}" style="display:${sec.open?"":"none"};padding-top:8px">
+          ${sec.items.length
+            ? sec.items.map(c => {
+                const overdueTag = c.review_deadline && c.review_deadline < today && c.status==="In Review"
+                  ? `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600">⚠️ Review overdue</span>` : "";
+                const soonTag = c.post_date && c.post_date <= soon && c.status !== "Posted"
+                  ? `<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600">📅 Post date soon</span>` : "";
+                return contentCard(c, overdueTag + soonTag);
               }).join("")
             : `<div style="font-size:13px;color:var(--gray);padding:12px 4px">Nothing here yet.</div>`}
         </div>
       </div>`;
-  }).join("");
-
-  container.innerHTML = html || `<div style="color:var(--gray);font-size:14px;padding:24px 0;text-align:center">No content found.</div>`;
+  }).join("") || `<div style="text-align:center;padding:40px;color:var(--gray)">No content yet. Go to <strong>Create Content</strong> to add the first piece.</div>`;
 }
 
-function togglePipelineSection(id) {
+function toggleSection(id) {
   const el = document.getElementById(id);
-  const arrow = document.getElementById(id + "-arrow");
+  const arr = document.getElementById(id + "-arr");
   if (!el) return;
   const open = el.style.display !== "none";
   el.style.display = open ? "none" : "";
-  if (arrow) arrow.textContent = open ? "▼" : "▲";
+  if (arr) arr.textContent = open ? "▼" : "▲";
 }
 
-function renderAllContent() {
-  const container = document.getElementById("mktgAllList");
-  if (!container) return;
-  const myName = currentUser?.displayName || "";
-  const evFilterEl = document.getElementById("mktgEventFilter");
-  // Only filter by event if events are loaded and user has actually selected one
-  const evFilter = (ALL_EVENTS_DATA.length > 0 && evFilterEl?.value) ? evFilterEl.value : "";
-  const chFilter = document.getElementById("mktgChannelFilter")?.value || "";
-  const stFilter = document.getElementById("mktgStatusFilter")?.value || "";
-  let items = [...ALL_CONTENT];
-  // Admin and Editor see everything; Contributors see limited set
-  if (!isEditor()) {
-    items = items.filter(c => {
-      if (c.status === "Approved" || c.status === "Posted") return true;
-      if (c.status === "In Review") {
-        return ALL_CONTENT_REVIEWERS.some(r => r.content_id === c.id && r.reviewer === myName);
-      }
-      return false;
-    });
-  }
-  if (evFilter) items = items.filter(c => c.event_name === evFilter);
-  if (chFilter) items = items.filter(c => c.channel === chFilter);
-  if (stFilter) items = items.filter(c => c.status === stFilter);
-  if (!items.length) {
-    container.innerHTML = `<div style="color:var(--gray);font-size:14px;padding:24px 0;text-align:center">
-      No content found.${isEditor() ? " Use <strong>+ Create Content</strong> to add the first piece." : ""}
-    </div>`;
-    return;
-  }
-  container.innerHTML = items.map(c => contentCard(c)).join("");
-}
-
+// ── CONTENT CARD ──────────────────────────────────────────────
 function contentCard(c, extraBadges = "") {
   const comments = ALL_CONTENT_COMMENTS.filter(x => x.content_id === c.id);
   const summary = getReviewerSummary(c.id);
   const myStatus = getMyReviewStatus(c.id);
   const snippet = (c.content_text||"").substring(0,120);
-  const myReviewTag = c.status === "In Review" && ALL_CONTENT_REVIEWERS.some(r => r.content_id === c.id && r.reviewer === currentUser?.displayName)
-    ? myStatus === "pending" ? `<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">⏳ Awaiting your review</span>`
-    : myStatus === "approved" ? `<span style="background:#d1fae5;color:#065f46;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">✅ You approved</span>`
-    : `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">↩️ You requested changes</span>`
+  const myName = currentUser?.displayName || "";
+  const isAssigned = ALL_CONTENT_REVIEWERS.some(r => r.content_id === c.id && r.reviewer === myName);
+  const myReviewTag = c.status === "In Review" && isAssigned
+    ? myStatus === "pending"
+      ? `<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">⏳ Awaiting your review</span>`
+    : myStatus === "approved"
+      ? `<span style="background:#d1fae5;color:#065f46;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">✅ You approved</span>`
+      : `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">↩️ You requested changes</span>`
     : "";
+  // Key fix: use a global handler function instead of inline async onclick
   return `
-    <div class="card" style="margin-bottom:14px;cursor:pointer" onclick="openContentDetail('${c.id}')">
+    <div class="card" style="margin-bottom:14px;cursor:pointer" onclick="showContentDetail('${esc(c.id)}')">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
         <div>
           <div style="font-weight:700;font-size:15px;margin-bottom:6px">${esc(c.title||"Untitled")}</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-            ${ctChannelBadge(c.channel)}
-            ${ctStatusBadge(c.status)}
+            ${ctChannelBadge(c.channel)} ${ctStatusBadge(c.status)}
             ${c.event_name ? `<span style="font-size:12px;color:var(--gray)">${esc(c.event_name)}</span>` : ""}
           </div>
         </div>
         <div style="font-size:12px;color:var(--gray);text-align:right;flex-shrink:0">
           <div>v${c.version||1} · by ${esc(c.created_by||"")}</div>
           ${summary.total > 0 ? `<div style="margin-top:2px">
-            ${summary.approved > 0 ? `<span style="color:#065f46">✅${summary.approved}</span> ` : ""}
-            ${summary.changes > 0 ? `<span style="color:#991b1b">↩️${summary.changes}</span> ` : ""}
-            ${summary.pending > 0 ? `<span style="color:#92400e">⏳${summary.pending}</span>` : ""}
+            ${summary.approved>0?`<span style="color:#065f46">✅${summary.approved}</span> `:""}
+            ${summary.changes>0?`<span style="color:#991b1b">↩️${summary.changes}</span> `:""}
+            ${summary.pending>0?`<span style="color:#92400e">⏳${summary.pending}</span>`:""}
           </div>` : ""}
         </div>
       </div>
-      ${myReviewTag ? `<div style="margin-bottom:8px">${myReviewTag}${extraBadges}</div>` : extraBadges ? `<div style="margin-bottom:8px">${extraBadges}</div>` : ""}
+      ${(myReviewTag||extraBadges) ? `<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap">${myReviewTag}${extraBadges}</div>` : ""}
       ${c.photo_url ? `<img src="${esc(c.photo_url)}" style="max-width:100%;max-height:100px;border-radius:6px;margin-bottom:8px;object-fit:cover">` : ""}
       ${snippet ? `<div style="font-size:13px;color:var(--gray);line-height:1.5">${esc(snippet)}${(c.content_text?.length||0)>120?"…":""}</div>` : ""}
       ${c.file_link ? `<div style="margin-top:8px"><a href="${esc(c.file_link)}" target="_blank" onclick="event.stopPropagation()" style="font-size:13px">📎 View File</a></div>` : ""}
-      <div style="margin-top:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        <span style="font-size:12px;color:var(--gray)">💬 ${comments.length} comment${comments.length!==1?"s":""}</span>
-        ${c.review_deadline ? `<span style="font-size:12px;color:var(--gray)">🔍 Review by ${c.review_deadline}</span>` : ""}
-        ${c.post_date ? `<span style="font-size:12px;color:var(--gray)">📅 Post ${c.post_date}</span>` : ""}
+      <div style="margin-top:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--gray)">
+        <span>💬 ${comments.length} comment${comments.length!==1?"s":""}</span>
+        ${c.review_deadline?`<span>🔍 Review by ${c.review_deadline}</span>`:""}
+        ${c.post_date?`<span>📅 Post ${c.post_date}</span>`:""}
       </div>
     </div>`;
 }
 
+// The key fix — synchronous wrapper that calls the async function
+function showContentDetail(contentId) {
+  openContentDetail(contentId).catch(e => showToast("Error opening content: " + e.message, "error"));
+}
+
 async function openContentDetail(contentId) {
-  // Always reload fresh comments and reviewer data before showing
   await Promise.all([loadContentComments(), loadContentReviewers()]);
   const c = ALL_CONTENT.find(x => x.id === contentId);
   if (!c) return;
+  const myName = currentUser?.displayName || "";
   document.getElementById("cdContentId").value = contentId;
   document.getElementById("cdTitle").textContent = c.title || "Untitled";
   document.getElementById("cdChannel").innerHTML = ctChannelBadge(c.channel);
@@ -4463,50 +4388,45 @@ async function openContentDetail(contentId) {
   const photoImg = document.getElementById("cdPhoto");
   if (c.photo_url) { photoImg.src = c.photo_url; photoWrap.style.display = ""; }
   else photoWrap.style.display = "none";
+  // File link
+  document.getElementById("cdFileLink").innerHTML = c.file_link
+    ? `<a href="${esc(c.file_link)}" target="_blank" style="font-size:13px">📎 View File / Design</a>` : "";
   // Dates
   const datesEl = document.getElementById("cdDates");
   if (datesEl) {
     const parts = [];
     if (c.review_deadline) parts.push(`🔍 Review deadline: <strong>${c.review_deadline}</strong>`);
-    if (c.post_date) parts.push(`📅 Planned post date: <strong>${c.post_date}</strong>`);
-    datesEl.innerHTML = parts.length ? parts.join(" &nbsp;·&nbsp; ") : "";
+    if (c.post_date) parts.push(`📅 Post date: <strong>${c.post_date}</strong>`);
+    datesEl.innerHTML = parts.join(" &nbsp;·&nbsp; ");
     datesEl.style.display = parts.length ? "" : "none";
   }
-  fileLinkEl.innerHTML = c.file_link
-    ? `<a href="${esc(c.file_link)}" target="_blank" style="font-size:13px">📎 View File / Design</a>` : "";
   // Reviewer summary
   renderReviewerSummary(contentId);
   // Editor actions
   const editorActions = document.getElementById("cdEditorActions");
   if (isEditor()) {
     editorActions.innerHTML =
-      `<button class="btn btn-outline btn-sm" onclick="openContentModalEdit('${contentId}')">✏️ Edit</button>` +
-      (c.status === "Draft" ? `<button class="btn btn-gold btn-sm" onclick="submitForReview('${contentId}')">Submit for Review</button>` : "") +
-      (c.status === "Needs Changes" ? `<button class="btn btn-gold btn-sm" onclick="resubmitContent('${contentId}')">↻ Resubmit</button>` : "") +
-      (c.status === "Approved" ? `<button class="btn btn-sm" style="background:#5b21b6;color:white" onclick="updateContentStatus('${contentId}','Posted')">Mark Posted</button>` : "");
+      `<button class="btn btn-outline btn-sm" onclick="openContentModalEdit('${esc(contentId)}')">✏️ Edit</button>` +
+      (c.status === "Draft" ? `<button class="btn btn-gold btn-sm" onclick="submitForReview('${esc(contentId)}')">Submit for Review</button>` : "") +
+      (c.status === "Needs Changes" ? `<button class="btn btn-gold btn-sm" onclick="resubmitContent('${esc(contentId)}')">↻ Resubmit</button>` : "") +
+      (c.status === "Approved" ? `<button class="btn btn-sm" style="background:#5b21b6;color:white" onclick="updateContentStatus('${esc(contentId)}','Posted')">Mark Posted</button>` : "");
   } else { editorActions.innerHTML = ""; }
-  // Comment thread — always visible and writable for contributors+
+  // Review area — always visible for contributors+
   const reviewArea = document.getElementById("cdReviewActions");
   reviewArea.style.display = isContributor() ? "" : "none";
-  // Approve/Changes visible if: content is In Review AND
-  // (Admin/Editor always can, OR is an assigned reviewer who hasn't acted yet)
+  // Approve/Changes buttons — editors always, assigned reviewers with pending status
+  const isAssignedReviewer = ALL_CONTENT_REVIEWERS.some(r => r.content_id === contentId && r.reviewer === myName);
   const myStatus = getMyReviewStatus(contentId);
-  const myName2 = currentUser?.displayName || "";
-  const isAssignedReviewer = ALL_CONTENT_REVIEWERS.some(r => r.content_id === contentId && r.reviewer === myName2);
-  const canFormalReview = c.status === "In Review" &&
-    (isEditor() || (isAssignedReviewer && myStatus === "pending"));
+  const canFormalReview = c.status === "In Review" && (isEditor() || (isAssignedReviewer && myStatus === "pending"));
   document.getElementById("cdApproveBtn").style.display = canFormalReview ? "" : "none";
   document.getElementById("cdChangesBtn").style.display = canFormalReview ? "" : "none";
-  // Hint text for review area
+  // Hint text
   const hintEl = document.getElementById("cdReviewHint");
   if (hintEl) {
-    if (canFormalReview) {
-      hintEl.textContent = "💬 Comment to ask questions. Use Approve or Request Changes to complete your review.";
-    } else if (c.status === "In Review" && isAssignedReviewer) {
-      hintEl.textContent = "You have already submitted your review. You can still add comments below.";
-    } else {
-      hintEl.textContent = "";
-    }
+    hintEl.textContent = canFormalReview
+      ? "💬 Comment to ask questions. Use Approve or Request Changes to complete your review."
+      : isAssignedReviewer ? "You have already submitted your review. You can still add comments."
+      : "";
   }
   document.getElementById("cdCommentText").value = "";
   renderContentComments(contentId);
@@ -4516,15 +4436,15 @@ async function openContentDetail(contentId) {
 function renderReviewerSummary(contentId) {
   const reviewers = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === contentId);
   const el = document.getElementById("cdReviewerSummary");
-  if (!el || !reviewers.length) { if (el) el.innerHTML = ""; return; }
+  if (!el) return;
+  if (!reviewers.length) { el.innerHTML = ""; return; }
   el.innerHTML = `<div style="margin-bottom:12px">
     <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray);margin-bottom:6px">Reviewers</div>
     ${reviewers.map(r => {
-      const icon = r.status === "approved" ? "✅" : r.status === "changes" ? "↩️" : "⏳";
-      const col = r.status === "approved" ? "#065f46" : r.status === "changes" ? "#991b1b" : "#92400e";
+      const icon = r.status==="approved" ? "✅" : r.status==="changes" ? "↩️" : "⏳";
+      const col  = r.status==="approved" ? "#065f46" : r.status==="changes" ? "#991b1b" : "#92400e";
       return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px">
-        <span>${icon}</span>
-        <span style="flex:1">${esc(r.reviewer)}</span>
+        <span>${icon}</span><span style="flex:1">${esc(r.reviewer)}</span>
         <span style="color:${col};font-size:12px;font-weight:600">${r.status||"pending"}</span>
       </div>`;
     }).join("")}
@@ -4534,21 +4454,18 @@ function renderReviewerSummary(contentId) {
 function renderContentComments(contentId) {
   const container = document.getElementById("cdComments");
   const comments = ALL_CONTENT_COMMENTS.filter(c => c.content_id === contentId);
-  if (!comments.length) {
-    container.innerHTML = `<div style="color:var(--gray);font-size:13px;padding:8px 0">No comments yet.</div>`;
-    return;
-  }
+  if (!comments.length) { container.innerHTML = `<div style="color:var(--gray);font-size:13px;padding:8px 0">No comments yet.</div>`; return; }
   container.innerHTML = comments.map(cm => {
-    const actionTag = cm.action === "approve"
+    const tag = cm.action==="approve"
       ? `<span style="background:#d1fae5;color:#065f46;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">✅ Approved</span>`
-      : cm.action === "changes"
+      : cm.action==="changes"
       ? `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">↩️ Changes Requested</span>`
       : "";
     return `<div style="border-left:3px solid var(--gold);padding:8px 12px;margin-bottom:10px;background:#fffbf0;border-radius:0 6px 6px 0">
       <div style="font-size:12px;color:var(--gray);margin-bottom:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <strong>${esc(cm.author||"Unknown")}</strong>
         <span>${cm.created_at ? new Date(cm.created_at).toLocaleString() : ""}</span>
-        ${actionTag}
+        ${tag}
       </div>
       <div style="font-size:14px">${esc(cm.comment||"")}</div>
     </div>`;
@@ -4567,46 +4484,38 @@ async function submitReview(action) {
   try {
     await sbInsert("MyBFFContentComments", commentRow);
     ALL_CONTENT_COMMENTS.push(commentRow);
-    // Update per-reviewer status if formal action
     if (action === "approve" || action === "changes") {
       const existing = ALL_CONTENT_REVIEWERS.find(r => r.content_id === contentId && r.reviewer === myName);
-      const reviewerStatus = action === "approve" ? "approved" : "changes";
+      const rStatus = action === "approve" ? "approved" : "changes";
       if (existing) {
-        await sbUpdateWhere("MyBFFContentReviewers", "id", existing.id, { status: reviewerStatus, action, reviewed_at: now });
-        existing.status = reviewerStatus; existing.action = action;
+        await sbUpdateWhere("MyBFFContentReviewers","id",existing.id,{status:rStatus,action,reviewed_at:now});
+        existing.status = rStatus; existing.action = action;
       } else {
-        const newRow = { id: genId(), content_id: contentId, reviewer: myName, status: reviewerStatus, action, reviewed_at: now };
+        const newRow = { id: genId(), content_id: contentId, reviewer: myName, status: rStatus, action, reviewed_at: now };
         await sbInsert("MyBFFContentReviewers", newRow);
         ALL_CONTENT_REVIEWERS.push(newRow);
       }
-      // Check if all reviewers have acted → auto-advance status
       const newStatus = checkAllReviewersActed(contentId);
       if (newStatus) await updateContentStatus(contentId, newStatus, false);
     }
     document.getElementById("cdCommentText").value = "";
-    // Refresh reviewer summary and comments inline
     renderContentComments(contentId);
     renderReviewerSummary(contentId);
-    // Update status badge inline
+    // Refresh status badge inline
     const c2 = ALL_CONTENT.find(x => x.id === contentId);
     document.getElementById("cdStatus").innerHTML = ctStatusBadge(c2?.status || "In Review");
-    // Refresh approve/changes button visibility
+    // Refresh action button visibility
     const myNewStatus = getMyReviewStatus(contentId);
-    const myName2 = currentUser?.displayName || "";
-    const isAssigned = ALL_CONTENT_REVIEWERS.some(r => r.content_id === contentId && r.reviewer === myName2);
+    const isAssigned = ALL_CONTENT_REVIEWERS.some(r => r.content_id === contentId && r.reviewer === myName);
     const canStill = c2?.status === "In Review" && (isEditor() || (isAssigned && myNewStatus === "pending"));
     document.getElementById("cdApproveBtn").style.display = canStill ? "" : "none";
     document.getElementById("cdChangesBtn").style.display = canStill ? "" : "none";
-    renderReviewQueue();
-    renderAllContent();
+    renderStatusBoard();
     updateMktgBadge();
-    const toastMsg = action === "approve" ? "✅ Approved!" : action === "changes" ? "↩️ Changes requested — item moved to Needs Changes" : "💬 Comment added";
-    // If status changed to something other than In Review, close modal after brief delay
-    if ((action === "approve" || action === "changes") && c2?.status !== "In Review") {
-      showToast(toastMsg);
+    const msg = action==="approve" ? "✅ Approved!" : action==="changes" ? "↩️ Changes requested" : "💬 Comment added";
+    showToast(msg);
+    if ((action==="approve"||action==="changes") && c2?.status !== "In Review") {
       setTimeout(() => closeModal("contentDetailModal"), 1200);
-    } else {
-      showToast(toastMsg);
     }
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
@@ -4614,7 +4523,6 @@ async function submitReview(action) {
 async function submitForReview(contentId) {
   const c = ALL_CONTENT.find(x => x.id === contentId);
   if (!c) return;
-  // Insert reviewer rows for all assigned reviewers
   const reviewerList = (c.reviewers||"").split(",").map(r=>r.trim()).filter(Boolean);
   const now = new Date().toISOString();
   for (const rev of reviewerList) {
@@ -4631,53 +4539,295 @@ async function resubmitContent(contentId) {
   const c = ALL_CONTENT.find(x => x.id === contentId);
   if (!c) return;
   const now = new Date().toISOString();
-  const newVersion = (c.version || 1) + 1;
-  // Reset all reviewer statuses to pending
-  const reviewers = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === contentId);
-  for (const r of reviewers) {
-    try {
-      await sbUpdateWhere("MyBFFContentReviewers", "id", r.id, { status: "pending", action: null, reviewed_at: null });
-      r.status = "pending"; r.action = null;
-    } catch(e) {}
+  const newVersion = (c.version||1) + 1;
+  for (const r of ALL_CONTENT_REVIEWERS.filter(x => x.content_id === contentId)) {
+    try { await sbUpdateWhere("MyBFFContentReviewers","id",r.id,{status:"pending",action:null,reviewed_at:null}); r.status="pending"; r.action=null; } catch(e) {}
   }
-  await sbUpdate("MyBFFContent", contentId, { status: "In Review", version: newVersion, updated_at: now }, "id");
+  await sbUpdate("MyBFFContent", contentId, { status:"In Review", version:newVersion, updated_at:now }, "id");
   const idx = ALL_CONTENT.findIndex(x => x.id === contentId);
-  if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], status: "In Review", version: newVersion };
-  // Add resubmit comment
-  const commentRow = { id: genId(), content_id: contentId, author: currentUser?.displayName || "", comment: `Content updated and resubmitted for review (v${newVersion}).`, action: "comment", created_at: now };
-  try { await sbInsert("MyBFFContentComments", commentRow); ALL_CONTENT_COMMENTS.push(commentRow); } catch(e) {}
+  if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], status:"In Review", version:newVersion };
+  const cr = { id:genId(), content_id:contentId, author:currentUser?.displayName||"", comment:`Updated and resubmitted for review (v${newVersion}).`, action:"comment", created_at:now };
+  try { await sbInsert("MyBFFContentComments",cr); ALL_CONTENT_COMMENTS.push(cr); } catch(e) {}
   closeModal("contentDetailModal");
   showToast(`↻ Resubmitted as v${newVersion}`);
   renderMarketing();
 }
 
-async function updateContentStatus(contentId, newStatus, closeAfter = true) {
+async function updateContentStatus(contentId, newStatus, closeAfter=true) {
   try {
     await sbUpdate("MyBFFContent", contentId, { status: newStatus }, "id");
     const idx = ALL_CONTENT.findIndex(c => c.id === contentId);
     if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], status: newStatus };
     if (closeAfter) { closeModal("contentDetailModal"); renderMarketing(); showToast("Status: " + newStatus); }
-    else { updateMktgBadge(); }
+    else updateMktgBadge();
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
-function openContentModal() {
-  document.getElementById("contentModalTitle").textContent = "Create Content";
-  document.getElementById("ctEditingId").value = "";
-  document.getElementById("ctChannel").value = "";
-  document.getElementById("ctTitle").value = "";
-  document.getElementById("ctText").value = "";
-  document.getElementById("ctFileLink").value = "";
-  document.getElementById("ctPhotoUrl").value = "";
-  document.getElementById("ctPhotoPreview").style.display = "none";
-  document.getElementById("ctReviewDeadline").value = "";
-  document.getElementById("ctPostDate").value = "";
-  const evSel = document.getElementById("ctEvent");
-  if (evSel) evSel.innerHTML = `<option value="">— Not event-specific —</option>` +
-    ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
-  buildReviewerChecks([]);
-  openModal("contentModal");
+// ── CONTENT CREATION PANEL ────────────────────────────────────
+function renderCreatePanel() {
+  const container = document.getElementById("mktgCreatePanel");
+  if (!container) return;
+  if (!isEditor()) {
+    container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--gray)">Content creation is available to Editors and Admins.</div>`;
+    return;
+  }
+  container.innerHTML = `
+    <div class="card" style="max-width:700px;margin:0 auto">
+      <div style="font-weight:700;font-size:16px;margin-bottom:4px">New Content</div>
+      <div style="font-size:13px;color:var(--gray);margin-bottom:20px">Select a content type to see the right creation form.</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:24px" id="ctTypeGrid">
+        ${["Facebook","Instagram","Email","Flyer","Other"].map(t => `
+          <button onclick="selectContentType('${t}')" class="btn btn-outline"
+            style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"
+            id="ctTypeBtn-${t}">
+            <span style="font-size:24px">${{"Facebook":"👍","Instagram":"📸","Email":"✉️","Flyer":"📄","Other":"📌"}[t]}</span>
+            ${t}
+          </button>`).join("")}
+      </div>
+      <div id="ctTypeForm" style="display:none"></div>
+    </div>`;
 }
+
+function selectContentType(type) {
+  // Highlight selected type
+  ["Facebook","Instagram","Email","Flyer","Other"].forEach(t => {
+    const btn = document.getElementById("ctTypeBtn-" + t);
+    if (btn) btn.style.background = t === type ? "var(--gold)" : "";
+    if (btn) btn.style.color = t === type ? "white" : "";
+  });
+  const form = document.getElementById("ctTypeForm");
+  if (!form) return;
+  form.style.display = "";
+  form.innerHTML = buildContentTypeForm(type);
+}
+
+function buildContentTypeForm(type) {
+  const evOpts = `<option value="">— Not event-specific —</option>` +
+    ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
+  const reviewerChecks = APP_USERS.map(u => `
+    <label style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:14px;cursor:pointer">
+      <input type="checkbox" value="${esc(u.displayName)}" style="accent-color:var(--gold);width:15px;height:15px" class="ct-reviewer-check">
+      ${esc(u.displayName)}
+    </label>`).join("");
+
+  const commonFields = `
+    <div class="form-group" style="grid-column:1/-1">
+      <label class="form-label">Title <span class="req">*</span></label>
+      <input type="text" class="form-input" id="ctNewTitle" placeholder="e.g. Cornhole Tournament Save the Date">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Event</label>
+      <select class="form-input" id="ctNewEvent">${evOpts}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Review Deadline</label>
+      <input type="date" class="form-input" id="ctNewReviewDeadline">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Planned Post Date</label>
+      <input type="date" class="form-input" id="ctNewPostDate">
+    </div>`;
+
+  const typeFields = {
+    Facebook: `
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Post Text <span style="font-size:11px;color:var(--gray)">(aim for under 300 characters)</span></label>
+        <textarea class="form-input form-textarea" id="ctNewText" rows="5" placeholder="Write the Facebook post here..." oninput="updateCharCount(this,'ctNewCharCount',300)"></textarea>
+        <div id="ctNewCharCount" style="font-size:11px;color:var(--gray);margin-top:4px;text-align:right"></div>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Link / URL to attach</label>
+        <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Photo <span style="font-size:11px;color:var(--gray)">optional</span></label>
+        <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Call to Action</label>
+        <input type="text" class="form-input" id="ctNewCTA" placeholder="e.g. Register now at mybff.org">
+      </div>`,
+    Instagram: `
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Caption <span style="font-size:11px;color:var(--gray)">(under 2,200 characters)</span></label>
+        <textarea class="form-input form-textarea" id="ctNewText" rows="5" placeholder="Write the Instagram caption here..." oninput="updateCharCount(this,'ctNewCharCount',2200)"></textarea>
+        <div id="ctNewCharCount" style="font-size:11px;color:var(--gray);margin-top:4px;text-align:right"></div>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Hashtags <span style="font-size:11px;color:var(--gray)">separate from caption</span></label>
+        <textarea class="form-input form-textarea" id="ctNewHashtags" rows="2" placeholder="#MyBFF #TriviaForGood #Cornhole2026"></textarea>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Photo / Image <span class="req">*</span> <span style="font-size:11px;color:var(--gray)">Instagram is visual-first</span></label>
+        <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Alt Text <span style="font-size:11px;color:var(--gray)">for accessibility</span></label>
+        <input type="text" class="form-input" id="ctNewAltText" placeholder="e.g. Team playing cornhole at Mikerphone Brewing">
+      </div>`,
+    Email: `
+      <div class="form-group">
+        <label class="form-label">Subject Line <span class="req">*</span></label>
+        <input type="text" class="form-input" id="ctNewSubject" placeholder="e.g. You're Invited — MyBFF Cornhole Tournament June 13th">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Preview Text <span style="font-size:11px;color:var(--gray)">shown in inbox before opening</span></label>
+        <input type="text" class="form-input" id="ctNewPreview" placeholder="e.g. Join us for a day of fun, music, and community.">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Body Content</label>
+        <textarea class="form-input form-textarea" id="ctNewText" rows="6" placeholder="Write the full email body here..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Call to Action Button Text</label>
+        <input type="text" class="form-input" id="ctNewCTA" placeholder="e.g. Register Now">
+      </div>
+      <div class="form-group">
+        <label class="form-label">CTA URL</label>
+        <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://mybff.org/register">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Recipient List / Audience</label>
+        <input type="text" class="form-input" id="ctNewAudience" placeholder="e.g. All donors, Past attendees, Sponsors">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Estimated Send Count</label>
+        <input type="number" class="form-input" id="ctNewSendCount" placeholder="e.g. 450">
+      </div>`,
+    Flyer: `
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Headline</label>
+        <input type="text" class="form-input" id="ctNewHeadline" placeholder="e.g. 5th Annual MyBFF Cornhole Tournament">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Key Details (date, time, location, price)</label>
+        <textarea class="form-input form-textarea" id="ctNewText" rows="4" placeholder="June 13, 2026 · 12:00 PM&#10;Mikerphone Brewing, Evergreen Park IL&#10;$40/team entry"></textarea>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Body Copy</label>
+        <textarea class="form-input form-textarea" id="ctNewBody" rows="3" placeholder="All proceeds benefit My Best Friends Foundation..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Call to Action</label>
+        <input type="text" class="form-input" id="ctNewCTA" placeholder="e.g. Register at mybff.org/cornhole">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Due to Printer / Designer</label>
+        <input type="date" class="form-input" id="ctNewPrinterDate">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Upload Design File <span style="font-size:11px;color:var(--gray)">or paste Canva link below</span></label>
+        <input type="file" class="form-input" id="ctNewPhoto" accept="image/*,.pdf" style="padding:6px">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Canva / Design Link</label>
+        <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://canva.com/...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Print Specs <span style="font-size:11px;color:var(--gray)">optional</span></label>
+        <input type="text" class="form-input" id="ctNewPrintSpecs" placeholder="e.g. 8.5x11, full bleed">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Distribution Notes</label>
+        <input type="text" class="form-input" id="ctNewDistrib" placeholder="e.g. Post at Mikerphone, distribute at Walk event">
+      </div>`,
+    Other: `
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Description / Content</label>
+        <textarea class="form-input form-textarea" id="ctNewText" rows="5" placeholder="Describe this content item..."></textarea>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">File Link</label>
+        <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
+      </div>`
+  };
+
+  // Build the combined notes field from type-specific fields for storage
+  return `
+    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
+    <div style="font-weight:700;font-size:15px;margin-bottom:14px">📝 ${type} Details</div>
+    <div class="form-grid">
+      ${typeFields[type] || typeFields["Other"]}
+      ${commonFields}
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Assign Reviewers</label>
+        <div style="border:2px solid var(--border);border-radius:7px;padding:8px 12px;max-height:120px;overflow-y:auto;background:white;display:flex;flex-direction:column;gap:4px">${reviewerChecks}</div>
+      </div>
+      <div class="form-group full" style="grid-column:1/-1">
+        <label class="form-label">Additional Notes</label>
+        <textarea class="form-input form-textarea" id="ctNewNotes" rows="2" placeholder="Any additional context..."></textarea>
+      </div>
+    </div>
+    <div class="form-actions" style="margin-top:16px">
+      <button class="btn btn-outline" onclick="renderCreatePanel()">Cancel</button>
+      <button class="btn btn-outline" onclick="saveNewContent('${type}','Draft')">Save as Draft</button>
+      <button class="btn btn-gold" onclick="saveNewContent('${type}','In Review')">Submit for Review</button>
+    </div>
+    <!-- AI placeholder for Phase 3 -->
+    <div style="margin-top:16px;padding:10px 14px;background:#f0f4ff;border:1px dashed var(--navy);border-radius:8px;font-size:12px;color:var(--navy)">
+      🤖 <strong>AI Draft Generation</strong> — coming in Phase 3. Fill in the details above and Claude will generate a first draft for your review.
+    </div>`;
+}
+
+function updateCharCount(el, countId, limit) {
+  const countEl = document.getElementById(countId);
+  if (!countEl) return;
+  const len = el.value.length;
+  countEl.textContent = `${len} / ${limit} characters`;
+  countEl.style.color = len > limit ? "#dc2626" : "var(--gray)";
+}
+
+async function saveNewContent(type, status) {
+  const title = document.getElementById("ctNewTitle")?.value.trim();
+  if (!title) { showToast("Title is required.", "error"); return; }
+  const now = new Date().toISOString();
+  // Aggregate type-specific fields into notes/text
+  const mainText = document.getElementById("ctNewText")?.value.trim() || null;
+  const subject = document.getElementById("ctNewSubject")?.value.trim();
+  const preview = document.getElementById("ctNewPreview")?.value.trim();
+  const headline = document.getElementById("ctNewHeadline")?.value.trim();
+  const body = document.getElementById("ctNewBody")?.value.trim();
+  const cta = document.getElementById("ctNewCTA")?.value.trim();
+  const hashtags = document.getElementById("ctNewHashtags")?.value.trim();
+  const notes = document.getElementById("ctNewNotes")?.value.trim();
+  // Build combined content text
+  let contentText = mainText || "";
+  if (subject) contentText = `Subject: ${subject}\nPreview: ${preview||""}\n\n${contentText}`;
+  if (headline) contentText = `${headline}\n\n${contentText}`;
+  if (body) contentText += `\n\n${body}`;
+  if (cta) contentText += `\n\nCTA: ${cta}`;
+  if (hashtags) contentText += `\n\nHashtags: ${hashtags}`;
+  if (notes) contentText += `\n\nNotes: ${notes}`;
+  // Reviewers
+  const checkedReviewers = Array.from(document.querySelectorAll(".ct-reviewer-check:checked")).map(c => c.value).join(", ");
+  const row = {
+    id: genId(), title, channel: type, status, version: 1,
+    content_text: contentText.trim() || null,
+    file_link: document.getElementById("ctNewFileLink")?.value.trim() || null,
+    event_name: document.getElementById("ctNewEvent")?.value || null,
+    event_year: new Date().getFullYear(),
+    reviewers: checkedReviewers,
+    review_deadline: document.getElementById("ctNewReviewDeadline")?.value || null,
+    post_date: document.getElementById("ctNewPostDate")?.value || null,
+    created_by: currentUser?.displayName || "",
+    created_at: now, updated_at: now
+  };
+  try {
+    await sbInsert("MyBFFContent", row);
+    ALL_CONTENT.unshift(row);
+    if (status === "In Review") {
+      for (const rev of (checkedReviewers.split(",").map(r=>r.trim()).filter(Boolean))) {
+        const rRow = { id: genId(), content_id: row.id, reviewer: rev, status: "pending", reviewed_at: null };
+        try { await sbInsert("MyBFFContentReviewers", rRow); ALL_CONTENT_REVIEWERS.push(rRow); } catch(e) {}
+      }
+    }
+    showToast(status === "Draft" ? "Saved as draft!" : "Submitted for review!");
+    showMktgTab("status");
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+// ── EDIT (modal-based, legacy) ────────────────────────────────
+function openContentModal() { showMktgTab("create"); }
 
 function openContentModalEdit(contentId) {
   closeModal("contentDetailModal");
@@ -4690,53 +4840,44 @@ function openContentModalEdit(contentId) {
   document.getElementById("ctText").value = c.content_text || "";
   document.getElementById("ctFileLink").value = c.file_link || "";
   document.getElementById("ctPhotoUrl").value = c.photo_url || "";
-  if (c.photo_url) {
-    document.getElementById("ctPhotoImg").src = c.photo_url;
-    document.getElementById("ctPhotoPreview").style.display = "";
-  } else { document.getElementById("ctPhotoPreview").style.display = "none"; }
+  if (c.photo_url) { document.getElementById("ctPhotoImg").src = c.photo_url; document.getElementById("ctPhotoPreview").style.display = ""; }
+  else document.getElementById("ctPhotoPreview").style.display = "none";
+  document.getElementById("ctReviewDeadline").value = c.review_deadline || "";
+  document.getElementById("ctPostDate").value = c.post_date || "";
   const evSel = document.getElementById("ctEvent");
   if (evSel) evSel.innerHTML = `<option value="">— Not event-specific —</option>` +
     ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}" ${e.name===c.event_name?"selected":""}>${esc(e.name)}</option>`).join("");
-  document.getElementById("ctReviewDeadline").value = c.review_deadline || "";
-  document.getElementById("ctPostDate").value = c.post_date || "";
   const selected = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === contentId).map(r => r.reviewer);
   buildReviewerChecks(selected.length ? selected : (c.reviewers||"").split(",").map(r=>r.trim()).filter(Boolean));
   openModal("contentModal");
 }
 
 function previewContentPhoto(input) {
-  const file = input.files[0];
-  if (!file) return;
+  const file = input.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
     document.getElementById("ctPhotoImg").src = e.target.result;
     document.getElementById("ctPhotoPreview").style.display = "";
-    // Store as data URI temporarily — uploaded to Supabase Storage on save
     document.getElementById("ctPhotoUrl").value = e.target.result;
   };
   reader.readAsDataURL(file);
 }
-
 function clearContentPhoto() {
   document.getElementById("ctPhotoFile").value = "";
   document.getElementById("ctPhotoUrl").value = "";
   document.getElementById("ctPhotoPreview").style.display = "none";
 }
-
 function buildReviewerChecks(selectedList) {
-  const names = APP_USERS.map(u => u.displayName).filter(Boolean).sort();
   const container = document.getElementById("ctReviewerChecks");
   if (!container) return;
-  container.innerHTML = names.map(n => `
+  container.innerHTML = APP_USERS.map(u => `
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;font-size:14px">
-      <input type="checkbox" value="${esc(n)}" ${selectedList.includes(n)?"checked":""} style="width:16px;height:16px;accent-color:var(--gold)">
-      ${esc(n)}
+      <input type="checkbox" value="${esc(u.displayName)}" ${selectedList.includes(u.displayName)?"checked":""} style="width:16px;height:16px;accent-color:var(--gold)">
+      ${esc(u.displayName)}
     </label>`).join("");
 }
-
 function getCheckedReviewers() {
-  const checks = document.querySelectorAll("#ctReviewerChecks input[type=checkbox]:checked");
-  return Array.from(checks).map(c => c.value).join(", ");
+  return Array.from(document.querySelectorAll("#ctReviewerChecks input[type=checkbox]:checked")).map(c => c.value).join(", ");
 }
 
 async function saveContent(status) {
@@ -4747,50 +4888,46 @@ async function saveContent(status) {
   const editingId = document.getElementById("ctEditingId").value;
   const now = new Date().toISOString();
   let photoUrl = document.getElementById("ctPhotoUrl").value || null;
-  // If photo is a data URI, upload to Supabase Storage
   if (photoUrl && photoUrl.startsWith("data:image")) {
     try {
       const base64Data = photoUrl.split(",")[1];
       const mediaType = photoUrl.split(";")[0].split(":")[1];
       const ext = mediaType.split("/")[1] || "jpg";
-      const filePath = `content/${genId()}.${ext}`;
-      const result = await workerCall({ method: "STORAGE_UPLOAD", appId: APP_ID, bucket: "mybff-content", filePath, base64Data, contentType: mediaType });
+      const result = await workerCall({ method:"STORAGE_UPLOAD", appId:APP_ID, bucket:"mybff-content", filePath:`content/${genId()}.${ext}`, base64Data, contentType:mediaType });
       if (result?.publicUrl) photoUrl = result.publicUrl;
-    } catch(e) { console.warn("Photo upload failed:", e); photoUrl = null; }
+    } catch(e) { photoUrl = null; }
   }
   const row = {
     title, channel, status,
-    content_text:     document.getElementById("ctText").value.trim() || null,
-    file_link:        document.getElementById("ctFileLink").value.trim() || null,
-    photo_url:        photoUrl,
-    event_name:       document.getElementById("ctEvent").value || null,
-    event_year:       new Date().getFullYear(),
-    reviewers:        getCheckedReviewers(),
-    review_deadline:  document.getElementById("ctReviewDeadline").value || null,
-    post_date:        document.getElementById("ctPostDate").value || null,
-    updated_at:       now
+    content_text: document.getElementById("ctText").value.trim() || null,
+    file_link: document.getElementById("ctFileLink").value.trim() || null,
+    photo_url: photoUrl,
+    event_name: document.getElementById("ctEvent").value || null,
+    event_year: new Date().getFullYear(),
+    reviewers: getCheckedReviewers(),
+    review_deadline: document.getElementById("ctReviewDeadline").value || null,
+    post_date: document.getElementById("ctPostDate").value || null,
+    updated_at: now
   };
   try {
     if (editingId) {
       await sbUpdate("MyBFFContent", editingId, row, "id");
       const idx = ALL_CONTENT.findIndex(c => c.id === editingId);
       if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], ...row };
-      // Sync reviewer rows — add new reviewers, keep existing ones
+      // Sync reviewer rows
       const newReviewerList = row.reviewers ? row.reviewers.split(",").map(r=>r.trim()).filter(Boolean) : [];
-      const existingReviewers = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === editingId);
-      const existingNames = existingReviewers.map(r => r.reviewer);
-      // Add any newly checked reviewers
+      const existing = ALL_CONTENT_REVIEWERS.filter(r => r.content_id === editingId);
+      const existingNames = existing.map(r => r.reviewer);
       for (const rev of newReviewerList) {
         if (!existingNames.includes(rev)) {
-          const rRow = { id: genId(), content_id: editingId, reviewer: rev, status: "pending", action: null, reviewed_at: null };
-          try { await sbInsert("MyBFFContentReviewers", rRow); ALL_CONTENT_REVIEWERS.push(rRow); } catch(e) {}
+          const rRow = { id:genId(), content_id:editingId, reviewer:rev, status:"pending", action:null, reviewed_at:null };
+          try { await sbInsert("MyBFFContentReviewers",rRow); ALL_CONTENT_REVIEWERS.push(rRow); } catch(e) {}
         }
       }
-      // Remove unchecked reviewers (only if still pending — don't remove those who already acted)
-      for (const r of existingReviewers) {
-        if (!newReviewerList.includes(r.reviewer) && r.status === "pending") {
-          try { await sbDelete("MyBFFContentReviewers", r.id, "id"); } catch(e) {}
-          ALL_CONTENT_REVIEWERS.splice(ALL_CONTENT_REVIEWERS.indexOf(r), 1);
+      for (const r of existing) {
+        if (!newReviewerList.includes(r.reviewer) && r.status==="pending") {
+          try { await sbDelete("MyBFFContentReviewers",r.id,"id"); } catch(e) {}
+          ALL_CONTENT_REVIEWERS.splice(ALL_CONTENT_REVIEWERS.indexOf(r),1);
         }
       }
     } else {
@@ -4799,46 +4936,52 @@ async function saveContent(status) {
       row.created_at = now;
       await sbInsert("MyBFFContent", row);
       ALL_CONTENT.unshift(row);
-      // If submitting for review, create reviewer rows
       if (status === "In Review") {
-        const reviewerList = row.reviewers.split(",").map(r=>r.trim()).filter(Boolean);
-        for (const rev of reviewerList) {
-          const rRow = { id: genId(), content_id: row.id, reviewer: rev, status: "pending", reviewed_at: null };
-          try { await sbInsert("MyBFFContentReviewers", rRow); ALL_CONTENT_REVIEWERS.push(rRow); } catch(e) {}
+        for (const rev of (row.reviewers.split(",").map(r=>r.trim()).filter(Boolean))) {
+          const rRow = { id:genId(), content_id:row.id, reviewer:rev, status:"pending", reviewed_at:null };
+          try { await sbInsert("MyBFFContentReviewers",rRow); ALL_CONTENT_REVIEWERS.push(rRow); } catch(e) {}
         }
       }
     }
     closeModal("contentModal");
-    showToast(status === "Draft" ? "Saved as draft." : "Submitted for review!");
+    showToast(status==="Draft" ? "Saved as draft." : "Submitted for review!");
     renderMarketing();
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
-// ── Seed & Clear ──────────────────────────────────────────────
-async function clearSeedContent() {
-  if (!confirm("Delete all seeded test content and comments? This cannot be undone.")) return;
-  const statusEl = document.getElementById("seedStatus");
-  if (statusEl) statusEl.textContent = "Clearing...";
-  let deleted = 0;
-  for (const c of [...ALL_CONTENT]) {
-    try {
-      // Delete comments
-      for (const cm of ALL_CONTENT_COMMENTS.filter(x => x.content_id === c.id)) {
-        await sbDelete("MyBFFContentComments", cm.id, "id");
-      }
-      // Delete reviewers
-      for (const r of ALL_CONTENT_REVIEWERS.filter(x => x.content_id === c.id)) {
-        await sbDelete("MyBFFContentReviewers", r.id, "id");
-      }
-      await sbDelete("MyBFFContent", c.id, "id");
-      deleted++;
-    } catch(e) { console.warn("clear:", e); }
-  }
-  await Promise.all([loadContent(), loadContentComments(), loadContentReviewers()]);
-  renderMarketing();
-  if (statusEl) statusEl.textContent = `Cleared ${deleted} content items.`;
-  showToast("Test content cleared.");
+// ── ASSET LIBRARY ─────────────────────────────────────────────
+function renderAssetLibrary() {
+  const container = document.getElementById("mktgAssetLibrary");
+  if (!container) return;
+  container.innerHTML = `
+    <div class="card" style="max-width:700px;margin:0 auto;text-align:center;padding:32px">
+      <div style="font-size:48px;margin-bottom:12px">🗂️</div>
+      <div style="font-weight:700;font-size:18px;margin-bottom:8px">Asset Library</div>
+      <div style="font-size:14px;color:var(--gray);max-width:420px;margin:0 auto 20px;line-height:1.7">
+        Store logos, email headers, social media graphics, event photos, and finished collateral here.
+        Organized by event or as general brand assets.
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:24px;text-align:left">
+        ${[
+          {icon:"🏆",label:"Brand Assets",desc:"Logos, headers, templates"},
+          {icon:"🎯",label:"Cornhole 2026",desc:"Event-specific graphics"},
+          {icon:"🧠",label:"Trivia Night 2026",desc:"Event-specific graphics"},
+          {icon:"🏃",label:"Walk/Run 2026",desc:"Event-specific graphics"},
+          {icon:"📁",label:"All Files",desc:"Browse everything"},
+        ].map(cat => `
+          <div class="card" style="padding:14px;cursor:pointer;border:2px solid var(--border)" onclick="showToast('Asset Library coming soon — full build in next phase.')">
+            <div style="font-size:28px;margin-bottom:6px">${cat.icon}</div>
+            <div style="font-weight:600;font-size:13px">${cat.label}</div>
+            <div style="font-size:12px;color:var(--gray)">${cat.desc}</div>
+          </div>`).join("")}
+      </div>
+      <button class="btn btn-gold" onclick="showToast('Asset upload coming in the next build!')">📤 Upload Asset</button>
+      <div style="margin-top:16px;font-size:12px;color:var(--gray)">
+        Full asset management — upload, tag by event, search, and paste into content creation — coming in the next build.
+      </div>
+    </div>`;
 }
+
 
 async function seedTestContent() {
   const statusEl = document.getElementById("seedStatus");
