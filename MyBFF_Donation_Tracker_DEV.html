@@ -691,6 +691,7 @@ if ('serviceWorker' in navigator) {
         </button>
         <button class="sub-tab" id="mktgTabCreate" onclick="showMktgTab('create')">Create Content</button>
         <button class="sub-tab" id="mktgTabAssets" onclick="showMktgTab('assets')">Asset Library</button>
+        <button class="sub-tab" id="mktgTabAi" onclick="showMktgTab('ai')">🤖 AI Settings</button>
       </div>
 
       <!-- STATUS BOARD -->
@@ -716,6 +717,11 @@ if ('serviceWorker' in navigator) {
       <!-- ASSET LIBRARY -->
       <div id="mktg-assets" class="mktg-panel" style="display:none">
         <div id="mktgAssetLibrary"></div>
+      </div>
+
+      <!-- AI SETTINGS -->
+      <div id="mktg-ai" class="mktg-panel" style="display:none">
+        <div id="mktgAISettings"></div>
       </div>
     </div>
 
@@ -1517,6 +1523,50 @@ if ('serviceWorker' in navigator) {
     <input type="hidden" id="donCatEditingId">
   </div>
 </div>
+<!-- AI LIBRARY MODAL -->
+<div class="modal-overlay" id="aiLibraryModal">
+  <div class="modal" style="max-width:500px">
+    <button class="modal-close" onclick="closeModal('aiLibraryModal')">&#10005;</button>
+    <div class="modal-title">Add to Brand Library</div>
+    <div class="form-grid single">
+      <div class="form-group">
+        <label class="form-label">Name / Description <span class="req">*</span></label>
+        <input type="text" class="form-input" id="aiLibModalName" placeholder="e.g. MyBFF Website, 2025 Cornhole Facebook Posts">
+      </div>
+      <div class="form-group">
+        <label class="form-label">URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <input type="text" class="form-input" id="aiLibModalUrl" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Type</label>
+        <select class="form-input" id="aiLibModalType">
+          <option>URL</option><option>Document</option><option>Past Content</option>
+          <option>Social Media Page</option><option>Image / Graphic</option><option>Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Purpose Tags <span style="font-size:11px;color:var(--gray);font-weight:400">select all that apply</span></label>
+        <div style="display:flex;flex-direction:column;gap:6px;border:2px solid var(--border);border-radius:7px;padding:10px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><input type="checkbox" value="Foundation Identity" class="ai-lib-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> Foundation Identity</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><input type="checkbox" value="Voice &amp; Tone" class="ai-lib-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> Voice &amp; Tone</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><input type="checkbox" value="Reference Content" class="ai-lib-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> Reference Content</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><input type="checkbox" value="Event Context" class="ai-lib-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> Event Context</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><input type="checkbox" value="Legal &amp; Compliance" class="ai-lib-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> Legal &amp; Compliance</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><input type="checkbox" value="Audience" class="ai-lib-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> Audience</label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <textarea class="form-input form-textarea" id="aiLibModalNotes" rows="2" placeholder="e.g. Best-performing Cornhole posts from 2025..."></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal('aiLibraryModal')">Cancel</button>
+      <button class="btn btn-gold" onclick="saveAILibraryItem()">Add to Library</button>
+    </div>
+  </div>
+</div>
+
 
 <script>
 // ═══════════════════════════════════════════════════════════
@@ -1525,7 +1575,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.8-DEV · Apr 20 2026";
+const BUILD_VERSION = "v5.9-DEV · Apr 21 2026 · 12:22 AM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -1680,8 +1730,7 @@ async function launchApp() {
   document.getElementById("headerUser").textContent = `${currentUser.displayName} (${role.charAt(0).toUpperCase()+role.slice(1)})`;
   const buildEl = document.getElementById("headerBuild");
   if (buildEl) {
-    const loadedTime = new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
-    buildEl.textContent = BUILD_VERSION + " · Loaded " + loadedTime;
+    buildEl.textContent = BUILD_VERSION;
     buildEl.style.display = "";
   }
 
@@ -1715,7 +1764,7 @@ async function launchApp() {
 async function loadAll() {
   await loadDonations();
   await Promise.all([loadVendors(), loadEvents(), loadPickups(), loadUsers(), loadEventTypes(), loadDonationCategories()]);
-  await Promise.all([loadTasks(), loadTaskTemplates(), loadTaskNotes(), loadContent(), loadContentComments(), loadContentReviewers()]);
+  await Promise.all([loadTasks(), loadTaskTemplates(), loadTaskNotes(), loadContent(), loadContentComments(), loadContentReviewers(), loadAIConfig(), loadAILibrary()]);
   startAutoRefresh();
 }
 
@@ -4183,7 +4232,8 @@ function updateMktgBadge() {
 
 // ── Tab switching ─────────────────────────────────────────────
 function showMktgTab(tab) {
-  ["status","create","assets"].forEach(t => {
+  _activeSectionFilter = null; // reset section filter on tab switch
+  ["status","create","assets","ai"].forEach(t => {
     const panel = document.getElementById("mktg-" + t);
     const btn = document.getElementById("mktgTab" + t.charAt(0).toUpperCase() + t.slice(1));
     if (panel) panel.style.display = t === tab ? "" : "none";
@@ -4192,6 +4242,7 @@ function showMktgTab(tab) {
   if (tab === "status") renderStatusBoard();
   if (tab === "create") renderCreatePanel();
   if (tab === "assets") renderAssetLibrary();
+  if (tab === "ai") renderAISettings();
 }
 
 // ── Status helpers ────────────────────────────────────────────
@@ -4233,13 +4284,14 @@ function renderMarketing() {
   }
   updateMktgBadge();
   // Render whichever panel is active
-  const activePanel = ["status","create","assets"].find(t => {
+  const activePanel = ["status","create","assets","ai"].find(t => {
     const el = document.getElementById("mktg-" + t);
     return el && el.style.display !== "none";
   }) || "status";
   if (activePanel === "status") renderStatusBoard();
   else if (activePanel === "create") renderCreatePanel();
   else if (activePanel === "assets") renderAssetLibrary();
+  else if (activePanel === "ai") renderAISettings();
 }
 
 // ── STATUS BOARD ──────────────────────────────────────────────
@@ -4247,7 +4299,7 @@ function renderStatusBoard() {
   const container = document.getElementById("mktgStatusBoard");
   if (!container) return;
   const myName = currentUser?.displayName || "";
-  const evFilter = document.getElementById("mktgEventFilter")?.value || "";
+  const evFilter = (ALL_EVENTS_DATA.length > 0 && document.getElementById("mktgEventFilter")?.value) ? document.getElementById("mktgEventFilter").value : "";
   const chFilter = document.getElementById("mktgChannelFilter")?.value || "";
   const today = new Date().toISOString().split("T")[0];
   const soon = new Date(Date.now()+3*86400000).toISOString().split("T")[0];
@@ -4256,7 +4308,6 @@ function renderStatusBoard() {
   if (evFilter) allItems = allItems.filter(c => c.event_name === evFilter);
   if (chFilter) allItems = allItems.filter(c => c.channel === chFilter);
 
-  // For contributors, limit visibility
   if (!isEditor()) {
     allItems = allItems.filter(c => {
       if (c.status === "Approved" || c.status === "Posted") return true;
@@ -4266,7 +4317,7 @@ function renderStatusBoard() {
   }
 
   const sections = [
-    { key:"attention", label:"🔴 Needs Your Attention", open:true,
+    { key:"attention", label:"🔴 Needs Your Attention",
       items: allItems.filter(c => {
         if (c.status === "In Review") {
           const r = ALL_CONTENT_REVIEWERS.find(x => x.content_id === c.id && x.reviewer === myName);
@@ -4274,29 +4325,40 @@ function renderStatusBoard() {
         }
         return c.status === "Needs Changes" && c.created_by === myName;
       })},
-    { key:"review", label:"🔵 In Review", open:true,
-      items: allItems.filter(c => c.status === "In Review") },
-    { key:"changes", label:"🟡 Needs Changes", open:true,
-      items: allItems.filter(c => c.status === "Needs Changes") },
-    { key:"approved", label:"🟢 Approved — Ready to Post", open:true,
-      items: allItems.filter(c => c.status === "Approved") },
-    { key:"draft", label:"⚪ Drafts", open:false,
-      items: allItems.filter(c => c.status === "Draft") },
-    { key:"posted", label:"🟣 Posted", open:false,
-      items: allItems.filter(c => c.status === "Posted") },
+    { key:"review",   label:"🔵 In Review",             items: allItems.filter(c => c.status === "In Review") },
+    { key:"changes",  label:"🟡 Needs Changes",          items: allItems.filter(c => c.status === "Needs Changes") },
+    { key:"approved", label:"🟢 Approved — Ready to Post", items: allItems.filter(c => c.status === "Approved") },
+    { key:"draft",    label:"⚪ Drafts",                 items: allItems.filter(c => c.status === "Draft") },
+    { key:"posted",   label:"🟣 Posted",                 items: allItems.filter(c => c.status === "Posted") },
   ];
 
-  container.innerHTML = sections.map(sec => {
-    if (!sec.items.length && sec.key !== "attention") return "";
+  // Filtering hint
+  const filterHint = _activeSectionFilter
+    ? `<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:8px 12px;background:#f0f4ff;border-radius:8px;font-size:13px">
+        <span>Showing: <strong>${sections.find(s=>s.key===_activeSectionFilter)?.label||""}</strong></span>
+        <button class="btn btn-sm btn-outline" onclick="_activeSectionFilter=null;renderStatusBoard()" style="margin-left:auto">✕ Show All</button>
+       </div>` : "";
+
+  const visibleSections = _activeSectionFilter
+    ? sections.filter(s => s.key === _activeSectionFilter)
+    : sections;
+
+  container.innerHTML = filterHint + (visibleSections.map(sec => {
+    if (!sec.items.length && sec.key !== "attention" && !_activeSectionFilter) return "";
+    const isActive = _activeSectionFilter === sec.key;
+    const headerBg = isActive ? "var(--navy)" : "var(--gray-light)";
+    const headerColor = isActive ? "white" : "inherit";
+    const badgeBg = isActive ? "white" : "var(--navy)";
+    const badgeColor = isActive ? "var(--navy)" : "white";
     return `
       <div style="margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--gray-light);border-radius:8px;cursor:pointer"
-             onclick="toggleSection('sb-${sec.key}')">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${headerBg};color:${headerColor};border-radius:8px;cursor:pointer;transition:background 0.15s"
+             onclick="toggleSection('sb-${sec.key}')" title="${_activeSectionFilter===sec.key?'Click to show all':'Click to focus this section'}">
           <span style="font-weight:700;font-size:14px;flex:1">${sec.label}</span>
-          <span style="background:var(--navy);color:white;border-radius:9999px;font-size:11px;font-weight:700;padding:1px 8px">${sec.items.length}</span>
-          <span id="sb-${sec.key}-arr">${sec.open?"▲":"▼"}</span>
+          <span style="background:${badgeBg};color:${badgeColor};border-radius:9999px;font-size:11px;font-weight:700;padding:1px 8px">${sec.items.length}</span>
+          ${!_activeSectionFilter ? `<span style="font-size:11px;opacity:0.6">click to focus</span>` : ""}
         </div>
-        <div id="sb-${sec.key}" style="display:${sec.open?"":"none"};padding-top:8px">
+        <div style="padding-top:8px">
           ${sec.items.length
             ? sec.items.map(c => {
                 const overdueTag = c.review_deadline && c.review_deadline < today && c.status==="In Review"
@@ -4308,16 +4370,20 @@ function renderStatusBoard() {
             : `<div style="font-size:13px;color:var(--gray);padding:12px 4px">Nothing here yet.</div>`}
         </div>
       </div>`;
-  }).join("") || `<div style="text-align:center;padding:40px;color:var(--gray)">No content yet. Go to <strong>Create Content</strong> to add the first piece.</div>`;
+  }).join("")) || `<div style="text-align:center;padding:40px;color:var(--gray)">No content yet. Go to <strong>Create Content</strong> to add the first piece.</div>`;
 }
 
+let _activeSectionFilter = null; // null = show all, else = section key
+
 function toggleSection(id) {
-  const el = document.getElementById(id);
-  const arr = document.getElementById(id + "-arr");
-  if (!el) return;
-  const open = el.style.display !== "none";
-  el.style.display = open ? "none" : "";
-  if (arr) arr.textContent = open ? "▼" : "▲";
+  const key = id.replace("sb-","");
+  if (_activeSectionFilter === key) {
+    // Already filtered to this — click again to show all
+    _activeSectionFilter = null;
+  } else {
+    _activeSectionFilter = key;
+  }
+  renderStatusBoard();
 }
 
 // ── CONTENT CARD ──────────────────────────────────────────────
@@ -4982,6 +5048,313 @@ function renderAssetLibrary() {
     </div>`;
 }
 
+
+// ═══════════════════════════════════════════════════════════
+// AI SETTINGS — BRAND BRAIN
+// ═══════════════════════════════════════════════════════════
+let AI_CONFIG = {}; // loaded from MyBFFAIConfig
+let AI_LIBRARY = []; // loaded from MyBFFAILibrary
+
+async function loadAIConfig() {
+  try {
+    const rows = await sbGet("MyBFFAIConfig", "limit=1");
+    AI_CONFIG = (rows && rows[0]) || {};
+  } catch(e) { AI_CONFIG = {}; }
+}
+
+async function loadAILibrary() {
+  try {
+    const rows = await sbGet("MyBFFAILibrary", "order=created_at.desc");
+    AI_LIBRARY = rows || [];
+  } catch(e) { AI_LIBRARY = []; }
+}
+
+function renderAISettings() {
+  const container = document.getElementById("mktgAISettings");
+  if (!container) return;
+  if (!isEditor()) {
+    container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--gray)">AI Settings are available to Editors and Admins.</div>`;
+    return;
+  }
+  const c = AI_CONFIG;
+  container.innerHTML = `
+    <div style="max-width:760px;margin:0 auto">
+      <div style="background:#f0f4ff;border:1px solid #c7d7f5;border-radius:10px;padding:14px 18px;margin-bottom:24px;font-size:13px;line-height:1.6">
+        🤖 <strong>Brand Brain</strong> — This is everything the AI assistant will know about My Best Friends Foundation before generating any content.
+        Fill in as much as you can. The more context you provide, the better the drafts will be.
+        <strong>Nothing here is sent to any AI until you click Generate Draft in content creation.</strong>
+      </div>
+
+      <!-- SECTION 1: Foundation Identity -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">🏛️ Foundation Identity</div>
+        <div style="font-size:12px;color:var(--gray);margin-bottom:16px">Who you are — facts the AI should always know</div>
+        <div class="form-grid">
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Organization Name & Tagline</label>
+            <input type="text" class="form-input" id="ai_name" value="${esc(c.org_name||"")}" placeholder="e.g. My Best Friends Foundation — Supporting Animals in Need">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Mission Statement</label>
+            <textarea class="form-input form-textarea" id="ai_mission" rows="3" placeholder="Paste your official mission statement here...">${esc(c.mission||"")}</textarea>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">History & Background</label>
+            <textarea class="form-input form-textarea" id="ai_history" rows="3" placeholder="Founding year, how it started, key milestones, what makes you different...">${esc(c.history||"")}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Years in Operation</label>
+            <input type="text" class="form-input" id="ai_years" value="${esc(c.years||"")}" placeholder="e.g. Since 2015">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Geographic Area Served</label>
+            <input type="text" class="form-input" id="ai_geography" value="${esc(c.geography||"")}" placeholder="e.g. Chicagoland area, southwest suburbs">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Key Impact Statistics</label>
+            <textarea class="form-input form-textarea" id="ai_stats" rows="2" placeholder="Animals helped, funds raised, families served — numbers the AI can reference...">${esc(c.stats||"")}</textarea>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Key People to Reference</label>
+            <input type="text" class="form-input" id="ai_people" value="${esc(c.people||"")}" placeholder="e.g. Ed Grasse (Founder), Kris Grasse (Co-Founder)">
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 2: Voice & Tone -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">🎙️ Voice & Tone</div>
+        <div style="font-size:12px;color:var(--gray);margin-bottom:16px">How you sound — the AI will match this style</div>
+        <div class="form-grid">
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Tone Profile</label>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              ${[
+                {id:"tone_formal",    label:"Formal ←→ Casual",       opts:["Very Formal","Formal","Balanced","Casual","Very Casual"]},
+                {id:"tone_serious",   label:"Serious ←→ Playful",     opts:["Very Serious","Serious","Balanced","Playful","Very Playful"]},
+                {id:"tone_inspire",   label:"Inspirational ←→ Factual", opts:["Very Inspirational","Inspirational","Balanced","Factual","Very Factual"]},
+              ].map(t => `
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px">
+                  <span style="width:180px;color:var(--gray)">${t.label}</span>
+                  <select class="filter-select" id="ai_${t.id}" style="flex:1">
+                    ${t.opts.map(o => `<option ${(c[t.id]||"Balanced")===o?"selected":""}>${o}</option>`).join("")}
+                  </select>
+                </div>`).join("")}
+            </div>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Personality Words <span style="font-size:11px;color:var(--gray);font-weight:400">comma-separated</span></label>
+            <input type="text" class="form-input" id="ai_personality" value="${esc(c.personality||"")}" placeholder="e.g. warm, community-focused, passionate, approachable, never corporate">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Words / Phrases to Always Use</label>
+            <textarea class="form-input form-textarea" id="ai_use_words" rows="3" placeholder="e.g. animals in need, community, My Best Friends Foundation (always full name on first mention)...">${esc(c.use_words||"")}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Words / Phrases to Never Use</label>
+            <textarea class="form-input form-textarea" id="ai_avoid_words" rows="3" placeholder="e.g. charity (prefer 'foundation'), cheap, crisis...">${esc(c.avoid_words||"")}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Emoji Usage</label>
+            <select class="form-input" id="ai_emoji">
+              ${["Always — they match our brand","Sometimes — sparingly for emphasis","Rarely — only for events","Never"].map(o=>`<option ${(c.emoji||"Sometimes — sparingly for emphasis")===o?"selected":""}>${o}</option>`).join("")}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Standard Hashtags</label>
+            <input type="text" class="form-input" id="ai_hashtags" value="${esc(c.hashtags||"")}" placeholder="e.g. #MyBFF #MyBestFriendsFoundation #AnimalsInNeed">
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 3: Audience Segments -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">👥 Audience Segments</div>
+        <div style="font-size:12px;color:var(--gray);margin-bottom:16px">Who you talk to — the AI adjusts tone based on audience</div>
+        <div class="form-grid">
+          ${["General Public","Past Attendees","Donors","Sponsors","Volunteers"].map(seg => `
+            <div class="form-group">
+              <label class="form-label">${seg}</label>
+              <textarea class="form-input form-textarea" id="ai_audience_${seg.toLowerCase().replace(/\s+/g,'_')}" rows="2"
+                placeholder="How would you describe this audience and how should the AI speak to them?">${esc(c["audience_"+seg.toLowerCase().replace(/\s+/g,'_')]||"")}</textarea>
+            </div>`).join("")}
+        </div>
+      </div>
+
+      <!-- SECTION 4: Channel Rules -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">📱 Channel-Specific Rules</div>
+        <div style="font-size:12px;color:var(--gray);margin-bottom:16px">Per-channel instructions that override the general tone</div>
+        <div class="form-grid">
+          ${["Facebook","Instagram","Email","Flyer"].map(ch => `
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">${ch}</label>
+              <textarea class="form-input form-textarea" id="ai_channel_${ch.toLowerCase()}" rows="2"
+                placeholder="e.g. Keep Facebook posts under 200 words. Always end with a CTA link. Use the event name in the first sentence.">${esc(c["channel_"+ch.toLowerCase()]||"")}</textarea>
+            </div>`).join("")}
+        </div>
+      </div>
+
+      <!-- SECTION 5: Event Context Library -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">🗓️ Event Context Library</div>
+        <div style="font-size:12px;color:var(--gray);margin-bottom:16px">Standard descriptions for each recurring event — the AI loads these automatically when you select an event</div>
+        <div class="form-grid">
+          ${["Cornhole","Trivia","Walk/Run","Golf","Super Bowl Squares"].map(ev => `
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">${ev}</label>
+              <textarea class="form-input form-textarea" id="ai_event_${ev.toLowerCase().replace(/[^a-z]/g,'_')}" rows="3"
+                placeholder="Standard description, key facts, unique selling points, past results, approved phrases for this event...">${esc(c["event_"+ev.toLowerCase().replace(/[^a-z]/g,'_')]||"")}</textarea>
+            </div>`).join("")}
+        </div>
+      </div>
+
+      <!-- SECTION 6: Legal & Compliance -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">⚖️ Legal & Compliance</div>
+        <div style="font-size:12px;color:var(--gray);margin-bottom:16px">What the AI must always include or never say</div>
+        <div class="form-grid">
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Required Disclosures <span style="font-size:11px;color:var(--gray);font-weight:400">language that must appear in certain content</span></label>
+            <textarea class="form-input form-textarea" id="ai_disclosures" rows="2" placeholder="e.g. 501(c)(3) status language, donation tax language...">${esc(c.disclosures||"")}</textarea>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Claims to Avoid</label>
+            <textarea class="form-input form-textarea" id="ai_avoid_claims" rows="2" placeholder="e.g. Don't make specific financial projections, don't name individual animals without approval...">${esc(c.avoid_claims||"")}</textarea>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Privacy Rules</label>
+            <textarea class="form-input form-textarea" id="ai_privacy" rows="2" placeholder="e.g. Don't name specific donors, get consent before naming families...">${esc(c.privacy||"")}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 7: Brand Library (documents & URLs) -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
+          📚 Brand Library
+          <button class="btn btn-gold btn-sm" onclick="openAILibraryModal()">+ Add Item</button>
+        </div>
+        <div style="font-size:12px;color:var(--gray);margin-bottom:16px">
+          URLs, documents, and past content the AI can learn from.
+          One item can serve multiple purposes — tag it with everything it applies to.
+        </div>
+        <div id="aiLibraryList">
+          ${AI_LIBRARY.length
+            ? AI_LIBRARY.map(item => `
+              <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+                <div style="flex:1">
+                  <div style="font-weight:600;font-size:14px">${esc(item.name||item.url||"Untitled")}</div>
+                  <div style="font-size:12px;color:var(--gray);margin-top:2px">
+                    ${item.url ? `<a href="${esc(item.url)}" target="_blank" style="font-size:12px">🔗 ${esc(item.url.substring(0,50))}${item.url.length>50?"...":""}</a>` : ""}
+                    ${item.content_type ? `<span style="background:var(--gray-light);padding:1px 6px;border-radius:20px;font-size:11px;margin-left:6px">${esc(item.content_type)}</span>` : ""}
+                  </div>
+                  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">
+                    ${(item.tags||"").split(",").filter(Boolean).map(t => `<span style="background:#dbeafe;color:#1e40af;padding:1px 7px;border-radius:20px;font-size:11px">${esc(t.trim())}</span>`).join("")}
+                  </div>
+                </div>
+                <button class="btn btn-sm" style="color:var(--red)" onclick="deleteAILibraryItem('${esc(item.id)}')">✕</button>
+              </div>`).join("")
+            : `<div style="font-size:13px;color:var(--gray);padding:12px 0">No items yet. Add your website, Facebook page, past posts, or any documents the AI should learn from.</div>`}
+        </div>
+      </div>
+
+      <!-- Save button -->
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:32px">
+        <button class="btn btn-outline" onclick="renderAISettings()">Discard Changes</button>
+        <button class="btn btn-gold" onclick="saveAISettings()">💾 Save Brand Brain</button>
+      </div>
+    </div>`;
+}
+
+async function saveAISettings() {
+  const now = new Date().toISOString();
+  const row = {
+    id: AI_CONFIG.id || genId(),
+    org_name:     document.getElementById("ai_name")?.value.trim() || null,
+    mission:      document.getElementById("ai_mission")?.value.trim() || null,
+    history:      document.getElementById("ai_history")?.value.trim() || null,
+    years:        document.getElementById("ai_years")?.value.trim() || null,
+    geography:    document.getElementById("ai_geography")?.value.trim() || null,
+    stats:        document.getElementById("ai_stats")?.value.trim() || null,
+    people:       document.getElementById("ai_people")?.value.trim() || null,
+    personality:  document.getElementById("ai_personality")?.value.trim() || null,
+    use_words:    document.getElementById("ai_use_words")?.value.trim() || null,
+    avoid_words:  document.getElementById("ai_avoid_words")?.value.trim() || null,
+    emoji:        document.getElementById("ai_emoji")?.value || null,
+    hashtags:     document.getElementById("ai_hashtags")?.value.trim() || null,
+    disclosures:  document.getElementById("ai_disclosures")?.value.trim() || null,
+    avoid_claims: document.getElementById("ai_avoid_claims")?.value.trim() || null,
+    privacy:      document.getElementById("ai_privacy")?.value.trim() || null,
+    tone_formal:  document.getElementById("ai_tone_formal")?.value || null,
+    tone_serious: document.getElementById("ai_tone_serious")?.value || null,
+    tone_inspire: document.getElementById("ai_tone_inspire")?.value || null,
+    updated_at: now
+  };
+  // Audience segments
+  ["general_public","past_attendees","donors","sponsors","volunteers"].forEach(seg => {
+    row["audience_"+seg] = document.getElementById("ai_audience_"+seg)?.value.trim() || null;
+  });
+  // Channel rules
+  ["facebook","instagram","email","flyer"].forEach(ch => {
+    row["channel_"+ch] = document.getElementById("ai_channel_"+ch)?.value.trim() || null;
+  });
+  // Event context
+  ["cornhole","trivia","walk_run","golf","super_bowl_squares"].forEach(ev => {
+    row["event_"+ev] = document.getElementById("ai_event_"+ev)?.value.trim() || null;
+  });
+  try {
+    if (AI_CONFIG.id) {
+      await sbUpdate("MyBFFAIConfig", AI_CONFIG.id, row, "id");
+    } else {
+      await sbInsert("MyBFFAIConfig", row);
+    }
+    AI_CONFIG = row;
+    showToast("💾 Brand Brain saved!");
+  } catch(e) { showToast("Error saving: " + e.message, "error"); }
+}
+
+function openAILibraryModal() {
+  document.getElementById("aiLibModalName").value = "";
+  document.getElementById("aiLibModalUrl").value = "";
+  document.getElementById("aiLibModalType").value = "URL";
+  document.getElementById("aiLibModalNotes").value = "";
+  document.querySelectorAll(".ai-lib-tag-check").forEach(cb => cb.checked = false);
+  openModal("aiLibraryModal");
+}
+
+async function saveAILibraryItem() {
+  const name = document.getElementById("aiLibModalName").value.trim();
+  const url = document.getElementById("aiLibModalUrl").value.trim();
+  if (!name && !url) { showToast("Please enter a name or URL.", "error"); return; }
+  const tags = Array.from(document.querySelectorAll(".ai-lib-tag-check:checked")).map(c => c.value).join(", ");
+  const row = {
+    id: genId(),
+    name: name || url,
+    url: url || null,
+    content_type: document.getElementById("aiLibModalType").value,
+    notes: document.getElementById("aiLibModalNotes").value.trim() || null,
+    tags,
+    created_at: new Date().toISOString()
+  };
+  try {
+    await sbInsert("MyBFFAILibrary", row);
+    AI_LIBRARY.unshift(row);
+    closeModal("aiLibraryModal");
+    showToast("Item added to Brand Library!");
+    renderAISettings();
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+async function deleteAILibraryItem(id) {
+  if (!confirm("Remove this item from the Brand Library?")) return;
+  try {
+    await sbDelete("MyBFFAILibrary", id, "id");
+    AI_LIBRARY = AI_LIBRARY.filter(x => x.id !== id);
+    renderAISettings();
+    showToast("Item removed.");
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
 
 async function seedTestContent() {
   const statusEl = document.getElementById("seedStatus");
