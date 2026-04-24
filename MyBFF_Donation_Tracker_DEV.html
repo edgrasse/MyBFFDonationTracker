@@ -418,6 +418,7 @@ if ('serviceWorker' in navigator) {
     <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
     <button class="nav-tab" onclick="showPage('events')">Events</button>
     <button class="nav-tab" onclick="showPage('donations')">Donations</button>
+    <button class="nav-tab" onclick="showPage('grants')">Grants</button>
     <button class="nav-tab marketing-tab" onclick="showPage('marketing')" style="display:none">Marketing <span id="mktgBadge" style="display:none;background:#dc2626;color:white;border-radius:9999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px"></span></button>
     <button class="nav-tab admin-only" onclick="showPage('admin')" style="display:none">Admin</button>
   </nav>
@@ -676,6 +677,27 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- MARKETING -->
+    <!-- GRANTS -->
+    <div class="page" id="page-grants">
+      <div class="page-header">
+        <div class="section-title" style="margin:0">Grants</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select class="filter-select" id="grantYearFilter" onchange="renderGrantsPage()">
+            <option value="">All Years</option>
+          </select>
+          <div id="grantAddBtn">
+            <button class="btn btn-gold btn-sm" onclick="openGrantModal()">+ Add Grantor</button>
+          </div>
+        </div>
+      </div>
+      <!-- Dashboard summary -->
+      <div id="grantDashboard" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:24px"></div>
+      <!-- Status filter chips -->
+      <div id="grantStatusChips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"></div>
+      <!-- Grant list -->
+      <div id="grantList"></div>
+    </div>
+
     <!-- MARKETING HUB -->
     <div class="page" id="page-marketing">
       <div class="page-header">
@@ -1523,6 +1545,173 @@ if ('serviceWorker' in navigator) {
     <input type="hidden" id="donCatEditingId">
   </div>
 </div>
+<!-- GRANT MODAL (add/edit grantor) -->
+<div class="modal-overlay" id="grantModal">
+  <div class="modal" style="max-width:600px">
+    <button class="modal-close" onclick="closeModal('grantModal')" style="top:14px;right:14px">&#10005;</button>
+    <div class="modal-title" id="grantModalTitle">Add Grantor</div>
+    <div class="form-grid">
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Grantor / Organization Name <span class="req">*</span></label>
+        <input type="text" class="form-input" id="grantName" placeholder="e.g. Walmart Foundation, PetSmart Charities">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Grantor Type</label>
+        <select class="form-input" id="grantType">
+          <option value="">— Select —</option>
+          <option>Corporate</option><option>Foundation</option>
+          <option>Government</option><option>Community</option><option>Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Website URL</label>
+        <input type="text" class="form-input" id="grantWebsite" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Contact Name</label>
+        <input type="text" class="form-input" id="grantContact" placeholder="Primary contact at this organization">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Contact Email</label>
+        <input type="text" class="form-input" id="grantContactEmail" placeholder="contact@organization.org">
+      </div>
+      <div class="form-group" style="grid-column:1/-1;display:flex;align-items:center;gap:10px">
+        <input type="checkbox" id="grantMultiLocation" style="width:18px;height:18px;accent-color:var(--gold)">
+        <label for="grantMultiLocation" style="font-size:14px;cursor:pointer">
+          Allows multiple location/branch requests <span style="font-size:12px;color:var(--gray)">(e.g. one request per Walmart store)</span>
+        </label>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Notes</label>
+        <textarea class="form-input form-textarea" id="grantNotes" rows="3" placeholder="e.g. Walmart allows one request per store per year. Up to 4 stores in our service area."></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal('grantModal')">Cancel</button>
+      <button class="btn btn-gold" onclick="saveGrant()">Save Grantor</button>
+    </div>
+    <input type="hidden" id="grantEditingId">
+  </div>
+</div>
+
+<!-- GRANT REQUEST MODAL (individual request) -->
+<div class="modal-overlay" id="grantRequestModal">
+  <div class="modal" style="max-width:620px">
+    <button class="modal-close" onclick="closeModal('grantRequestModal')" style="top:14px;right:14px">&#10005;</button>
+    <div class="modal-title" id="grantReqModalTitle">Add Grant Request</div>
+    <div style="font-size:13px;color:var(--gray);margin-bottom:16px" id="grantReqGrantorName"></div>
+    <div class="form-grid">
+      <div class="form-group" id="grantReqLocationRow">
+        <label class="form-label">Location / Branch <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <input type="text" class="form-input" id="grantReqLocation" placeholder="e.g. Walmart #4521 — Bridgeview IL">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Requested By</label>
+        <select class="form-input" id="grantReqBy">
+          <option value="">— Select —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Amount Requested ($)</label>
+        <input type="number" class="form-input" id="grantReqAmount" placeholder="0.00" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date Requested</label>
+        <input type="date" class="form-input" id="grantReqDate" onchange="autoFillGrantYear()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Application Deadline</label>
+        <input type="date" class="form-input" id="grantReqDeadline">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Year</label>
+        <input type="text" class="form-input" id="grantReqYear" placeholder="2026">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select class="form-input" id="grantReqStatus" onchange="toggleGrantResponseFields()">
+          <option value="Identified">Identified</option>
+          <option value="Drafting">Drafting</option>
+          <option value="Submitted">Submitted</option>
+          <option value="Under Review">Under Review</option>
+          <option value="Awarded">Awarded</option>
+          <option value="Declined">Declined</option>
+          <option value="Withdrawn">Withdrawn</option>
+          <option value="Closed">Closed</option>
+          <option value="Up for Renewal">Up for Renewal</option>
+        </select>
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" id="grantReqEventTied" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleGrantEventField()">
+        <label for="grantReqEventTied" style="font-size:14px;cursor:pointer">Tied to a specific event</label>
+      </div>
+      <div class="form-group" style="grid-column:1/-1" id="grantReqEventRow" style="display:none">
+        <label class="form-label">Event</label>
+        <select class="form-input" id="grantReqEvent">
+          <option value="">— Select event —</option>
+        </select>
+      </div>
+      <!-- Response fields — shown when Awarded/Declined -->
+      <div id="grantReqResponseBlock" style="grid-column:1/-1;display:none">
+        <hr style="border:none;border-top:1px solid var(--border);margin:8px 0 16px">
+        <div style="font-weight:600;font-size:14px;margin-bottom:12px;color:var(--navy)">Award Details</div>
+        <div class="form-grid" style="padding:0">
+          <div class="form-group">
+            <label class="form-label">Amount Awarded ($)</label>
+            <input type="number" class="form-input" id="grantReqAwarded" placeholder="0.00" min="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Award Date</label>
+            <input type="date" class="form-input" id="grantReqAwardDate">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Grant Period Start</label>
+            <input type="date" class="form-input" id="grantReqPeriodStart">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Grant Period End</label>
+            <input type="date" class="form-input" id="grantReqPeriodEnd">
+          </div>
+          <div class="form-group" style="display:flex;align-items:center;gap:10px">
+            <input type="checkbox" id="grantReqRestricted" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleGrantRestrictionField()">
+            <label for="grantReqRestricted" style="font-size:14px;cursor:pointer">Funds are restricted</label>
+          </div>
+          <div class="form-group" id="grantReqRestrictionRow" style="display:none">
+            <label class="form-label">Restriction Description</label>
+            <input type="text" class="form-input" id="grantReqRestriction" placeholder="e.g. Must be used for animal food and supplies">
+          </div>
+          <div class="form-group" style="display:flex;align-items:center;gap:10px">
+            <input type="checkbox" id="grantReqReportReq" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleGrantReportField()">
+            <label for="grantReqReportReq" style="font-size:14px;cursor:pointer">Reporting required</label>
+          </div>
+          <div class="form-group" id="grantReqReportRow" style="display:none">
+            <label class="form-label">Report Due Date</label>
+            <input type="date" class="form-input" id="grantReqReportDate">
+          </div>
+          <div class="form-group" style="display:flex;align-items:center;gap:10px">
+            <input type="checkbox" id="grantReqRenewable" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleGrantRenewalField()">
+            <label for="grantReqRenewable" style="font-size:14px;cursor:pointer">Renewal eligible</label>
+          </div>
+          <div class="form-group" id="grantReqRenewalRow" style="display:none">
+            <label class="form-label">Next Eligible Date</label>
+            <input type="date" class="form-input" id="grantReqRenewalDate">
+          </div>
+        </div>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Notes</label>
+        <textarea class="form-input form-textarea" id="grantReqNotes" rows="3" placeholder="Any additional notes about this request..."></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal('grantRequestModal')">Cancel</button>
+      <button class="btn btn-gold" onclick="saveGrantRequest()">Save Request</button>
+    </div>
+    <input type="hidden" id="grantReqEditingId">
+    <input type="hidden" id="grantReqGrantorId">
+  </div>
+</div>
+
 <!-- AI LIBRARY MODAL -->
 <div class="modal-overlay" id="aiLibraryModal">
   <div class="modal" style="max-width:500px">
@@ -1575,7 +1764,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.9-DEV · Apr 21 2026 · 12:22 AM";
+const BUILD_VERSION = "v5.10-DEV · Apr 24 2026 · 06:49 PM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -1630,6 +1819,9 @@ let ALL_CONTENT = [];         // loaded from MyBFFContent
 let ALL_CONTENT_COMMENTS = []; // loaded from MyBFFContentComments
 let ALL_CONTENT_REVIEWERS = []; // loaded from MyBFFContentReviewers
 let _refreshTimer = null;      // auto-refresh interval handle
+let ALL_GRANTS = [];           // loaded from MyBFFGrants
+let ALL_GRANT_REQUESTS = [];   // loaded from MyBFFGrantRequests
+let _grantStatusFilter = "All"; // active status chip filter
 let ALL_EVENTS_DATA = []; // full event objects from Supabase
 let CURRENT_EVENT_VIEW = null; // event name being drilled into
 let PICKUP_PEOPLE = [];
@@ -1764,7 +1956,7 @@ async function launchApp() {
 async function loadAll() {
   await loadDonations();
   await Promise.all([loadVendors(), loadEvents(), loadPickups(), loadUsers(), loadEventTypes(), loadDonationCategories()]);
-  await Promise.all([loadTasks(), loadTaskTemplates(), loadTaskNotes(), loadContent(), loadContentComments(), loadContentReviewers(), loadAIConfig(), loadAILibrary()]);
+  await Promise.all([loadTasks(), loadTaskTemplates(), loadTaskNotes(), loadContent(), loadContentComments(), loadContentReviewers(), loadAIConfig(), loadAILibrary(), loadGrants(), loadGrantRequests()]);
   startAutoRefresh();
 }
 
@@ -4068,7 +4260,7 @@ function showPage(name) {
     if (tabEl) tabEl.textContent = isEditor() ? "Status Board" : "Needs Review";
     renderMarketing();
   }
-  else if (name === "help") renderHelp();
+  else if (name === "grants") renderGrantsPage();
   else if (name === "dashboard") renderDashboard();
 }
 
@@ -5513,6 +5705,446 @@ async function seedTestContent() {
   showToast("✅ Marketing test data seeded — 8 items!");
 }
 
+
+// ═══════════════════════════════════════════════════════════
+// GRANTS MODULE — v5.10
+// ═══════════════════════════════════════════════════════════
+
+async function loadGrants() {
+  try {
+    const rows = await sbGet("MyBFFGrants", "order=name.asc");
+    ALL_GRANTS = rows || [];
+  } catch(e) { console.warn("loadGrants:", e.message); ALL_GRANTS = []; }
+}
+
+async function loadGrantRequests() {
+  try {
+    const rows = await sbGet("MyBFFGrantRequests", "order=req_date.desc");
+    ALL_GRANT_REQUESTS = rows || [];
+  } catch(e) { console.warn("loadGrantRequests:", e.message); ALL_GRANT_REQUESTS = []; }
+}
+
+// ── Status helpers ────────────────────────────────────────────
+const GRANT_STATUSES = ["All","Identified","Drafting","Submitted","Under Review","Awarded","Declined","Withdrawn","Closed","Up for Renewal"];
+
+const GRANT_STATUS_COLORS = {
+  "Identified":    { bg:"#f3f4f6", color:"#374151" },
+  "Drafting":      { bg:"#dbeafe", color:"#1e40af" },
+  "Submitted":     { bg:"#fef3c7", color:"#92400e" },
+  "Under Review":  { bg:"#fde68a", color:"#78350f" },
+  "Awarded":       { bg:"#d1fae5", color:"#065f46" },
+  "Declined":      { bg:"#fee2e2", color:"#991b1b" },
+  "Withdrawn":     { bg:"#f3f4f6", color:"#6b7280" },
+  "Closed":        { bg:"#e5e7eb", color:"#374151" },
+  "Up for Renewal":{ bg:"#ede9fe", color:"#5b21b6" },
+};
+
+function grantStatusBadge(status) {
+  const s = GRANT_STATUS_COLORS[status] || { bg:"#f3f4f6", color:"#374151" };
+  return `<span style="background:${s.bg};color:${s.color};padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600">${status||"Unknown"}</span>`;
+}
+
+// ── Year filter ───────────────────────────────────────────────
+function populateGrantYearFilter() {
+  const sel = document.getElementById("grantYearFilter");
+  if (!sel) return;
+  const years = [...new Set(ALL_GRANT_REQUESTS.map(r => r.year).filter(Boolean))].sort((a,b) => b-a);
+  const curYear = String(new Date().getFullYear());
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">All Years</option>` +
+    years.map(y => `<option value="${y}">${y}</option>`).join("");
+  if (!cur && years.includes(curYear)) sel.value = curYear;
+  else if (cur) sel.value = cur;
+}
+
+function autoFillGrantYear() {
+  const d = document.getElementById("grantReqDate")?.value;
+  if (d) document.getElementById("grantReqYear").value = d.substring(0,4);
+}
+
+// ── Main render ───────────────────────────────────────────────
+function renderGrantsPage() {
+  populateGrantYearFilter();
+  renderGrantDashboard();
+  renderGrantStatusChips();
+  renderGrantList();
+  // Role access
+  const addBtn = document.getElementById("grantAddBtn");
+  if (addBtn) addBtn.style.display = isContributor() ? "" : "none";
+}
+
+function renderGrantDashboard() {
+  const container = document.getElementById("grantDashboard");
+  if (!container) return;
+  const yearFilter = document.getElementById("grantYearFilter")?.value || "";
+  let reqs = yearFilter ? ALL_GRANT_REQUESTS.filter(r => String(r.year) === String(yearFilter)) : ALL_GRANT_REQUESTS;
+
+  const total     = reqs.length;
+  const awarded   = reqs.filter(r => r.status === "Awarded").length;
+  const declined  = reqs.filter(r => r.status === "Declined").length;
+  const pending   = reqs.filter(r => ["Submitted","Under Review","Drafting"].includes(r.status)).length;
+  const totalAmt  = reqs.filter(r => r.status === "Awarded").reduce((s,r) => s + (parseFloat(r.amount_awarded)||0), 0);
+  const reportsDue = reqs.filter(r => r.report_due && r.report_due >= new Date().toISOString().split("T")[0] && r.status === "Awarded").length;
+  const renewalDue = reqs.filter(r => r.status === "Up for Renewal").length;
+  const today = new Date().toISOString().split("T")[0];
+  const soonDeadline = reqs.filter(r => r.deadline && r.deadline >= today && r.deadline <= new Date(Date.now()+14*86400000).toISOString().split("T")[0] && !["Awarded","Declined","Closed"].includes(r.status)).length;
+
+  const stats = [
+    { label:"Applied",       value:total,    bg:"var(--navy)",  color:"white" },
+    { label:"Awarded",       value:awarded,  bg:"#d1fae5",      color:"#065f46" },
+    { label:"Declined",      value:declined, bg:"#fee2e2",      color:"#991b1b" },
+    { label:"In Progress",   value:pending,  bg:"#dbeafe",      color:"#1e40af" },
+    { label:"Total Awarded", value:`$${totalAmt.toLocaleString("en-US",{maximumFractionDigits:0})}`, bg:"#f0fdf4", color:"#065f46" },
+    { label:"Reports Due",   value:reportsDue, bg: reportsDue>0?"#fef3c7":"#f3f4f6", color: reportsDue>0?"#92400e":"#374151" },
+    { label:"Up for Renewal",value:renewalDue, bg:renewalDue>0?"#ede9fe":"#f3f4f6", color:renewalDue>0?"#5b21b6":"#374151" },
+    { label:"Deadlines Soon",value:soonDeadline, bg:soonDeadline>0?"#fee2e2":"#f3f4f6", color:soonDeadline>0?"#991b1b":"#374151" },
+  ];
+
+  container.innerHTML = stats.map(s => `
+    <div style="background:${s.bg};border-radius:10px;padding:14px 16px;text-align:center">
+      <div style="font-size:22px;font-weight:800;color:${s.color}">${s.value}</div>
+      <div style="font-size:11px;color:${s.color};opacity:0.8;margin-top:2px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">${s.label}</div>
+    </div>`).join("");
+}
+
+function renderGrantStatusChips() {
+  const container = document.getElementById("grantStatusChips");
+  if (!container) return;
+  const yearFilter = document.getElementById("grantYearFilter")?.value || "";
+  let reqs = yearFilter ? ALL_GRANT_REQUESTS.filter(r => String(r.year) === String(yearFilter)) : ALL_GRANT_REQUESTS;
+
+  container.innerHTML = GRANT_STATUSES.map(s => {
+    const count = s === "All" ? reqs.length : reqs.filter(r => r.status === s).length;
+    if (s !== "All" && count === 0) return "";
+    const active = _grantStatusFilter === s;
+    const sc = GRANT_STATUS_COLORS[s] || { bg:"#f3f4f6", color:"#374151" };
+    return `<button onclick="_grantStatusFilter='${s}';renderGrantStatusChips();renderGrantList()"
+      style="padding:5px 12px;border-radius:20px;border:2px solid ${active?"var(--navy)":"transparent"};
+      background:${active?"var(--navy)":sc.bg};color:${active?"white":sc.color};
+      font-size:12px;font-weight:600;cursor:pointer">
+      ${s} <span style="opacity:0.7">(${count})</span>
+    </button>`;
+  }).join("");
+}
+
+function renderGrantList() {
+  const container = document.getElementById("grantList");
+  if (!container) return;
+  const yearFilter = document.getElementById("grantYearFilter")?.value || "";
+
+  if (!ALL_GRANTS.length) {
+    container.innerHTML = `<div style="text-align:center;padding:48px;color:var(--gray)">
+      No grantors yet.${isContributor() ? " Click <strong>+ Add Grantor</strong> to add the first one." : ""}
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = ALL_GRANTS.map(g => {
+    let reqs = ALL_GRANT_REQUESTS.filter(r => r.grant_id === g.id);
+    if (yearFilter) reqs = reqs.filter(r => String(r.year) === String(yearFilter));
+    if (_grantStatusFilter !== "All") reqs = reqs.filter(r => r.status === _grantStatusFilter);
+
+    const awarded = reqs.filter(r => r.status === "Awarded").reduce((s,r) => s + (parseFloat(r.amount_awarded)||0), 0);
+    const allReqs = ALL_GRANT_REQUESTS.filter(r => r.grant_id === g.id); // unfiltered for totals
+
+    return `
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+          <div>
+            <div style="font-weight:700;font-size:16px">${esc(g.name)}</div>
+            <div style="font-size:13px;color:var(--gray);margin-top:2px;display:flex;gap:10px;flex-wrap:wrap">
+              ${g.grantor_type ? `<span>${esc(g.grantor_type)}</span>` : ""}
+              ${g.website ? `<a href="${esc(g.website)}" target="_blank" style="font-size:12px">🔗 Website</a>` : ""}
+              ${g.allows_multiple ? `<span style="background:#fef3c7;color:#92400e;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600">🏪 Multi-location</span>` : ""}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            ${isContributor() ? `<button class="btn btn-gold btn-sm" onclick="openGrantRequestModal('${esc(g.id)}')">+ Request</button>` : ""}
+            ${isEditor() ? `<button class="btn btn-outline btn-sm" onclick="openGrantModalEdit('${esc(g.id)}')">✏️</button>` : ""}
+            ${isAdmin() ? `<button class="btn btn-sm" style="color:var(--red)" onclick="deleteGrant('${esc(g.id)}')">✕</button>` : ""}
+          </div>
+        </div>
+        ${g.notes ? `<div style="font-size:13px;color:var(--gray);margin-bottom:10px;font-style:italic">${esc(g.notes)}</div>` : ""}
+        <!-- Summary stats for this grantor -->
+        <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--gray);margin-bottom:12px">
+          <span><strong>${allReqs.length}</strong> total request${allReqs.length!==1?"s":""}</span>
+          <span style="color:#065f46"><strong>${allReqs.filter(r=>r.status==="Awarded").length}</strong> awarded</span>
+          ${allReqs.filter(r=>r.status==="Awarded").reduce((s,r)=>s+(parseFloat(r.amount_awarded)||0),0) > 0
+            ? `<span style="color:#065f46"><strong>$${allReqs.filter(r=>r.status==="Awarded").reduce((s,r)=>s+(parseFloat(r.amount_awarded)||0),0).toLocaleString("en-US",{maximumFractionDigits:0})}</strong> total awarded</span>` : ""}
+        </div>
+        <!-- Individual requests -->
+        ${reqs.length ? `
+          <div style="border-top:1px solid var(--border);padding-top:10px">
+            ${reqs.map(r => grantRequestRow(r, g)).join("")}
+          </div>` : `
+          <div style="font-size:13px;color:var(--gray);padding:8px 0;border-top:1px solid var(--border)">
+            No requests${_grantStatusFilter !== "All" ? ` with status "${_grantStatusFilter}"` : ""}${yearFilter ? ` in ${yearFilter}` : ""}.
+          </div>`}
+      </div>`;
+  }).join("");
+}
+
+function grantRequestRow(r, g) {
+  const today = new Date().toISOString().split("T")[0];
+  const deadlineSoon = r.deadline && r.deadline >= today && r.deadline <= new Date(Date.now()+14*86400000).toISOString().split("T")[0] && !["Awarded","Declined","Closed"].includes(r.status);
+  const reportDue = r.report_due && r.report_due >= today && r.status === "Awarded";
+
+  return `
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          ${grantStatusBadge(r.status)}
+          ${r.location ? `<span style="font-size:12px;font-weight:600">${esc(r.location)}</span>` : ""}
+          ${r.event_name ? `<span style="background:#f0f4ff;color:var(--navy);font-size:11px;padding:1px 7px;border-radius:20px">📅 ${esc(r.event_name)}</span>` : ""}
+        </div>
+        <div style="font-size:12px;color:var(--gray);display:flex;gap:10px;flex-wrap:wrap">
+          ${r.req_date ? `<span>Requested: ${r.req_date}</span>` : ""}
+          ${r.req_by ? `<span>By: ${esc(r.req_by)}</span>` : ""}
+          ${r.amount_req ? `<span>Asked: <strong>$${parseFloat(r.amount_req).toLocaleString()}</strong></span>` : ""}
+          ${r.status === "Awarded" && r.amount_awarded ? `<span style="color:#065f46">Awarded: <strong>$${parseFloat(r.amount_awarded).toLocaleString()}</strong></span>` : ""}
+          ${r.deadline && !["Awarded","Declined","Closed"].includes(r.status) ? `<span style="color:${deadlineSoon?"#dc2626":"inherit"}${deadlineSoon?";font-weight:600":""}">Deadline: ${r.deadline}${deadlineSoon?" ⚠️":""}</span>` : ""}
+          ${reportDue ? `<span style="color:#92400e;font-weight:600">📋 Report due: ${r.report_due}</span>` : ""}
+          ${r.is_restricted === true || r.is_restricted === "true" ? `<span style="color:#991b1b">🔒 Restricted</span>` : ""}
+        </div>
+        ${r.notes ? `<div style="font-size:12px;color:var(--gray);margin-top:4px;font-style:italic">${esc(r.notes)}</div>` : ""}
+      </div>
+      ${isContributor() ? `
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-outline btn-sm" onclick="openGrantRequestModalEdit('${esc(r.id)}','${esc(g.id)}')">✏️</button>
+          ${isAdmin() ? `<button class="btn btn-sm" style="color:var(--red)" onclick="deleteGrantRequest('${esc(r.id)}')">✕</button>` : ""}
+        </div>` : ""}
+    </div>`;
+}
+
+// ── Modals ────────────────────────────────────────────────────
+function openGrantModal() {
+  document.getElementById("grantModalTitle").textContent = "Add Grantor";
+  document.getElementById("grantEditingId").value = "";
+  ["grantName","grantWebsite","grantContact","grantContactEmail","grantNotes"].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value = "";
+  });
+  document.getElementById("grantType").value = "";
+  document.getElementById("grantMultiLocation").checked = false;
+  openModal("grantModal");
+}
+
+function openGrantModalEdit(id) {
+  const g = ALL_GRANTS.find(x => x.id === id);
+  if (!g) return;
+  document.getElementById("grantModalTitle").textContent = "Edit Grantor";
+  document.getElementById("grantEditingId").value = id;
+  document.getElementById("grantName").value = g.name || "";
+  document.getElementById("grantType").value = g.grantor_type || "";
+  document.getElementById("grantWebsite").value = g.website || "";
+  document.getElementById("grantContact").value = g.contact_name || "";
+  document.getElementById("grantContactEmail").value = g.contact_email || "";
+  document.getElementById("grantNotes").value = g.notes || "";
+  document.getElementById("grantMultiLocation").checked = !!g.allows_multiple;
+  openModal("grantModal");
+}
+
+async function saveGrant() {
+  const name = document.getElementById("grantName").value.trim();
+  if (!name) { showToast("Grantor name is required.", "error"); return; }
+  const editingId = document.getElementById("grantEditingId").value;
+  const row = {
+    name,
+    grantor_type:    document.getElementById("grantType").value || null,
+    website:         document.getElementById("grantWebsite").value.trim() || null,
+    contact_name:    document.getElementById("grantContact").value.trim() || null,
+    contact_email:   document.getElementById("grantContactEmail").value.trim() || null,
+    notes:           document.getElementById("grantNotes").value.trim() || null,
+    allows_multiple: document.getElementById("grantMultiLocation").checked,
+  };
+  try {
+    if (editingId) {
+      await sbUpdate("MyBFFGrants", editingId, row, "id");
+      const idx = ALL_GRANTS.findIndex(g => g.id === editingId);
+      if (idx >= 0) ALL_GRANTS[idx] = { ...ALL_GRANTS[idx], ...row };
+    } else {
+      row.id = genId();
+      await sbInsert("MyBFFGrants", row);
+      ALL_GRANTS.push(row);
+      ALL_GRANTS.sort((a,b) => (a.name||"").localeCompare(b.name||""));
+    }
+    closeModal("grantModal");
+    showToast("Grantor saved!");
+    renderGrantsPage();
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+async function deleteGrant(id) {
+  if (!confirm("Delete this grantor and ALL its requests? This cannot be undone.")) return;
+  try {
+    // Delete all requests first
+    const reqsToDelete = ALL_GRANT_REQUESTS.filter(r => r.grant_id === id);
+    for (const r of reqsToDelete) {
+      await sbDelete("MyBFFGrantRequests", r.id, "id");
+    }
+    await sbDelete("MyBFFGrants", id, "id");
+    ALL_GRANTS = ALL_GRANTS.filter(g => g.id !== id);
+    ALL_GRANT_REQUESTS = ALL_GRANT_REQUESTS.filter(r => r.grant_id !== id);
+    showToast("Grantor deleted.");
+    renderGrantsPage();
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+function openGrantRequestModal(grantId) {
+  const g = ALL_GRANTS.find(x => x.id === grantId);
+  document.getElementById("grantReqModalTitle").textContent = "Add Grant Request";
+  document.getElementById("grantReqGrantorName").textContent = g ? `Grantor: ${g.name}` : "";
+  document.getElementById("grantReqGrantorId").value = grantId;
+  document.getElementById("grantReqEditingId").value = "";
+  // Show/hide location field based on allows_multiple
+  document.getElementById("grantReqLocationRow").style.display = g?.allows_multiple ? "" : "none";
+  // Clear fields
+  ["grantReqLocation","grantReqDate","grantReqDeadline","grantReqYear","grantReqNotes",
+   "grantReqAwarded","grantReqAwardDate","grantReqPeriodStart","grantReqPeriodEnd",
+   "grantReqRestriction","grantReqReportDate","grantReqRenewalDate"].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value = "";
+  });
+  document.getElementById("grantReqYear").value = new Date().getFullYear();
+  document.getElementById("grantReqBy").innerHTML = `<option value="">— Select —</option>` +
+    APP_USERS.map(u => `<option value="${esc(u.displayName)}">${esc(u.displayName)}</option>`).join("");
+  document.getElementById("grantReqStatus").value = "Identified";
+  document.getElementById("grantReqEventTied").checked = false;
+  document.getElementById("grantReqEventRow").style.display = "none";
+  document.getElementById("grantReqEvent").innerHTML = `<option value="">— Select event —</option>` +
+    ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
+  ["grantReqRestricted","grantReqReportReq","grantReqRenewable"].forEach(id => {
+    const el = document.getElementById(id); if(el) el.checked = false;
+  });
+  ["grantReqRestrictionRow","grantReqReportRow","grantReqRenewalRow"].forEach(id => {
+    const el = document.getElementById(id); if(el) el.style.display = "none";
+  });
+  toggleGrantResponseFields();
+  openModal("grantRequestModal");
+}
+
+function openGrantRequestModalEdit(reqId, grantId) {
+  const r = ALL_GRANT_REQUESTS.find(x => x.id === reqId);
+  const g = ALL_GRANTS.find(x => x.id === grantId);
+  if (!r) return;
+  document.getElementById("grantReqModalTitle").textContent = "Edit Grant Request";
+  document.getElementById("grantReqGrantorName").textContent = g ? `Grantor: ${g.name}` : "";
+  document.getElementById("grantReqGrantorId").value = grantId;
+  document.getElementById("grantReqEditingId").value = reqId;
+  document.getElementById("grantReqLocationRow").style.display = g?.allows_multiple ? "" : "none";
+  document.getElementById("grantReqLocation").value = r.location || "";
+  document.getElementById("grantReqBy").innerHTML = `<option value="">— Select —</option>` +
+    APP_USERS.map(u => `<option value="${esc(u.displayName)}" ${u.displayName===r.req_by?"selected":""}>${esc(u.displayName)}</option>`).join("");
+  document.getElementById("grantReqAmount").value = r.amount_req || "";
+  document.getElementById("grantReqDate").value = r.req_date || "";
+  document.getElementById("grantReqDeadline").value = r.deadline || "";
+  document.getElementById("grantReqYear").value = r.year || new Date().getFullYear();
+  document.getElementById("grantReqStatus").value = r.status || "Identified";
+  document.getElementById("grantReqNotes").value = r.notes || "";
+  // Event tie
+  const eventTied = !!(r.event_name);
+  document.getElementById("grantReqEventTied").checked = eventTied;
+  document.getElementById("grantReqEventRow").style.display = eventTied ? "" : "none";
+  document.getElementById("grantReqEvent").innerHTML = `<option value="">— Select event —</option>` +
+    ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}" ${e.name===r.event_name?"selected":""}>${esc(e.name)}</option>`).join("");
+  // Award fields
+  document.getElementById("grantReqAwarded").value = r.amount_awarded || "";
+  document.getElementById("grantReqAwardDate").value = r.award_date || "";
+  document.getElementById("grantReqPeriodStart").value = r.period_start || "";
+  document.getElementById("grantReqPeriodEnd").value = r.period_end || "";
+  // Checkboxes
+  document.getElementById("grantReqRestricted").checked = !!(r.is_restricted);
+  document.getElementById("grantReqRestriction").value = r.restriction_desc || "";
+  document.getElementById("grantReqRestrictionRow").style.display = r.is_restricted ? "" : "none";
+  document.getElementById("grantReqReportReq").checked = !!(r.report_required);
+  document.getElementById("grantReqReportDate").value = r.report_due || "";
+  document.getElementById("grantReqReportRow").style.display = r.report_required ? "" : "none";
+  document.getElementById("grantReqRenewable").checked = !!(r.is_renewable);
+  document.getElementById("grantReqRenewalDate").value = r.renewal_date || "";
+  document.getElementById("grantReqRenewalRow").style.display = r.is_renewable ? "" : "none";
+  toggleGrantResponseFields();
+  openModal("grantRequestModal");
+}
+
+function toggleGrantResponseFields() {
+  const status = document.getElementById("grantReqStatus")?.value;
+  const block = document.getElementById("grantReqResponseBlock");
+  if (block) block.style.display = ["Awarded","Declined","Closed","Up for Renewal"].includes(status) ? "" : "none";
+}
+
+function toggleGrantEventField() {
+  const checked = document.getElementById("grantReqEventTied")?.checked;
+  const row = document.getElementById("grantReqEventRow");
+  if (row) row.style.display = checked ? "" : "none";
+}
+
+function toggleGrantRestrictionField() {
+  const checked = document.getElementById("grantReqRestricted")?.checked;
+  const row = document.getElementById("grantReqRestrictionRow");
+  if (row) row.style.display = checked ? "" : "none";
+}
+
+function toggleGrantReportField() {
+  const checked = document.getElementById("grantReqReportReq")?.checked;
+  const row = document.getElementById("grantReqReportRow");
+  if (row) row.style.display = checked ? "" : "none";
+}
+
+function toggleGrantRenewalField() {
+  const checked = document.getElementById("grantReqRenewable")?.checked;
+  const row = document.getElementById("grantReqRenewalRow");
+  if (row) row.style.display = checked ? "" : "none";
+}
+
+async function saveGrantRequest() {
+  const grantId = document.getElementById("grantReqGrantorId").value;
+  const editingId = document.getElementById("grantReqEditingId").value;
+  if (!grantId) { showToast("Grantor not set.", "error"); return; }
+  const row = {
+    grant_id:       grantId,
+    location:       document.getElementById("grantReqLocation").value.trim() || null,
+    req_by:         document.getElementById("grantReqBy").value || null,
+    amount_req:     parseFloat(document.getElementById("grantReqAmount").value) || null,
+    req_date:       document.getElementById("grantReqDate").value || null,
+    deadline:       document.getElementById("grantReqDeadline").value || null,
+    year:           document.getElementById("grantReqYear").value || String(new Date().getFullYear()),
+    status:         document.getElementById("grantReqStatus").value || "Identified",
+    event_name:     document.getElementById("grantReqEventTied").checked ? document.getElementById("grantReqEvent").value : null,
+    notes:          document.getElementById("grantReqNotes").value.trim() || null,
+    amount_awarded: parseFloat(document.getElementById("grantReqAwarded").value) || null,
+    award_date:     document.getElementById("grantReqAwardDate").value || null,
+    period_start:   document.getElementById("grantReqPeriodStart").value || null,
+    period_end:     document.getElementById("grantReqPeriodEnd").value || null,
+    is_restricted:  document.getElementById("grantReqRestricted").checked,
+    restriction_desc: document.getElementById("grantReqRestricted").checked ? document.getElementById("grantReqRestriction").value.trim() : null,
+    report_required: document.getElementById("grantReqReportReq").checked,
+    report_due:     document.getElementById("grantReqReportReq").checked ? document.getElementById("grantReqReportDate").value : null,
+    is_renewable:   document.getElementById("grantReqRenewable").checked,
+    renewal_date:   document.getElementById("grantReqRenewable").checked ? document.getElementById("grantReqRenewalDate").value : null,
+  };
+  try {
+    if (editingId) {
+      await sbUpdate("MyBFFGrantRequests", editingId, row, "id");
+      const idx = ALL_GRANT_REQUESTS.findIndex(r => r.id === editingId);
+      if (idx >= 0) ALL_GRANT_REQUESTS[idx] = { ...ALL_GRANT_REQUESTS[idx], ...row };
+    } else {
+      row.id = genId();
+      await sbInsert("MyBFFGrantRequests", row);
+      ALL_GRANT_REQUESTS.push(row);
+    }
+    closeModal("grantRequestModal");
+    showToast("Grant request saved!");
+    renderGrantsPage();
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+async function deleteGrantRequest(id) {
+  if (!confirm("Delete this grant request?")) return;
+  try {
+    await sbDelete("MyBFFGrantRequests", id, "id");
+    ALL_GRANT_REQUESTS = ALL_GRANT_REQUESTS.filter(r => r.id !== id);
+    showToast("Request deleted.");
+    renderGrantsPage();
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
 
 const HELP_DATA = [
   {
