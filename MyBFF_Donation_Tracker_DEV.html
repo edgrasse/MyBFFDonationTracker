@@ -1545,6 +1545,21 @@ if ('serviceWorker' in navigator) {
     <input type="hidden" id="donCatEditingId">
   </div>
 </div>
+<!-- AI INTAKE REVIEW MODAL -->
+<div class="modal-overlay" id="aiIntakeModal">
+  <div class="modal" style="max-width:680px;max-height:90vh;display:flex;flex-direction:column">
+    <button class="modal-close" onclick="closeModal('aiIntakeModal')" style="top:14px;right:14px">&#10005;</button>
+    <div class="modal-title">🤖 AI Brand Brain Suggestions</div>
+    <div style="font-size:13px;color:var(--gray);margin-bottom:16px" id="aiIntakeSource"></div>
+    <div style="flex:1;overflow-y:auto;margin-bottom:16px" id="aiIntakeSuggestions"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border);padding-top:14px">
+      <button class="btn btn-outline" onclick="closeModal('aiIntakeModal')">Cancel</button>
+      <button class="btn btn-outline" onclick="skipAllSuggestions()">Skip All</button>
+      <button class="btn btn-gold" onclick="approveAllSuggestions()">✅ Approve All High Confidence</button>
+    </div>
+  </div>
+</div>
+
 <!-- GRANT MODAL (add/edit grantor) -->
 <div class="modal-overlay" id="grantModal">
   <div class="modal" style="max-width:600px">
@@ -1604,6 +1619,10 @@ if ('serviceWorker' in navigator) {
       <div class="form-group" id="grantReqLocationRow">
         <label class="form-label">Location / Branch <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
         <input type="text" class="form-input" id="grantReqLocation" placeholder="e.g. Walmart #4521 — Bridgeview IL">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Application URL <span style="font-size:11px;color:var(--gray);font-weight:400">link to this specific application form</span></label>
+        <input type="text" class="form-input" id="grantReqUrl" placeholder="https://...">
       </div>
       <div class="form-group">
         <label class="form-label">Requested By</label>
@@ -1764,7 +1783,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.10-DEV · Apr 24 2026 · 06:49 PM";
+const BUILD_VERSION = "v5.11-DEV · Apr 25 2026 · 10:23 PM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -1956,7 +1975,7 @@ async function launchApp() {
 async function loadAll() {
   await loadDonations();
   await Promise.all([loadVendors(), loadEvents(), loadPickups(), loadUsers(), loadEventTypes(), loadDonationCategories()]);
-  await Promise.all([loadTasks(), loadTaskTemplates(), loadTaskNotes(), loadContent(), loadContentComments(), loadContentReviewers(), loadAIConfig(), loadAILibrary(), loadGrants(), loadGrantRequests()]);
+  await Promise.all([loadTasks(), loadTaskTemplates(), loadTaskNotes(), loadContent(), loadContentComments(), loadContentReviewers(), loadAIConfig(), loadAILibrary(), loadAIHistory(), loadGrants(), loadGrantRequests()]);
   startAutoRefresh();
 }
 
@@ -5246,6 +5265,7 @@ function renderAssetLibrary() {
 // ═══════════════════════════════════════════════════════════
 let AI_CONFIG = {}; // loaded from MyBFFAIConfig
 let AI_LIBRARY = []; // loaded from MyBFFAILibrary
+let AI_VERSION_HISTORY = []; // loaded from MyBFFAIHistory
 
 async function loadAIConfig() {
   try {
@@ -5261,6 +5281,13 @@ async function loadAILibrary() {
   } catch(e) { AI_LIBRARY = []; }
 }
 
+async function loadAIHistory() {
+  try {
+    const rows = await sbGet("MyBFFAIHistory", "order=changed_at.desc&limit=100");
+    AI_VERSION_HISTORY = rows || [];
+  } catch(e) { AI_VERSION_HISTORY = []; }
+}
+
 function renderAISettings() {
   const container = document.getElementById("mktgAISettings");
   if (!container) return;
@@ -5269,22 +5296,48 @@ function renderAISettings() {
     return;
   }
   const c = AI_CONFIG;
+
+  // Helper: section header with last-reviewed date
+  function sectionHeader(icon, title, key) {
+    const lastReviewed = c["reviewed_"+key];
+    const old = lastReviewed && new Date(lastReviewed) < new Date(Date.now()-180*86400000);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:6px">
+      <div style="font-weight:700;font-size:15px">${icon} ${title}</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        ${lastReviewed
+          ? `<span style="font-size:11px;color:${old?"#dc2626":"var(--gray)"}">Last reviewed: ${lastReviewed.split("T")[0]}${old?" ⚠️ (>6 months)":""}</span>`
+          : `<span style="font-size:11px;color:var(--gray)">Never reviewed</span>`}
+        <button class="btn btn-sm btn-outline" style="font-size:11px;padding:2px 8px" onclick="markSectionReviewed('${key}')">Mark Reviewed</button>
+      </div>
+    </div>`;
+  }
+
+  // Helper: field with campaign-specific checkbox
+  function campaignCheckbox(fieldKey) {
+    const checked = c["campaign_"+fieldKey] === true || c["campaign_"+fieldKey] === "true";
+    return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gray);cursor:pointer;margin-top:4px">
+      <input type="checkbox" id="campaign_${fieldKey}" ${checked?"checked":""} style="accent-color:#8b5cf6;width:13px;height:13px">
+      Campaign-specific (expires after event)
+    </label>`;
+  }
+
   container.innerHTML = `
     <div style="max-width:760px;margin:0 auto">
       <div style="background:#f0f4ff;border:1px solid #c7d7f5;border-radius:10px;padding:14px 18px;margin-bottom:24px;font-size:13px;line-height:1.6">
-        🤖 <strong>Brand Brain</strong> — This is everything the AI assistant will know about My Best Friends Foundation before generating any content.
-        Fill in as much as you can. The more context you provide, the better the drafts will be.
-        <strong>Nothing here is sent to any AI until you click Generate Draft in content creation.</strong>
+        🤖 <strong>Brand Brain</strong> — Fill in directly, or upload a document to the Brand Library below and click
+        <strong>🔍 Analyze</strong> to have AI suggest field values for your review.
+        Nothing saves without your approval. <span style="color:#8b5cf6;font-weight:600">Purple checkbox = campaign-specific (auto-expires after event).</span>
       </div>
 
       <!-- SECTION 1: Foundation Identity -->
       <div class="card" style="margin-bottom:16px">
-        <div style="font-weight:700;font-size:15px;margin-bottom:4px">🏛️ Foundation Identity</div>
+        ${sectionHeader("🏛️","Foundation Identity","identity")}
         <div style="font-size:12px;color:var(--gray);margin-bottom:16px">Who you are — facts the AI should always know</div>
         <div class="form-grid">
           <div class="form-group" style="grid-column:1/-1">
             <label class="form-label">Organization Name & Tagline</label>
-            <input type="text" class="form-input" id="ai_name" value="${esc(c.org_name||"")}" placeholder="e.g. My Best Friends Foundation — Supporting Animals in Need">
+            <input type="text" class="form-input" id="ai_name" value="${esc(c.org_name||"")}" placeholder="My Best Friends Foundation — Supporting Animals in Need">
+            ${campaignCheckbox("org_name")}
           </div>
           <div class="form-group" style="grid-column:1/-1">
             <label class="form-label">Mission Statement</label>
@@ -5292,7 +5345,7 @@ function renderAISettings() {
           </div>
           <div class="form-group" style="grid-column:1/-1">
             <label class="form-label">History & Background</label>
-            <textarea class="form-input form-textarea" id="ai_history" rows="3" placeholder="Founding year, how it started, key milestones, what makes you different...">${esc(c.history||"")}</textarea>
+            <textarea class="form-input form-textarea" id="ai_history" rows="3" placeholder="Founding year, key milestones, what makes you different...">${esc(c.history||"")}</textarea>
           </div>
           <div class="form-group">
             <label class="form-label">Years in Operation</label>
@@ -5300,11 +5353,12 @@ function renderAISettings() {
           </div>
           <div class="form-group">
             <label class="form-label">Geographic Area Served</label>
-            <input type="text" class="form-input" id="ai_geography" value="${esc(c.geography||"")}" placeholder="e.g. Chicagoland area, southwest suburbs">
+            <input type="text" class="form-input" id="ai_geography" value="${esc(c.geography||"")}" placeholder="e.g. Chicagoland southwest suburbs">
           </div>
           <div class="form-group" style="grid-column:1/-1">
             <label class="form-label">Key Impact Statistics</label>
-            <textarea class="form-input form-textarea" id="ai_stats" rows="2" placeholder="Animals helped, funds raised, families served — numbers the AI can reference...">${esc(c.stats||"")}</textarea>
+            <textarea class="form-input form-textarea" id="ai_stats" rows="2" placeholder="Animals helped, funds raised, families served...">${esc(c.stats||"")}</textarea>
+            ${campaignCheckbox("stats")}
           </div>
           <div class="form-group" style="grid-column:1/-1">
             <label class="form-label">Key People to Reference</label>
@@ -5315,16 +5369,16 @@ function renderAISettings() {
 
       <!-- SECTION 2: Voice & Tone -->
       <div class="card" style="margin-bottom:16px">
-        <div style="font-weight:700;font-size:15px;margin-bottom:4px">🎙️ Voice & Tone</div>
+        ${sectionHeader("🎙️","Voice & Tone","voice")}
         <div style="font-size:12px;color:var(--gray);margin-bottom:16px">How you sound — the AI will match this style</div>
         <div class="form-grid">
           <div class="form-group" style="grid-column:1/-1">
             <label class="form-label">Tone Profile</label>
             <div style="display:flex;flex-direction:column;gap:10px">
               ${[
-                {id:"tone_formal",    label:"Formal ←→ Casual",       opts:["Very Formal","Formal","Balanced","Casual","Very Casual"]},
-                {id:"tone_serious",   label:"Serious ←→ Playful",     opts:["Very Serious","Serious","Balanced","Playful","Very Playful"]},
-                {id:"tone_inspire",   label:"Inspirational ←→ Factual", opts:["Very Inspirational","Inspirational","Balanced","Factual","Very Factual"]},
+                {id:"tone_formal",  label:"Formal ←→ Casual",          opts:["Very Formal","Formal","Balanced","Casual","Very Casual"]},
+                {id:"tone_serious", label:"Serious ←→ Playful",        opts:["Very Serious","Serious","Balanced","Playful","Very Playful"]},
+                {id:"tone_inspire", label:"Inspirational ←→ Factual",  opts:["Very Inspirational","Inspirational","Balanced","Factual","Very Factual"]},
               ].map(t => `
                 <div style="display:flex;align-items:center;gap:10px;font-size:13px">
                   <span style="width:180px;color:var(--gray)">${t.label}</span>
@@ -5336,15 +5390,15 @@ function renderAISettings() {
           </div>
           <div class="form-group" style="grid-column:1/-1">
             <label class="form-label">Personality Words <span style="font-size:11px;color:var(--gray);font-weight:400">comma-separated</span></label>
-            <input type="text" class="form-input" id="ai_personality" value="${esc(c.personality||"")}" placeholder="e.g. warm, community-focused, passionate, approachable, never corporate">
+            <input type="text" class="form-input" id="ai_personality" value="${esc(c.personality||"")}" placeholder="e.g. warm, community-focused, passionate, approachable">
           </div>
           <div class="form-group">
             <label class="form-label">Words / Phrases to Always Use</label>
-            <textarea class="form-input form-textarea" id="ai_use_words" rows="3" placeholder="e.g. animals in need, community, My Best Friends Foundation (always full name on first mention)...">${esc(c.use_words||"")}</textarea>
+            <textarea class="form-input form-textarea" id="ai_use_words" rows="3" placeholder="e.g. animals in need, community, My Best Friends Foundation...">${esc(c.use_words||"")}</textarea>
           </div>
           <div class="form-group">
             <label class="form-label">Words / Phrases to Never Use</label>
-            <textarea class="form-input form-textarea" id="ai_avoid_words" rows="3" placeholder="e.g. charity (prefer 'foundation'), cheap, crisis...">${esc(c.avoid_words||"")}</textarea>
+            <textarea class="form-input form-textarea" id="ai_avoid_words" rows="3" placeholder="e.g. charity (prefer foundation), cheap, crisis...">${esc(c.avoid_words||"")}</textarea>
           </div>
           <div class="form-group">
             <label class="form-label">Emoji Usage</label>
@@ -5354,82 +5408,119 @@ function renderAISettings() {
           </div>
           <div class="form-group">
             <label class="form-label">Standard Hashtags</label>
-            <input type="text" class="form-input" id="ai_hashtags" value="${esc(c.hashtags||"")}" placeholder="e.g. #MyBFF #MyBestFriendsFoundation #AnimalsInNeed">
+            <input type="text" class="form-input" id="ai_hashtags" value="${esc(c.hashtags||"")}" placeholder="#MyBFF #MyBestFriendsFoundation">
           </div>
         </div>
       </div>
 
-      <!-- SECTION 3: Audience Segments -->
-      <div class="card" style="margin-bottom:16px">
-        <div style="font-weight:700;font-size:15px;margin-bottom:4px">👥 Audience Segments</div>
-        <div style="font-size:12px;color:var(--gray);margin-bottom:16px">Who you talk to — the AI adjusts tone based on audience</div>
+      <!-- SECTION 3: Current Campaign Context -->
+      <div class="card" style="margin-bottom:16px;border-left:4px solid #8b5cf6">
+        ${sectionHeader("🎯","Current Campaign Context","campaign")}
+        <div style="font-size:12px;color:var(--gray);margin-bottom:16px">
+          Campaign-specific context the AI should use right now. Fields marked
+          <span style="color:#8b5cf6;font-weight:600">purple</span> expire after the event date passes.
+        </div>
         <div class="form-grid">
-          ${["General Public","Past Attendees","Donors","Sponsors","Volunteers"].map(seg => `
-            <div class="form-group">
-              <label class="form-label">${seg}</label>
-              <textarea class="form-input form-textarea" id="ai_audience_${seg.toLowerCase().replace(/\s+/g,'_')}" rows="2"
-                placeholder="How would you describe this audience and how should the AI speak to them?">${esc(c["audience_"+seg.toLowerCase().replace(/\s+/g,'_')]||"")}</textarea>
-            </div>`).join("")}
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Current Focus / Urgency</label>
+            <textarea class="form-input form-textarea" id="ai_current_focus" rows="2"
+              placeholder="e.g. We are in Cornhole registration season. Emphasize urgency — tickets are selling fast. Price is $40/team.">${esc(c.current_focus||"")}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Active Event</label>
+            <select class="form-input" id="ai_active_event">
+              <option value="">— None —</option>
+              ${ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}" ${c.active_event===e.name?"selected":""}>${esc(e.name)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Campaign Expires</label>
+            <input type="date" class="form-input" id="ai_campaign_expires" value="${esc(c.campaign_expires||"")}">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Key Messages This Campaign</label>
+            <textarea class="form-input form-textarea" id="ai_campaign_messages" rows="2"
+              placeholder="e.g. This is our 5th annual event. Last year we raised $12,000. Spot filling up fast.">${esc(c.campaign_messages||"")}</textarea>
+          </div>
         </div>
       </div>
 
-      <!-- SECTION 4: Channel Rules -->
+      <!-- SECTION 4: Audience Segments -->
       <div class="card" style="margin-bottom:16px">
-        <div style="font-weight:700;font-size:15px;margin-bottom:4px">📱 Channel-Specific Rules</div>
-        <div style="font-size:12px;color:var(--gray);margin-bottom:16px">Per-channel instructions that override the general tone</div>
+        ${sectionHeader("👥","Audience Segments","audience")}
+        <div style="font-size:12px;color:var(--gray);margin-bottom:16px">Who you talk to — AI adjusts tone based on audience</div>
+        <div class="form-grid">
+          ${["General Public","Past Attendees","Donors","Sponsors","Volunteers"].map(seg => {
+            const key = seg.toLowerCase().replace(/\s+/g,"_");
+            return `<div class="form-group">
+              <label class="form-label">${seg}</label>
+              <textarea class="form-input form-textarea" id="ai_audience_${key}" rows="2"
+                placeholder="How to speak to this audience...">${esc(c["audience_"+key]||"")}</textarea>
+            </div>`;
+          }).join("")}
+        </div>
+      </div>
+
+      <!-- SECTION 5: Channel Rules -->
+      <div class="card" style="margin-bottom:16px">
+        ${sectionHeader("📱","Channel-Specific Rules","channels")}
+        <div style="font-size:12px;color:var(--gray);margin-bottom:16px">Per-channel instructions that override general tone</div>
         <div class="form-grid">
           ${["Facebook","Instagram","Email","Flyer"].map(ch => `
             <div class="form-group" style="grid-column:1/-1">
               <label class="form-label">${ch}</label>
               <textarea class="form-input form-textarea" id="ai_channel_${ch.toLowerCase()}" rows="2"
-                placeholder="e.g. Keep Facebook posts under 200 words. Always end with a CTA link. Use the event name in the first sentence.">${esc(c["channel_"+ch.toLowerCase()]||"")}</textarea>
+                placeholder="e.g. Keep under 200 words. Always end with CTA link.">${esc(c["channel_"+ch.toLowerCase()]||"")}</textarea>
             </div>`).join("")}
         </div>
       </div>
 
-      <!-- SECTION 5: Event Context Library -->
+      <!-- SECTION 6: Event Context Library -->
       <div class="card" style="margin-bottom:16px">
-        <div style="font-weight:700;font-size:15px;margin-bottom:4px">🗓️ Event Context Library</div>
-        <div style="font-size:12px;color:var(--gray);margin-bottom:16px">Standard descriptions for each recurring event — the AI loads these automatically when you select an event</div>
+        ${sectionHeader("🗓️","Event Context Library","events")}
+        <div style="font-size:12px;color:var(--gray);margin-bottom:16px">Standard descriptions per recurring event — AI loads these automatically</div>
         <div class="form-grid">
-          ${["Cornhole","Trivia","Walk/Run","Golf","Super Bowl Squares"].map(ev => `
-            <div class="form-group" style="grid-column:1/-1">
+          ${["Cornhole","Trivia","Walk/Run","Golf","Super Bowl Squares"].map(ev => {
+            const key = ev.toLowerCase().replace(/[^a-z]/g,"_");
+            return `<div class="form-group" style="grid-column:1/-1">
               <label class="form-label">${ev}</label>
-              <textarea class="form-input form-textarea" id="ai_event_${ev.toLowerCase().replace(/[^a-z]/g,'_')}" rows="3"
-                placeholder="Standard description, key facts, unique selling points, past results, approved phrases for this event...">${esc(c["event_"+ev.toLowerCase().replace(/[^a-z]/g,'_')]||"")}</textarea>
-            </div>`).join("")}
+              <textarea class="form-input form-textarea" id="ai_event_${key}" rows="3"
+                placeholder="Standard description, key facts, past results, approved phrases...">${esc(c["event_"+key]||"")}</textarea>
+              ${campaignCheckbox("event_"+key)}
+            </div>`;
+          }).join("")}
         </div>
       </div>
 
-      <!-- SECTION 6: Legal & Compliance -->
+      <!-- SECTION 7: Legal & Compliance -->
       <div class="card" style="margin-bottom:16px">
-        <div style="font-weight:700;font-size:15px;margin-bottom:4px">⚖️ Legal & Compliance</div>
+        ${sectionHeader("⚖️","Legal & Compliance","legal")}
         <div style="font-size:12px;color:var(--gray);margin-bottom:16px">What the AI must always include or never say</div>
         <div class="form-grid">
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Required Disclosures <span style="font-size:11px;color:var(--gray);font-weight:400">language that must appear in certain content</span></label>
-            <textarea class="form-input form-textarea" id="ai_disclosures" rows="2" placeholder="e.g. 501(c)(3) status language, donation tax language...">${esc(c.disclosures||"")}</textarea>
+            <label class="form-label">Required Disclosures</label>
+            <textarea class="form-input form-textarea" id="ai_disclosures" rows="2" placeholder="e.g. 501(c)(3) language, donation tax notes...">${esc(c.disclosures||"")}</textarea>
           </div>
           <div class="form-group" style="grid-column:1/-1">
             <label class="form-label">Claims to Avoid</label>
-            <textarea class="form-input form-textarea" id="ai_avoid_claims" rows="2" placeholder="e.g. Don't make specific financial projections, don't name individual animals without approval...">${esc(c.avoid_claims||"")}</textarea>
+            <textarea class="form-input form-textarea" id="ai_avoid_claims" rows="2" placeholder="e.g. Don't make specific financial projections...">${esc(c.avoid_claims||"")}</textarea>
           </div>
           <div class="form-group" style="grid-column:1/-1">
             <label class="form-label">Privacy Rules</label>
-            <textarea class="form-input form-textarea" id="ai_privacy" rows="2" placeholder="e.g. Don't name specific donors, get consent before naming families...">${esc(c.privacy||"")}</textarea>
+            <textarea class="form-input form-textarea" id="ai_privacy" rows="2" placeholder="e.g. Don't name specific donors without approval...">${esc(c.privacy||"")}</textarea>
           </div>
         </div>
       </div>
 
-      <!-- SECTION 7: Brand Library (documents & URLs) -->
+      <!-- SECTION 8: Brand Library -->
       <div class="card" style="margin-bottom:16px">
-        <div style="font-weight:700;font-size:15px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           📚 Brand Library
           <button class="btn btn-gold btn-sm" onclick="openAILibraryModal()">+ Add Item</button>
         </div>
         <div style="font-size:12px;color:var(--gray);margin-bottom:16px">
-          URLs, documents, and past content the AI can learn from.
-          One item can serve multiple purposes — tag it with everything it applies to.
+          URLs, documents, and past content. One item can serve multiple purposes — tag it with everything it applies to.
+          Click <strong>🔍 Analyze</strong> on any item to have AI suggest Brand Brain field values for your review.
         </div>
         <div id="aiLibraryList">
           ${AI_LIBRARY.length
@@ -5442,16 +5533,37 @@ function renderAISettings() {
                     ${item.content_type ? `<span style="background:var(--gray-light);padding:1px 6px;border-radius:20px;font-size:11px;margin-left:6px">${esc(item.content_type)}</span>` : ""}
                   </div>
                   <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">
-                    ${(item.tags||"").split(",").filter(Boolean).map(t => `<span style="background:#dbeafe;color:#1e40af;padding:1px 7px;border-radius:20px;font-size:11px">${esc(t.trim())}</span>`).join("")}
+                    ${(item.tags||"").split(",").filter(Boolean).map(t=>`<span style="background:#dbeafe;color:#1e40af;padding:1px 7px;border-radius:20px;font-size:11px">${esc(t.trim())}</span>`).join("")}
                   </div>
                 </div>
-                <button class="btn btn-sm" style="color:var(--red)" onclick="deleteAILibraryItem('${esc(item.id)}')">✕</button>
+                <div style="display:flex;gap:6px;flex-shrink:0">
+                  <button class="btn btn-sm btn-outline" onclick="analyzeLibraryItem('${esc(item.id)}')">🔍 Analyze</button>
+                  <button class="btn btn-sm" style="color:var(--red)" onclick="deleteAILibraryItem('${esc(item.id)}')">✕</button>
+                </div>
               </div>`).join("")
-            : `<div style="font-size:13px;color:var(--gray);padding:12px 0">No items yet. Add your website, Facebook page, past posts, or any documents the AI should learn from.</div>`}
+            : `<div style="font-size:13px;color:var(--gray);padding:12px 0">No items yet. Add your website, Facebook page, past posts, or documents the AI should learn from.</div>`}
         </div>
       </div>
 
-      <!-- Save button -->
+      <!-- Version History -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-weight:700;font-size:15px;margin-bottom:12px">📋 Change History</div>
+        ${AI_VERSION_HISTORY.length
+          ? `<div style="max-height:200px;overflow-y:auto">
+              ${AI_VERSION_HISTORY.slice(0,20).map(h => `
+                <div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+                  <span style="color:var(--gray);flex-shrink:0">${h.changed_at ? new Date(h.changed_at).toLocaleDateString() : ""}</span>
+                  <span style="flex-shrink:0;font-weight:600">${esc(h.field_name||"")}</span>
+                  <span style="color:var(--gray);flex:1">→ ${esc((h.new_value||"").substring(0,60))}${(h.new_value||"").length>60?"...":""}</span>
+                  <span style="color:var(--gray);flex-shrink:0">${esc(h.changed_by||"")}</span>
+                  ${h.source_name ? `<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:20px;font-size:10px">${esc(h.source_name)}</span>` : ""}
+                  <span style="background:${h.confidence==="High"?"#d1fae5":h.confidence==="Medium"?"#fef3c7":"#fee2e2"};color:${h.confidence==="High"?"#065f46":h.confidence==="Medium"?"#92400e":"#991b1b"};padding:1px 6px;border-radius:20px;font-size:10px">${esc(h.confidence||"")}</span>
+                </div>`).join("")}
+            </div>`
+          : `<div style="font-size:13px;color:var(--gray)">No changes recorded yet.</div>`}
+      </div>
+
+      <!-- Save -->
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:32px">
         <button class="btn btn-outline" onclick="renderAISettings()">Discard Changes</button>
         <button class="btn btn-gold" onclick="saveAISettings()">💾 Save Brand Brain</button>
@@ -5459,8 +5571,23 @@ function renderAISettings() {
     </div>`;
 }
 
+async function markSectionReviewed(key) {
+  const now = new Date().toISOString();
+  if (!AI_CONFIG.id) { showToast("Save the Brand Brain first.", "error"); return; }
+  try {
+    const update = { ["reviewed_"+key]: now };
+    await sbUpdate("MyBFFAIConfig", AI_CONFIG.id, update, "id");
+    AI_CONFIG["reviewed_"+key] = now;
+    showToast("✅ Section marked as reviewed.");
+    renderAISettings();
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
 async function saveAISettings() {
   const now = new Date().toISOString();
+  const myName = currentUser?.displayName || "";
+  const oldConfig = { ...AI_CONFIG };
+
   const row = {
     id: AI_CONFIG.id || genId(),
     org_name:     document.getElementById("ai_name")?.value.trim() || null,
@@ -5481,8 +5608,21 @@ async function saveAISettings() {
     tone_formal:  document.getElementById("ai_tone_formal")?.value || null,
     tone_serious: document.getElementById("ai_tone_serious")?.value || null,
     tone_inspire: document.getElementById("ai_tone_inspire")?.value || null,
+    current_focus:      document.getElementById("ai_current_focus")?.value.trim() || null,
+    active_event:       document.getElementById("ai_active_event")?.value || null,
+    campaign_expires:   document.getElementById("ai_campaign_expires")?.value || null,
+    campaign_messages:  document.getElementById("ai_campaign_messages")?.value.trim() || null,
     updated_at: now
   };
+
+  // Campaign-specific flags
+  ["org_name","stats"].forEach(f => {
+    row["campaign_"+f] = document.getElementById("campaign_"+f)?.checked || false;
+  });
+  ["cornhole","trivia","walk_run","golf","super_bowl_squares"].forEach(ev => {
+    row["campaign_event_"+ev] = document.getElementById("campaign_event_"+ev)?.checked || false;
+  });
+
   // Audience segments
   ["general_public","past_attendees","donors","sponsors","volunteers"].forEach(seg => {
     row["audience_"+seg] = document.getElementById("ai_audience_"+seg)?.value.trim() || null;
@@ -5495,15 +5635,170 @@ async function saveAISettings() {
   ["cornhole","trivia","walk_run","golf","super_bowl_squares"].forEach(ev => {
     row["event_"+ev] = document.getElementById("ai_event_"+ev)?.value.trim() || null;
   });
+  // Preserve reviewed timestamps
+  Object.keys(AI_CONFIG).filter(k => k.startsWith("reviewed_")).forEach(k => { row[k] = AI_CONFIG[k]; });
+
   try {
     if (AI_CONFIG.id) {
       await sbUpdate("MyBFFAIConfig", AI_CONFIG.id, row, "id");
     } else {
       await sbInsert("MyBFFAIConfig", row);
     }
+    // Log changes to version history
+    const trackFields = ["org_name","mission","history","personality","use_words","avoid_words","hashtags","current_focus","campaign_messages"];
+    for (const field of trackFields) {
+      if (row[field] && row[field] !== oldConfig[field]) {
+        const histRow = { id: genId(), field_name: field, old_value: oldConfig[field]||null, new_value: row[field], changed_by: myName, changed_at: now, source_name: "Manual edit", confidence: "High" };
+        try { await sbInsert("MyBFFAIHistory", histRow); AI_VERSION_HISTORY.unshift(histRow); } catch(e) {}
+      }
+    }
     AI_CONFIG = row;
     showToast("💾 Brand Brain saved!");
+    renderAISettings();
   } catch(e) { showToast("Error saving: " + e.message, "error"); }
+}
+
+// ── AI Intake (analyze library item) ─────────────────────────
+async function analyzeLibraryItem(itemId) {
+  const item = AI_LIBRARY.find(x => x.id === itemId);
+  if (!item) return;
+  showToast("🔍 Analyzing… this may take a moment.");
+  try {
+    const context = item.url
+      ? `Analyze this URL and extract Brand Brain field suggestions: ${item.url}`
+      : `Analyze this content and extract Brand Brain field suggestions: ${item.notes||item.name}`;
+
+    const prompt = `You are analyzing source material for a nonprofit foundation called "My Best Friends Foundation" to extract information for their Brand Brain AI configuration.
+
+Source: ${item.name || item.url}
+Type: ${item.content_type || "Unknown"}
+Tags: ${item.tags || "None"}
+
+Content/URL to analyze: ${item.url || item.notes || ""}
+
+Current Brand Brain (for conflict detection):
+- Mission: ${AI_CONFIG.mission || "Not set"}
+- Personality: ${AI_CONFIG.personality || "Not set"}
+- Tone: ${AI_CONFIG.tone_formal || "Balanced"}, ${AI_CONFIG.tone_serious || "Balanced"}
+
+Please analyze the source and return a JSON array of suggestions. Each suggestion must have:
+- field: the Brand Brain field name (e.g. "mission", "personality", "use_words", "history", "stats", "hashtags", "channel_facebook", "event_cornhole")
+- value: the suggested value for that field
+- source_quote: a brief quote or reference from the source that supports this suggestion
+- confidence: "High" (explicit statement), "Medium" (inferred), or "Low" (loosely related)
+- conflict: true/false — whether this conflicts with existing Brand Brain content
+- conflict_note: if conflict is true, explain what conflicts
+
+Return ONLY valid JSON array, no other text, no markdown.`;
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    const data = await response.json();
+    const text = (data.content||[]).map(b => b.text||"").join("").trim();
+    let suggestions = [];
+    try {
+      suggestions = JSON.parse(text.replace(/```json|```/g,"").trim());
+    } catch(e) {
+      showToast("Could not parse AI response. Try again.", "error");
+      return;
+    }
+    if (!suggestions.length) { showToast("No suggestions found in this source.", "error"); return; }
+    showAIIntakeModal(item, suggestions);
+  } catch(e) { showToast("Analysis failed: " + e.message, "error"); }
+}
+
+function showAIIntakeModal(item, suggestions) {
+  document.getElementById("aiIntakeSource").textContent = `Source: ${item.name || item.url} (${suggestions.length} suggestion${suggestions.length!==1?"s":""})`;
+  const container = document.getElementById("aiIntakeSuggestions");
+  // Store suggestions on window for approval handlers
+  window._aiIntakeSuggestions = suggestions;
+  window._aiIntakeSource = item.name || item.url;
+
+  container.innerHTML = suggestions.map((s, i) => {
+    const confBg = s.confidence==="High" ? "#d1fae5" : s.confidence==="Medium" ? "#fef3c7" : "#fee2e2";
+    const confColor = s.confidence==="High" ? "#065f46" : s.confidence==="Medium" ? "#92400e" : "#991b1b";
+    const existing = AI_CONFIG[s.field];
+    return `
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;${s.conflict?"border-left:4px solid #dc2626":""}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+          <div>
+            <span style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.5px">${esc(s.field)}</span>
+            <span style="background:${confBg};color:${confColor};padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;margin-left:8px">${s.confidence}</span>
+            ${s.conflict ? `<span style="background:#fee2e2;color:#991b1b;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;margin-left:4px">⚠️ Conflict</span>` : ""}
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm btn-outline" style="color:#dc2626" onclick="skipSuggestion(${i})">Skip</button>
+            <button class="btn btn-sm btn-green" onclick="approveSuggestion(${i})">✅ Accept</button>
+          </div>
+        </div>
+        <div id="intake-suggestion-${i}">
+          <textarea class="form-input form-textarea" id="intake-val-${i}" rows="2" style="margin-bottom:6px">${esc(s.value||"")}</textarea>
+          ${s.source_quote ? `<div style="font-size:11px;color:var(--gray);font-style:italic;margin-bottom:4px">Source: "${esc(s.source_quote.substring(0,100))}"</div>` : ""}
+          ${existing ? `<div style="font-size:11px;color:var(--gray)">Current value: ${esc(existing.substring(0,80))}${existing.length>80?"...":""}</div>` : ""}
+          ${s.conflict && s.conflict_note ? `<div style="font-size:11px;color:#dc2626;margin-top:4px">⚠️ ${esc(s.conflict_note)}</div>` : ""}
+        </div>
+      </div>`;
+  }).join("");
+
+  openModal("aiIntakeModal");
+}
+
+async function approveSuggestion(i) {
+  const s = window._aiIntakeSuggestions?.[i];
+  if (!s) return;
+  const val = document.getElementById("intake-val-"+i)?.value.trim();
+  if (!val) return;
+  // Save to Brand Brain
+  const now = new Date().toISOString();
+  const myName = currentUser?.displayName || "";
+  const update = { [s.field]: val, updated_at: now };
+  if (!AI_CONFIG.id) AI_CONFIG.id = genId();
+  try {
+    if (AI_CONFIG.id && Object.keys(AI_CONFIG).length > 1) {
+      await sbUpdate("MyBFFAIConfig", AI_CONFIG.id, update, "id");
+    } else {
+      update.id = AI_CONFIG.id;
+      await sbInsert("MyBFFAIConfig", update);
+    }
+    const oldVal = AI_CONFIG[s.field];
+    AI_CONFIG[s.field] = val;
+    // Log to history
+    const histRow = { id: genId(), field_name: s.field, old_value: oldVal||null, new_value: val, changed_by: myName, changed_at: now, source_name: window._aiIntakeSource||"AI Analysis", confidence: s.confidence };
+    try { await sbInsert("MyBFFAIHistory", histRow); AI_VERSION_HISTORY.unshift(histRow); } catch(e) {}
+    // Strike through the accepted suggestion
+    const el = document.getElementById("intake-suggestion-"+i);
+    if (el) el.style.opacity = "0.4";
+    showToast(`✅ "${s.field}" updated!`);
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+function skipSuggestion(i) {
+  const el = document.getElementById("intake-suggestion-"+i);
+  if (el) { el.style.opacity = "0.3"; el.style.textDecoration = "line-through"; }
+}
+
+async function approveAllSuggestions() {
+  const suggestions = window._aiIntakeSuggestions || [];
+  let approved = 0;
+  for (let i = 0; i < suggestions.length; i++) {
+    if (suggestions[i].confidence === "High" && !suggestions[i].conflict) {
+      await approveSuggestion(i);
+      approved++;
+    }
+  }
+  showToast(`✅ ${approved} high-confidence suggestion${approved!==1?"s":""} approved.`);
+}
+
+function skipAllSuggestions() {
+  (window._aiIntakeSuggestions||[]).forEach((_,i) => skipSuggestion(i));
+  closeModal("aiIntakeModal");
 }
 
 function openAILibraryModal() {
@@ -5898,6 +6193,7 @@ function grantRequestRow(r, g) {
           ${r.event_name ? `<span style="background:#f0f4ff;color:var(--navy);font-size:11px;padding:1px 7px;border-radius:20px">📅 ${esc(r.event_name)}</span>` : ""}
         </div>
         <div style="font-size:12px;color:var(--gray);display:flex;gap:10px;flex-wrap:wrap">
+          ${r.app_url ? `<a href="${esc(r.app_url)}" target="_blank" style="font-size:12px">🔗 Application</a>` : ""}
           ${r.req_date ? `<span>Requested: ${r.req_date}</span>` : ""}
           ${r.req_by ? `<span>By: ${esc(r.req_by)}</span>` : ""}
           ${r.amount_req ? `<span>Asked: <strong>$${parseFloat(r.amount_req).toLocaleString()}</strong></span>` : ""}
@@ -5998,7 +6294,7 @@ function openGrantRequestModal(grantId) {
   // Show/hide location field based on allows_multiple
   document.getElementById("grantReqLocationRow").style.display = g?.allows_multiple ? "" : "none";
   // Clear fields
-  ["grantReqLocation","grantReqDate","grantReqDeadline","grantReqYear","grantReqNotes",
+  ["grantReqLocation","grantReqUrl","grantReqDate","grantReqDeadline","grantReqYear","grantReqNotes",
    "grantReqAwarded","grantReqAwardDate","grantReqPeriodStart","grantReqPeriodEnd",
    "grantReqRestriction","grantReqReportDate","grantReqRenewalDate"].forEach(id => {
     const el = document.getElementById(id); if(el) el.value = "";
@@ -6031,6 +6327,7 @@ function openGrantRequestModalEdit(reqId, grantId) {
   document.getElementById("grantReqEditingId").value = reqId;
   document.getElementById("grantReqLocationRow").style.display = g?.allows_multiple ? "" : "none";
   document.getElementById("grantReqLocation").value = r.location || "";
+  document.getElementById("grantReqUrl").value = r.app_url || "";
   document.getElementById("grantReqBy").innerHTML = `<option value="">— Select —</option>` +
     APP_USERS.map(u => `<option value="${esc(u.displayName)}" ${u.displayName===r.req_by?"selected":""}>${esc(u.displayName)}</option>`).join("");
   document.getElementById("grantReqAmount").value = r.amount_req || "";
@@ -6101,6 +6398,7 @@ async function saveGrantRequest() {
   const row = {
     grant_id:       grantId,
     location:       document.getElementById("grantReqLocation").value.trim() || null,
+    app_url:        document.getElementById("grantReqUrl").value.trim() || null,
     req_by:         document.getElementById("grantReqBy").value || null,
     amount_req:     parseFloat(document.getElementById("grantReqAmount").value) || null,
     req_date:       document.getElementById("grantReqDate").value || null,
