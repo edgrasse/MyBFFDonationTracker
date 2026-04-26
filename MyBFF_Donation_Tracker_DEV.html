@@ -1807,7 +1807,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.11h-DEV · Apr 26 2026 · 11:25 PM";
+const BUILD_VERSION = "v5.11i-DEV · Apr 26 2026 · 11:40 PM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5792,80 +5792,97 @@ Return ONLY a valid JSON array — even if empty, return []. Never return blank.
 }
 
 function showAIIntakeModal(item, suggestions) {
-  document.getElementById("aiIntakeSource").textContent = `Source: ${item.name || item.url} (${suggestions.length} suggestion${suggestions.length!==1?"s":""})`;
-  const container = document.getElementById("aiIntakeSuggestions");
-  // Store suggestions on window for approval handlers
+  // Store on window so modal can be reopened
   window._aiIntakeSuggestions = suggestions;
+  window._aiIntakeItem = item;
   window._aiIntakeSource = item.name || item.url;
+  window._aiApproved = new Set(); // track which indices have been approved
+  renderIntakeModal();
+  openModal("aiIntakeModal");
+}
 
+function renderIntakeModal() {
+  const suggestions = window._aiIntakeSuggestions || [];
+  const item = window._aiIntakeItem || {};
+  const approved = window._aiApproved || new Set();
+  document.getElementById("aiIntakeSource").textContent =
+    `Source: ${item.name || item.url || ""} — ${suggestions.length} suggestion${suggestions.length!==1?"s":""}`;
+  const container = document.getElementById("aiIntakeSuggestions");
   container.innerHTML = suggestions.map((s, i) => {
     const confBg = s.confidence==="High" ? "#d1fae5" : s.confidence==="Medium" ? "#fef3c7" : "#fee2e2";
     const confColor = s.confidence==="High" ? "#065f46" : s.confidence==="Medium" ? "#92400e" : "#991b1b";
     const existing = AI_CONFIG[s.field];
+    const isApproved = approved.has(i);
     return `
-      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;${s.conflict?"border-left:4px solid #dc2626":""}">
+      <div id="intake-row-${i}" style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;
+        ${s.conflict?"border-left:4px solid #dc2626":""}${isApproved?"opacity:0.4;background:#f0fdf4;":""}">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
           <div>
             <span style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.5px">${esc(s.field)}</span>
             <span style="background:${confBg};color:${confColor};padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;margin-left:8px">${s.confidence}</span>
             ${s.conflict ? `<span style="background:#fee2e2;color:#991b1b;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;margin-left:4px">⚠️ Conflict</span>` : ""}
+            ${isApproved ? `<span style="background:#d1fae5;color:#065f46;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;margin-left:4px">✅ Accepted</span>` : ""}
           </div>
-          <div style="display:flex;gap:6px">
-            <button class="btn btn-sm btn-outline" style="color:#dc2626" onclick="skipSuggestion(${i})">Skip</button>
+          ${!isApproved ? `<div style="display:flex;gap:6px">
+            <button class="btn btn-sm btn-outline" style="color:#6b7280" onclick="skipSuggestion(${i})">Skip</button>
             <button class="btn btn-sm btn-green" onclick="approveSuggestion(${i})">✅ Accept</button>
-          </div>
+          </div>` : ""}
         </div>
-        <div id="intake-suggestion-${i}">
-          <textarea class="form-input form-textarea" id="intake-val-${i}" rows="2" style="margin-bottom:6px">${esc(s.value||"")}</textarea>
-          ${s.source_quote ? `<div style="font-size:11px;color:var(--gray);font-style:italic;margin-bottom:4px">Source: "${esc(s.source_quote.substring(0,100))}"</div>` : ""}
-          ${existing ? `<div style="font-size:11px;color:var(--gray)">Current value: ${esc(existing.substring(0,80))}${existing.length>80?"...":""}</div>` : ""}
-          ${s.conflict && s.conflict_note ? `<div style="font-size:11px;color:#dc2626;margin-top:4px">⚠️ ${esc(s.conflict_note)}</div>` : ""}
-        </div>
+        <textarea class="form-input form-textarea" id="intake-val-${i}" rows="2" style="margin-bottom:6px"
+          ${isApproved?"disabled":""} >${esc(s.value||"")}</textarea>
+        ${s.source_quote ? `<div style="font-size:11px;color:var(--gray);font-style:italic;margin-bottom:4px">📌 "${esc(s.source_quote.substring(0,120))}"</div>` : ""}
+        ${existing && !isApproved ? `<div style="font-size:11px;color:var(--gray)">Current: ${esc(String(existing).substring(0,80))}${String(existing).length>80?"...":""}</div>` : ""}
+        ${s.conflict && s.conflict_note ? `<div style="font-size:11px;color:#dc2626;margin-top:4px">⚠️ ${esc(s.conflict_note)}</div>` : ""}
       </div>`;
   }).join("");
-
-  openModal("aiIntakeModal");
 }
 
 async function approveSuggestion(i) {
   const s = window._aiIntakeSuggestions?.[i];
   if (!s) return;
   const val = document.getElementById("intake-val-"+i)?.value.trim();
-  if (!val) return;
-  // Save to Brand Brain
+  if (!val) { showToast("Value is empty — nothing to save.", "error"); return; }
   const now = new Date().toISOString();
   const myName = currentUser?.displayName || "";
-  const update = { [s.field]: val, updated_at: now };
-  if (!AI_CONFIG.id) AI_CONFIG.id = genId();
+  const oldVal = AI_CONFIG[s.field] || null;
+
+  // Ensure AI_CONFIG has a valid id and exists in DB
   try {
-    if (AI_CONFIG.id && Object.keys(AI_CONFIG).length > 1) {
-      await sbUpdate("MyBFFAIConfig", AI_CONFIG.id, update, "id");
+    if (!AI_CONFIG.id) {
+      // First save — create the config record
+      AI_CONFIG.id = genId();
+      await sbInsert("MyBFFAIConfig", { id: AI_CONFIG.id, [s.field]: val, updated_at: now });
     } else {
-      update.id = AI_CONFIG.id;
-      await sbInsert("MyBFFAIConfig", update);
+      // Update existing record
+      await sbUpdate("MyBFFAIConfig", AI_CONFIG.id, { [s.field]: val, updated_at: now }, "id");
     }
-    const oldVal = AI_CONFIG[s.field];
     AI_CONFIG[s.field] = val;
     // Log to history
-    const histRow = { id: genId(), field_name: s.field, old_value: oldVal||null, new_value: val, changed_by: myName, changed_at: now, source_name: window._aiIntakeSource||"AI Analysis", confidence: s.confidence };
+    const histRow = { id: genId(), field_name: s.field, old_value: oldVal, new_value: val,
+      changed_by: myName, changed_at: now,
+      source_name: window._aiIntakeSource || "AI Analysis", confidence: s.confidence };
     try { await sbInsert("MyBFFAIHistory", histRow); AI_VERSION_HISTORY.unshift(histRow); } catch(e) {}
-    // Strike through the accepted suggestion
-    const el = document.getElementById("intake-suggestion-"+i);
-    if (el) el.style.opacity = "0.4";
-    showToast(`✅ "${s.field}" updated!`);
-  } catch(e) { showToast("Error: " + e.message, "error"); }
+    // Mark as approved and re-render
+    (window._aiApproved = window._aiApproved || new Set()).add(i);
+    renderIntakeModal();
+    showToast(`✅ "${s.field}" saved to Brand Brain!`);
+  } catch(e) {
+    showToast("Error saving: " + e.message, "error");
+    console.error("approveSuggestion error:", e);
+  }
 }
 
 function skipSuggestion(i) {
-  const el = document.getElementById("intake-suggestion-"+i);
-  if (el) { el.style.opacity = "0.3"; el.style.textDecoration = "line-through"; }
+  const row = document.getElementById("intake-row-"+i);
+  if (row) { row.style.opacity = "0.3"; row.style.textDecoration = "line-through"; }
 }
 
 async function approveAllSuggestions() {
   const suggestions = window._aiIntakeSuggestions || [];
   let approved = 0;
   for (let i = 0; i < suggestions.length; i++) {
-    if (suggestions[i].confidence === "High" && !suggestions[i].conflict) {
+    const s = suggestions[i];
+    if (s.confidence === "High" && !s.conflict && !(window._aiApproved||new Set()).has(i)) {
       await approveSuggestion(i);
       approved++;
     }
@@ -5874,7 +5891,10 @@ async function approveAllSuggestions() {
 }
 
 function skipAllSuggestions() {
-  (window._aiIntakeSuggestions||[]).forEach((_,i) => skipSuggestion(i));
+  const suggestions = window._aiIntakeSuggestions || [];
+  suggestions.forEach((_,i) => {
+    if (!(window._aiApproved||new Set()).has(i)) skipSuggestion(i);
+  });
   closeModal("aiIntakeModal");
 }
 
