@@ -5690,9 +5690,11 @@ async function analyzeLibraryItem(itemId) {
   try {
     const contentToAnalyze = item.url
       ? `URL to analyze: ${item.url}`
+      : item.file_data
+      ? `[PDF document sent as attachment for Claude to read directly]`
       : item.notes
-      ? `Document/text content to analyze:\n\n${item.notes.substring(0, 3000)}${item.notes.length > 3000 ? "\n\n[Content truncated for analysis]" : ""}`
-      : `Source name: ${item.name} — No content available for analysis.`;
+      ? `Document content:\n\n${item.notes.substring(0, 4000)}`
+      : `Source: ${item.name} — No content available.`;
 
     const prompt = `You are analyzing source material for a nonprofit foundation called "My Best Friends Foundation" to extract information for their Brand Brain AI configuration.
 
@@ -5890,14 +5892,34 @@ async function saveAILibraryItem() {
   const tags = Array.from(document.querySelectorAll(".ai-lib-tag-check:checked")).map(c => c.value).join(", ");
   const now = new Date().toISOString();
 
-  // Handle document upload — read as text for analysis
+  // Handle document upload
   let docText = null;
+  let fileBase64 = null;
+  let fileMediaType = null;
+
   if (docVisible && file) {
-    try {
-      docText = await readFileAsText(file);
-    } catch(e) {
-      showToast("Could not read file. Try a .txt or .md file, or paste the text directly.", "error");
-      return;
+    fileMediaType = file.type || "application/octet-stream";
+    const isPdfOrWord = file.name.match(/\.(pdf|doc|docx)$/i);
+    if (isPdfOrWord) {
+      // Read as base64 — Claude can read PDFs natively via the API
+      try {
+        fileBase64 = await readFileAsBase64(file);
+        docText = `[${file.name} — will be sent as document to AI for analysis]`;
+      } catch(e) {
+        showToast("Could not read file.", "error"); return;
+      }
+    } else {
+      // Plain text files — read as text
+      try {
+        docText = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = e => res(e.target.result);
+          r.onerror = () => rej(new Error("Read failed"));
+          r.readAsText(file);
+        });
+      } catch(e) {
+        showToast("Could not read file.", "error"); return;
+      }
     }
   }
 
@@ -5907,6 +5929,8 @@ async function saveAILibraryItem() {
     url: urlVisible ? (url || null) : null,
     content_type: document.getElementById("aiLibModalType").value,
     notes: pastedText || docText || document.getElementById("aiLibModalNotes").value.trim() || null,
+    file_data: fileBase64 || null,
+    file_media_type: fileMediaType || null,
     tags,
     created_at: now
   };
@@ -5920,19 +5944,15 @@ async function saveAILibraryItem() {
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
-function readFileAsText(file) {
+function readFileAsBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = e => resolve(e.target.result);
+    reader.onload = e => {
+      const b64 = e.target.result.split(",")[1];
+      resolve(b64);
+    };
     reader.onerror = () => reject(new Error("File read failed"));
-    // PDF and Word can't be read as plain text — use text-based formats
-    if (file.name.match(/\.(pdf|doc|docx)$/i)) {
-      // For PDF/Word, read as data URL and store the filename — full extraction requires server
-      reader.onload = e => resolve(`[${file.name}] — Document uploaded. Paste the text content in the Notes field for AI analysis, or use a .txt version for automatic extraction.`);
-      reader.readAsText(file);
-    } else {
-      reader.readAsText(file);
-    }
+    reader.readAsDataURL(file);
   });
 }
 
