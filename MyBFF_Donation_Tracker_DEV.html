@@ -5290,6 +5290,7 @@ function renderAssetLibrary() {
 let AI_CONFIG = {}; // loaded from MyBFFAIConfig
 let AI_LIBRARY = []; // loaded from MyBFFAILibrary
 let AI_VERSION_HISTORY = []; // loaded from MyBFFAIHistory
+const AI_FILE_CACHE = new Map(); // temporary in-memory cache: itemId -> {base64, mediaType, name}
 
 async function loadAIConfig() {
   try {
@@ -5688,13 +5689,14 @@ async function analyzeLibraryItem(itemId) {
   if (!item) return;
   showToast("🔍 Analyzing… this may take a moment.");
   try {
+    const cached = AI_FILE_CACHE.get(itemId);
     const contentToAnalyze = item.url
       ? `URL to analyze: ${item.url}`
-      : item.file_data
-      ? `[PDF document sent as attachment for Claude to read directly]`
+      : cached
+      ? `[Document "${cached.name}" sent as attachment for Claude to read directly]`
       : item.notes
-      ? `Document content:\n\n${item.notes.substring(0, 4000)}`
-      : `Source: ${item.name} — No content available.`;
+      ? `Document content to analyze:\n\n${item.notes.substring(0, 4000)}`
+      : `Source: ${item.name} — No file or text content available. Please re-upload the document.`;
 
     const prompt = `You are analyzing source material for a nonprofit foundation called "My Best Friends Foundation" to extract information for their Brand Brain AI configuration.
 
@@ -5726,10 +5728,10 @@ Return ONLY valid JSON array, no other text, no markdown.`;
       claudeMethod: "mybffAnalyze",
       prompt
     };
-    // Include file data if this is a document upload
-    if (item.file_data && item.file_media_type) {
-      callBody.base64Data = item.file_data;
-      callBody.mediaType = item.file_media_type;
+    // Include file data from memory cache if available
+    if (cached) {
+      callBody.base64Data = cached.base64;
+      callBody.mediaType = cached.mediaType;
     }
     const result = await workerCall(callBody);
     if (result?.error) { showToast("Analysis error: " + result.error, "error"); return; }
@@ -5880,17 +5882,16 @@ async function saveAILibraryItem() {
 
   if (!name) { showToast("Please enter a name or description.", "error"); return; }
 
-  // Determine active source type by which row is visible
+  // Determine active source type — read from button state
   const urlVisible  = document.getElementById("aiLibUrlRow")?.style.display  !== "none";
   const docVisible  = document.getElementById("aiLibDocRow")?.style.display  !== "none";
   const textVisible = document.getElementById("aiLibTextRow")?.style.display !== "none";
 
-  // Only validate the active source type
-  if (urlVisible && !url && !docVisible && !textVisible) {
-    showToast("Please enter a URL.", "error"); return;
-  }
   if (docVisible && !file) { showToast("Please select a file.", "error"); return; }
   if (textVisible && !pastedText) { showToast("Please paste some text.", "error"); return; }
+  if (urlVisible && !docVisible && !textVisible && !url) {
+    showToast("Please enter a URL.", "error"); return;
+  }
 
   const tags = Array.from(document.querySelectorAll(".ai-lib-tag-check:checked")).map(c => c.value).join(", ");
   const now = new Date().toISOString();
@@ -5926,17 +5927,21 @@ async function saveAILibraryItem() {
     }
   }
 
+  const rowId = genId();
   const row = {
-    id: genId(),
+    id: rowId,
     name,
     url: urlVisible ? (url || null) : null,
     content_type: document.getElementById("aiLibModalType").value,
     notes: pastedText || docText || document.getElementById("aiLibModalNotes").value.trim() || null,
-    file_data: fileBase64 || null,
-    file_media_type: fileMediaType || null,
     tags,
     created_at: now
   };
+
+  // Cache file in memory for this session (not stored in DB — too large)
+  if (fileBase64 && fileMediaType) {
+    AI_FILE_CACHE.set(rowId, { base64: fileBase64, mediaType: fileMediaType, name: file.name });
+  }
 
   try {
     await sbInsert("MyBFFAILibrary", row);
@@ -5944,7 +5949,11 @@ async function saveAILibraryItem() {
     closeModal("aiLibraryModal");
     showToast("✅ Added to Brand Library!");
     renderAISettings();
-  } catch(e) { showToast("Error: " + e.message, "error"); }
+  } catch(e) {
+    AI_FILE_CACHE.delete(rowId);
+    showToast("Error saving: " + e.message, "error");
+    console.error("saveAILibraryItem error:", e);
+  }
 }
 
 function readFileAsBase64(file) {
