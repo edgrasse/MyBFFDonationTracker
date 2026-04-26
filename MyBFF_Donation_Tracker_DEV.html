@@ -1807,7 +1807,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.11j-DEV · Apr 26 2026 · 11:55 PM";
+const BUILD_VERSION = "v5.11k-DEV · Apr 26 2026 · 11:59 PM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5692,7 +5692,9 @@ async function analyzeLibraryItem(itemId) {
   // Show status in the library list item
   const debugEl = document.getElementById("aiDebug-" + itemId);
   const setDebug = (msg, color) => {
-    if (debugEl) { debugEl.textContent = msg; debugEl.style.color = color || "var(--gray)"; }
+    // Truncate long debug messages so they don't break layout
+    const display = msg.length > 200 ? msg.substring(0, 200) + "…" : msg;
+    if (debugEl) { debugEl.textContent = display; debugEl.style.color = color || "var(--gray)"; }
     console.log("[Analyze]", msg);
   };
 
@@ -5777,18 +5779,32 @@ Return ONLY a valid JSON array — even if empty, return []. Never return blank.
 
     const suggestions = rawResult?.suggestions || [];
     if (!suggestions.length) {
-      setDebug("⚠️ No suggestions returned. Raw: " + JSON.stringify(rawResult).substring(0,300), "#92400e");
-      showToast("No suggestions found. Check debug info below the Analyze button.", "error");
+      setDebug("⚠️ No suggestions returned — if this is a URL, the site may block automated access. Try adding the content as 'Paste Text' instead.", "#92400e");
+      showToast("No suggestions found. For URLs, try Paste Text instead.", "error");
       return;
     }
 
-    setDebug(`✅ Got ${suggestions.length} suggestions!`, "#065f46");
+    setDebug(`✅ Got ${suggestions.length} suggestions — reviewing now`, "#065f46");
     showAIIntakeModal(item, suggestions);
+    // Update debug line with reopen button after modal opens
+    setTimeout(() => {
+      if (debugEl) debugEl.innerHTML = `<span style="color:#065f46">✅ ${suggestions.length} suggestions analyzed</span> &nbsp;
+        <button class="btn btn-sm btn-outline" style="font-size:11px;padding:2px 8px" onclick="reopenIntakeModal()">View / Continue Review</button>`;
+    }, 100);
   } catch(e) {
     setDebug("❌ Exception: " + e.message, "#dc2626");
     showToast("Analysis failed: " + e.message, "error");
     console.error("[Analyze exception]", e);
   }
+}
+
+function reopenIntakeModal() {
+  if (!window._aiIntakeSuggestions?.length) {
+    showToast("No suggestions cached — please click Analyze again.", "error");
+    return;
+  }
+  renderIntakeModal();
+  openModal("aiIntakeModal");
 }
 
 function showAIIntakeModal(item, suggestions) {
