@@ -1807,7 +1807,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.11-DEV · Apr 25 2026 · 10:23 PM";
+const BUILD_VERSION = "v5.11-DEV · Apr 26 2026 · 02:45 PM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5717,25 +5717,25 @@ Please analyze the source and return a JSON array of suggestions. Each suggestio
 
 Return ONLY valid JSON array, no other text, no markdown.`;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        messages: [{ role: "user", content: prompt }]
-      })
-    });
-    const data = await response.json();
-    const text = (data.content||[]).map(b => b.text||"").join("").trim();
-    let suggestions = [];
-    try {
-      suggestions = JSON.parse(text.replace(/```json|```/g,"").trim());
-    } catch(e) {
-      showToast("Could not parse AI response. Try again.", "error");
+    // Route through Cloudflare Worker — never call Anthropic directly from browser
+    const callBody = {
+      method: "CLAUDE_API",
+      appId: APP_ID,
+      claudeMethod: "mybffAnalyze",
+      prompt
+    };
+    // Include file data if this is a document upload
+    if (item.file_data && item.file_media_type) {
+      callBody.base64Data = item.file_data;
+      callBody.mediaType = item.file_media_type;
+    }
+    const result = await workerCall(callBody);
+    if (result?.error) { showToast("Analysis error: " + result.error, "error"); return; }
+    const suggestions = result?.suggestions || [];
+    if (!suggestions.length) {
+      showToast("No suggestions found. Try adding more context in the Notes field.", "error");
       return;
     }
-    if (!suggestions.length) { showToast("No suggestions found in this source.", "error"); return; }
     showAIIntakeModal(item, suggestions);
   } catch(e) { showToast("Analysis failed: " + e.message, "error"); }
 }
