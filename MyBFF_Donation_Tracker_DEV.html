@@ -1738,8 +1738,8 @@ if ('serviceWorker' in navigator) {
     <div class="modal-title">Add to Brand Library</div>
     <div class="form-grid single">
       <div class="form-group">
-        <label class="form-label">Name / Description <span class="req">*</span></label>
-        <input type="text" class="form-input" id="aiLibModalName" placeholder="e.g. MyBFF Website, Mission Statement 2025">
+        <label class="form-label">Name / Description <span class="req">*</span> <span style="font-size:11px;color:#dc2626;font-weight:400">— required before saving</span></label>
+        <input type="text" class="form-input" id="aiLibModalName" placeholder="e.g. MyBFF Website, Mission Statement 2025" style="border-color:var(--gold)" oninput="this.style.borderColor=this.value?'':'#dc2626'">
       </div>
       <!-- Source type toggle -->
       <div class="form-group">
@@ -1807,7 +1807,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.11c-DEV · Apr 26 2026 · 10:20 PM";
+const BUILD_VERSION = "v5.11d-DEV · Apr 26 2026 · 10:35 PM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5565,7 +5565,8 @@ function renderAISettings() {
                   <button class="btn btn-sm btn-outline" onclick="analyzeLibraryItem('${esc(item.id)}')">🔍 Analyze</button>
                   <button class="btn btn-sm" style="color:var(--red)" onclick="deleteAILibraryItem('${esc(item.id)}')">✕</button>
                 </div>
-              </div>`).join("")
+              </div>
+              <div id="aiDebug-${esc(item.id)}" style="font-size:11px;color:var(--gray);margin-top:6px;word-break:break-all;font-family:monospace"></div>`).join("")
             : `<div style="font-size:13px;color:var(--gray);padding:12px 0">No items yet. Add your website, Facebook page, past posts, or documents the AI should learn from.</div>`}
         </div>
       </div>
@@ -5686,62 +5687,92 @@ async function saveAISettings() {
 // ── AI Intake (analyze library item) ─────────────────────────
 async function analyzeLibraryItem(itemId) {
   const item = AI_LIBRARY.find(x => x.id === itemId);
-  if (!item) return;
-  showToast("🔍 Analyzing… this may take a moment.");
+  if (!item) { showToast("Item not found.", "error"); return; }
+
+  // Show status in the library list item
+  const debugEl = document.getElementById("aiDebug-" + itemId);
+  const setDebug = (msg, color) => {
+    if (debugEl) { debugEl.textContent = msg; debugEl.style.color = color || "var(--gray)"; }
+    console.log("[Analyze]", msg);
+  };
+
+  setDebug("🔍 Starting analysis...");
+
   try {
     const cached = AI_FILE_CACHE.get(itemId);
+    setDebug(`📋 Item: ${item.name}, URL: ${item.url||"none"}, Cached file: ${cached?"yes ("+cached.name+")":"no"}, Notes: ${item.notes?"yes ("+item.notes.length+" chars)":"no"}`);
+
+    if (!item.url && !cached && !item.notes) {
+      setDebug("❌ No content to analyze — please re-upload the document or add a URL", "#dc2626");
+      showToast("No content to analyze. Re-upload the document or add a URL.", "error");
+      return;
+    }
+
     const contentToAnalyze = item.url
       ? `URL to analyze: ${item.url}`
       : cached
-      ? `[Document "${cached.name}" sent as attachment for Claude to read directly]`
-      : item.notes
-      ? `Document content to analyze:\n\n${item.notes.substring(0, 4000)}`
-      : `Source: ${item.name} — No file or text content available. Please re-upload the document.`;
+      ? `[Document "${cached.name}" sent as attachment]`
+      : `Document content:\n\n${item.notes.substring(0, 4000)}`;
 
     const prompt = `You are analyzing source material for a nonprofit foundation called "My Best Friends Foundation" to extract information for their Brand Brain AI configuration.
 
 Source: ${item.name || item.url}
 Type: ${item.content_type || "Unknown"}
-Tags: ${item.tags || "None"}
 
 ${contentToAnalyze}
 
-Current Brand Brain (for conflict detection):
+Current Brand Brain:
 - Mission: ${AI_CONFIG.mission || "Not set"}
 - Personality: ${AI_CONFIG.personality || "Not set"}
-- Tone: ${AI_CONFIG.tone_formal || "Balanced"}, ${AI_CONFIG.tone_serious || "Balanced"}
 
-Please analyze the source and return a JSON array of suggestions. Each suggestion must have:
-- field: the Brand Brain field name (e.g. "mission", "personality", "use_words", "history", "stats", "hashtags", "channel_facebook", "event_cornhole")
-- value: the suggested value for that field
-- source_quote: a brief quote or reference from the source that supports this suggestion
-- confidence: "High" (explicit statement), "Medium" (inferred), or "Low" (loosely related)
-- conflict: true/false — whether this conflicts with existing Brand Brain content
-- conflict_note: if conflict is true, explain what conflicts
+Return a JSON array of Brand Brain field suggestions. Each must have: field, value, source_quote, confidence (High/Medium/Low), conflict (true/false), conflict_note.
+Return ONLY valid JSON array, no markdown.`;
 
-Return ONLY valid JSON array, no other text, no markdown.`;
-
-    // Route through Cloudflare Worker — never call Anthropic directly from browser
     const callBody = {
       method: "CLAUDE_API",
       appId: APP_ID,
       claudeMethod: "mybffAnalyze",
       prompt
     };
-    // Include file data from memory cache if available
     if (cached) {
       callBody.base64Data = cached.base64;
       callBody.mediaType = cached.mediaType;
+      setDebug(`📤 Sending to Worker with ${Math.round(cached.base64.length/1024)}KB document...`);
+    } else {
+      setDebug(`📤 Sending to Worker (text/URL)...`);
     }
-    const result = await workerCall(callBody);
-    if (result?.error) { showToast("Analysis error: " + result.error, "error"); return; }
-    const suggestions = result?.suggestions || [];
-    if (!suggestions.length) {
-      showToast("No suggestions found. Try adding more context in the Notes field.", "error");
+
+    let rawResult;
+    try {
+      rawResult = await workerCall(callBody);
+    } catch(workerErr) {
+      setDebug("❌ Worker call failed: " + workerErr.message, "#dc2626");
+      showToast("Worker error: " + workerErr.message, "error");
       return;
     }
+
+    setDebug(`📥 Worker response: ${JSON.stringify(rawResult).substring(0, 200)}`);
+
+    if (rawResult?.error) {
+      setDebug("❌ API error: " + rawResult.error, "#dc2626");
+      showToast("Analysis error: " + rawResult.error, "error");
+      return;
+    }
+
+    const suggestions = rawResult?.suggestions || [];
+    if (!suggestions.length) {
+      setDebug("⚠️ No suggestions returned. Raw: " + JSON.stringify(rawResult).substring(0,300), "#92400e");
+      showToast("No suggestions found. Check debug info below the Analyze button.", "error");
+      return;
+    }
+
+    setDebug(`✅ Got ${suggestions.length} suggestions!`, "#065f46");
     showAIIntakeModal(item, suggestions);
-  } catch(e) { showToast("Analysis failed: " + e.message, "error"); }
+  } catch(e) {
+    setDebug("❌ Exception: " + e.message, "#dc2626");
+    showToast("Analysis failed: " + e.message, "error");
+    console.error("[Analyze exception]", e);
+  }
 }
 
 function showAIIntakeModal(item, suggestions) {
