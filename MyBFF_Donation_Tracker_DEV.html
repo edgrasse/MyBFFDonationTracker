@@ -1807,7 +1807,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.11d-DEV · Apr 26 2026 · 10:35 PM";
+const BUILD_VERSION = "v5.11f-DEV · Apr 26 2026 · 11:05 PM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5708,11 +5708,19 @@ async function analyzeLibraryItem(itemId) {
       return;
     }
 
+    // Check if notes is just a placeholder (file from previous session, cache cleared)
+    const isPlaceholder = item.notes && item.notes.includes("will be sent as document");
+    if (!item.url && !cached && (!item.notes || isPlaceholder)) {
+      setDebug("❌ File not in memory — delete this item and re-add the document to analyze it.", "#dc2626");
+      showToast("Please re-add this document — the file needs to be re-uploaded to analyze.", "error");
+      return;
+    }
     const contentToAnalyze = item.url
       ? `URL to analyze: ${item.url}`
       : cached
       ? `[Document "${cached.name}" sent as attachment]`
       : `Document content:\n\n${item.notes.substring(0, 4000)}`;
+
 
     const prompt = `You are analyzing source material for a nonprofit foundation called "My Best Friends Foundation" to extract information for their Brand Brain AI configuration.
 
@@ -5726,7 +5734,7 @@ Current Brand Brain:
 - Personality: ${AI_CONFIG.personality || "Not set"}
 
 Return a JSON array of Brand Brain field suggestions. Each must have: field, value, source_quote, confidence (High/Medium/Low), conflict (true/false), conflict_note.
-Return ONLY valid JSON array, no markdown.`;
+Return ONLY a valid JSON array — even if empty, return []. Never return blank. No markdown, no text outside the JSON.`;
 
     const callBody = {
       method: "CLAUDE_API",
@@ -5734,12 +5742,20 @@ Return ONLY valid JSON array, no markdown.`;
       claudeMethod: "mybffAnalyze",
       prompt
     };
-    if (cached) {
+    // Pass URL so Worker can fetch page content
+    if (item.url) {
+      callBody.url = item.url;
+      setDebug(`📤 Sending to Worker — will fetch URL: ${item.url}`);
+    } else if (cached) {
       callBody.base64Data = cached.base64;
       callBody.mediaType = cached.mediaType;
       setDebug(`📤 Sending to Worker with ${Math.round(cached.base64.length/1024)}KB document...`);
+    } else if (item.notes) {
+      setDebug(`📤 Sending to Worker with notes text (${item.notes.length} chars)...`);
     } else {
-      setDebug(`📤 Sending to Worker (text/URL)...`);
+      setDebug("❌ No content — please re-upload the document", "#dc2626");
+      showToast("No content to analyze. Please re-upload the document.", "error");
+      return;
     }
 
     let rawResult;
