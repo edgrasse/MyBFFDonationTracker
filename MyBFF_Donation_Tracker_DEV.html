@@ -1807,7 +1807,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.11i-DEV · Apr 26 2026 · 11:40 PM";
+const BUILD_VERSION = "v5.11j-DEV · Apr 26 2026 · 11:55 PM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5591,7 +5591,7 @@ function renderAISettings() {
 
       <!-- Save -->
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:32px">
-        <button class="btn btn-outline" onclick="renderAISettings()">Discard Changes</button>
+        <button class="btn btn-outline" onclick="closeModal('aiIntakeModal')">Close</button>
         <button class="btn btn-gold" onclick="saveAISettings()">💾 Save Brand Brain</button>
       </div>
     </div>`;
@@ -5862,9 +5862,17 @@ async function approveSuggestion(i) {
       changed_by: myName, changed_at: now,
       source_name: window._aiIntakeSource || "AI Analysis", confidence: s.confidence };
     try { await sbInsert("MyBFFAIHistory", histRow); AI_VERSION_HISTORY.unshift(histRow); } catch(e) {}
-    // Mark as approved and re-render
+    // Mark as approved — update row in place without re-rendering the whole modal
     (window._aiApproved = window._aiApproved || new Set()).add(i);
-    renderIntakeModal();
+    const row = document.getElementById("intake-row-"+i);
+    if (row) {
+      row.style.opacity = "0.4";
+      row.style.background = "#f0fdf4";
+      const btns = row.querySelector("div[style*='gap:6px']");
+      if (btns) btns.innerHTML = `<span style="background:#d1fae5;color:#065f46;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600">✅ Accepted</span>`;
+      const ta = document.getElementById("intake-val-"+i);
+      if (ta) ta.disabled = true;
+    }
     showToast(`✅ "${s.field}" saved to Brand Brain!`);
   } catch(e) {
     showToast("Error saving: " + e.message, "error");
