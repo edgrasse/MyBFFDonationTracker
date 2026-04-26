@@ -1807,7 +1807,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.11f-DEV · Apr 26 2026 · 11:05 PM";
+const BUILD_VERSION = "v5.11g-DEV · Apr 26 2026 · 11:15 PM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5914,7 +5914,21 @@ function aiLibFileSelected(input) {
   const file = input.files[0];
   const preview = document.getElementById("aiLibFilePreview");
   if (!file) { preview.textContent = ""; return; }
-  preview.textContent = `📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+  const isWord = file.name.match(/\.docx?$/i);
+  const isPdf  = file.name.match(/\.pdf$/i);
+  const isTxt  = file.name.match(/\.(txt|md)$/i);
+  let msg = `📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+  if (isWord) {
+    msg += " — ⚠️ Word docs can't be analyzed directly. Save as PDF first, or paste the text into Notes.";
+    preview.style.color = "#dc2626";
+  } else if (isPdf) {
+    msg += " — ✅ PDF ready for analysis";
+    preview.style.color = "#065f46";
+  } else if (isTxt) {
+    msg += " — ✅ Text file ready";
+    preview.style.color = "#065f46";
+  }
+  preview.textContent = msg;
   // Auto-fill name if empty
   const nameEl = document.getElementById("aiLibModalName");
   if (!nameEl.value) nameEl.value = file.name.replace(/\.[^.]+$/,"");
