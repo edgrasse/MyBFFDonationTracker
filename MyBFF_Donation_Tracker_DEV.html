@@ -1553,7 +1553,7 @@ if ('serviceWorker' in navigator) {
     <div style="font-size:13px;color:var(--gray);margin-bottom:16px" id="aiIntakeSource"></div>
     <div style="flex:1;overflow-y:auto;margin-bottom:16px" id="aiIntakeSuggestions"></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border);padding-top:14px">
-      <button class="btn btn-outline" onclick="closeModal('aiIntakeModal')">Cancel</button>
+      <button class="btn btn-outline" onclick="closeModal('aiIntakeModal')">Close</button>
       <button class="btn btn-outline" onclick="skipAllSuggestions()">Skip All</button>
       <button class="btn btn-gold" onclick="approveAllSuggestions()">✅ Approve All High Confidence</button>
     </div>
@@ -1807,7 +1807,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.11o-DEV · Apr 26 2026 · 09:30 AM";
+const BUILD_VERSION = "v5.11p-DEV · Apr 26 2026 · 09:45 AM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5827,11 +5827,12 @@ function reopenIntakeModal() {
 }
 
 function showAIIntakeModal(item, suggestions) {
-  // Store on window so modal can be reopened
+  // Store on window so modal can be reopened — reset state for new analysis
   window._aiIntakeSuggestions = suggestions;
   window._aiIntakeItem = item;
   window._aiIntakeSource = item.name || item.url;
-  window._aiApproved = new Set(); // track which indices have been approved
+  window._aiApproved = new Set(); // track approved indices
+  window._aiSkipped = new Set(); // track skipped indices
   renderIntakeModal();
   openModal("aiIntakeModal");
 }
@@ -5840,14 +5841,19 @@ function renderIntakeModal() {
   const suggestions = window._aiIntakeSuggestions || [];
   const item = window._aiIntakeItem || {};
   const approved = window._aiApproved || new Set();
+  const skipped = window._aiSkipped || new Set();
+  const pending = suggestions.filter((_,i) => !approved.has(i) && !skipped.has(i)).length;
+  const allDone = suggestions.length > 0 && pending === 0;
   document.getElementById("aiIntakeSource").textContent =
-    `Source: ${item.name || item.url || ""} — ${suggestions.length} suggestion${suggestions.length!==1?"s":""}`;
+    `Source: ${item.name || item.url || ""} — ${suggestions.length} suggestion${suggestions.length!==1?"s":""}${allDone?" — All Done ✅":""}`;
   const container = document.getElementById("aiIntakeSuggestions");
   container.innerHTML = suggestions.map((s, i) => {
     const confBg = s.confidence==="High" ? "#d1fae5" : s.confidence==="Medium" ? "#fef3c7" : "#fee2e2";
     const confColor = s.confidence==="High" ? "#065f46" : s.confidence==="Medium" ? "#92400e" : "#991b1b";
     const existing = AI_CONFIG[s.field];
     const isApproved = approved.has(i);
+    const isSkipped = skipped.has(i);
+    if (isSkipped) return ""; // Don't render skipped items
     const mappedField = mapToConfigField(s.field);
     return `
       <div id="intake-row-${i}" style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;
@@ -5980,8 +5986,19 @@ async function approveSuggestion(i) {
 }
 
 function skipSuggestion(i) {
+  (window._aiSkipped = window._aiSkipped || new Set()).add(i);
   const row = document.getElementById("intake-row-"+i);
-  if (row) { row.style.opacity = "0.3"; row.style.textDecoration = "line-through"; }
+  if (row) row.remove(); // Remove from DOM immediately
+  // Check if all items are now handled
+  const suggestions = window._aiIntakeSuggestions || [];
+  const approved = window._aiApproved || new Set();
+  const skipped = window._aiSkipped || new Set();
+  const pending = suggestions.filter((_,j) => !approved.has(j) && !skipped.has(j)).length;
+  if (pending === 0) {
+    document.getElementById("aiIntakeSource").textContent =
+      `Source: ${window._aiIntakeItem?.name || ""} — All items reviewed ✅`;
+    showToast("All suggestions reviewed. Click Close to finish.");
+  }
 }
 
 async function approveAllSuggestions() {
@@ -6000,7 +6017,9 @@ async function approveAllSuggestions() {
 function skipAllSuggestions() {
   const suggestions = window._aiIntakeSuggestions || [];
   suggestions.forEach((_,i) => {
-    if (!(window._aiApproved||new Set()).has(i)) skipSuggestion(i);
+    if (!(window._aiApproved||new Set()).has(i)) {
+      (window._aiSkipped = window._aiSkipped || new Set()).add(i);
+    }
   });
   closeModal("aiIntakeModal");
 }
