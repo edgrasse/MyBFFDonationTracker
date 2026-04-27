@@ -1807,7 +1807,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.11l-DEV · Apr 26 2026 · 08:45 AM";
+const BUILD_VERSION = "v5.11m-DEV · Apr 26 2026 · 09:00 AM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5779,12 +5779,16 @@ Return ONLY a valid JSON array — even if empty, return []. Never return blank.
     try {
       rawResult = await workerCall(callBody);
     } catch(workerErr) {
-      setDebug("❌ Worker call failed: " + workerErr.message, "#dc2626");
-      showToast("Worker error: " + workerErr.message, "error");
+      // Show full error in console, summary in UI
+      console.error("[Analyze] Full worker error:", workerErr.message);
+      setDebug("❌ Worker error: " + workerErr.message, "#dc2626");
+      showToast("Worker error — see debug line", "error");
       return;
     }
 
-    setDebug(`📥 Worker response: ${JSON.stringify(rawResult).substring(0, 200)}`);
+    // Log full response to console for diagnosis
+    console.log("[Analyze] Full worker response:", JSON.stringify(rawResult));
+    setDebug(`📥 Got response (${JSON.stringify(rawResult).length} chars). rawLength: ${rawResult?.rawLength || "n/a"}`);
 
     if (rawResult?.error) {
       setDebug("❌ API error: " + rawResult.error, "#dc2626");
