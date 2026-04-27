@@ -1807,7 +1807,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.11n-DEV · Apr 26 2026 · 09:15 AM";
+const BUILD_VERSION = "v5.11o-DEV · Apr 26 2026 · 09:30 AM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5848,12 +5848,15 @@ function renderIntakeModal() {
     const confColor = s.confidence==="High" ? "#065f46" : s.confidence==="Medium" ? "#92400e" : "#991b1b";
     const existing = AI_CONFIG[s.field];
     const isApproved = approved.has(i);
+    const mappedField = mapToConfigField(s.field);
     return `
       <div id="intake-row-${i}" style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;
-        ${s.conflict?"border-left:4px solid #dc2626":""}${isApproved?"opacity:0.4;background:#f0fdf4;":""}">
+        ${s.conflict?"border-left:4px solid #dc2626":""}${isApproved?"opacity:0.4;background:#f0fdf4;":""}${!mappedField?"border-left:4px solid #f59e0b":""}">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
           <div>
             <span style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.5px">${esc(s.field)}</span>
+            ${mappedField && mappedField !== s.field ? `<span style="font-size:11px;color:#065f46;background:#d1fae5;padding:1px 6px;border-radius:20px;margin-left:6px">→ saves to: ${esc(mappedField)}</span>` : ""}
+            ${!mappedField ? `<span style="font-size:11px;color:#92400e;background:#fef3c7;padding:1px 6px;border-radius:20px;margin-left:6px">⚠️ no matching field — copy manually</span>` : ""}
             <span style="background:${confBg};color:${confColor};padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;margin-left:8px">${s.confidence}</span>
             ${s.conflict ? `<span style="background:#fee2e2;color:#991b1b;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;margin-left:4px">⚠️ Conflict</span>` : ""}
             ${isApproved ? `<span style="background:#d1fae5;color:#065f46;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;margin-left:4px">✅ Accepted</span>` : ""}
@@ -5872,6 +5875,56 @@ function renderIntakeModal() {
   }).join("");
 }
 
+// Maps Claude's suggested field names to actual MyBFFAIConfig columns
+function mapToConfigField(claudeField) {
+  const map = {
+    // Direct matches
+    "mission":           "mission",
+    "personality":       "personality",
+    "use_words":         "use_words",
+    "avoid_words":       "avoid_words",
+    "hashtags":          "hashtags",
+    "history":           "history",
+    "stats":             "stats",
+    "people":            "people",
+    "years":             "years",
+    "geography":         "geography",
+    "disclosures":       "disclosures",
+    "avoid_claims":      "avoid_claims",
+    "privacy":           "privacy",
+    "current_focus":     "current_focus",
+    "campaign_messages": "campaign_messages",
+    // Common Claude variations → Brand Brain fields
+    "vision":            "mission",
+    "tagline":           "org_name",
+    "tone":              "personality",
+    "voice":             "personality",
+    "values":            "use_words",
+    "core_values":       "use_words",
+    "target_audience":   "people",
+    "audience":          "people",
+    "location":          "geography",
+    "founding_purpose":  "history",
+    "founding_date":     "history",
+    "founding_governance_date": "history",
+    "bylaws_date":       "history",
+    "organization_type": "history",
+    "services":          "stats",
+    "service_delivery_channels": "stats",
+    "governance_structure": "people",
+    "personality_words": "personality",
+    "channel_facebook":  "channel_facebook",
+    "channel_instagram": "channel_instagram",
+    "channel_email":     "channel_email",
+    "channel_flyer":     "channel_flyer",
+    "event_cornhole":    "event_cornhole",
+    "event_trivia":      "event_trivia",
+    "event_walk_run":    "event_walk_run",
+    "event_golf":        "event_golf",
+  };
+  return map[claudeField] || null;
+}
+
 async function approveSuggestion(i) {
   const s = window._aiIntakeSuggestions?.[i];
   if (!s) return;
@@ -5879,21 +5932,32 @@ async function approveSuggestion(i) {
   if (!val) { showToast("Value is empty — nothing to save.", "error"); return; }
   const now = new Date().toISOString();
   const myName = currentUser?.displayName || "";
-  const oldVal = AI_CONFIG[s.field] || null;
+
+  // Map Claude's field name to an actual DB column
+  const dbField = mapToConfigField(s.field);
+  if (!dbField) {
+    // No matching column — store in notes field instead and show message
+    showToast(`ℹ️ "${s.field}" doesn't map to a Brand Brain field — copy the value manually if needed.`);
+    const row = document.getElementById("intake-row-"+i);
+    if (row) { row.style.opacity = "0.5"; row.style.background = "#fef3c7"; }
+    return;
+  }
+
+  const oldVal = AI_CONFIG[dbField] || null;
 
   // Ensure AI_CONFIG has a valid id and exists in DB
   try {
     if (!AI_CONFIG.id) {
       // First save — create the config record
       AI_CONFIG.id = genId();
-      await sbInsert("MyBFFAIConfig", { id: AI_CONFIG.id, [s.field]: val, updated_at: now });
+      await sbInsert("MyBFFAIConfig", { id: AI_CONFIG.id, [dbField]: val, updated_at: now });
     } else {
       // Update existing record
-      await sbUpdate("MyBFFAIConfig", AI_CONFIG.id, { [s.field]: val, updated_at: now }, "id");
+      await sbUpdate("MyBFFAIConfig", AI_CONFIG.id, { [dbField]: val, updated_at: now }, "id");
     }
-    AI_CONFIG[s.field] = val;
+    AI_CONFIG[dbField] = val;
     // Log to history
-    const histRow = { id: genId(), field_name: s.field, old_value: oldVal, new_value: val,
+    const histRow = { id: genId(), field_name: dbField + (dbField !== s.field ? " (from: "+s.field+")" : ""), old_value: oldVal, new_value: val,
       changed_by: myName, changed_at: now,
       source_name: window._aiIntakeSource || "AI Analysis", confidence: s.confidence };
     try { await sbInsert("MyBFFAIHistory", histRow); AI_VERSION_HISTORY.unshift(histRow); } catch(e) {}
