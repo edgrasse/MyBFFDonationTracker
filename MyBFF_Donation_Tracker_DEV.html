@@ -1807,7 +1807,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.11p-DEV · Apr 29 2026 · 10:30 AM";
+const BUILD_VERSION = "v5.11p-DEV · Apr 29 2026 · 11:05 AM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -1886,6 +1886,22 @@ function genId() {
 function esc(s) {
   if (s == null) return "";
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// Format any date string (ISO, YYYY-MM-DD, etc.) to "Apr 29, 2026"
+function fmtDate(val) {
+  if (!val) return "—";
+  const s = String(val);
+  // Already YYYY-MM-DD format — parse safely without timezone shift
+  const ymdMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (ymdMatch) {
+    const d = new Date(parseInt(ymdMatch[1]), parseInt(ymdMatch[2])-1, parseInt(ymdMatch[3]));
+    return d.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
+  }
+  // ISO string or other — parse normally
+  const d = new Date(s);
+  if (isNaN(d)) return s; // return as-is if unparseable
+  return d.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
 }
 
 // Event color class helper
@@ -2643,10 +2659,11 @@ function populateEventDropdowns() {
   const allOpt  = `<option value="">All Events</option>`;
   const blankOpt = `<option value="">Select...</option>`;
 
-  // Filter dropdowns in Donations and Reports tabs
+  // Filter dropdowns in Donations and Reports tabs — use event TYPE names to match event_requested field
+  const typeFilterOpts = ALL_EVENT_TYPES.map(t => `<option value="${t.name}">${t.name}</option>`).join("");
   ["donEvent","rptEvent"].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.innerHTML = allOpt + nameOpts;
+    if (el) el.innerHTML = allOpt + typeFilterOpts;
   });
 
   // Donation modal: event type (short name)
@@ -2680,11 +2697,12 @@ function populateEventDropdowns() {
   renderAdminEvents();
 }
 
-function populateWhoDropdown() {
+function populateWhoDropdown(keepCurrent) {
   const el = document.getElementById("donWho");
   if (!el) return;
   el.innerHTML = APP_USERS.map(u => `<option value="${u.displayName}">${u.displayName}</option>`).join("");
-  if (currentUser) el.value = currentUser.displayName;
+  // Only default to current user when adding new — not when editing (keepCurrent=true)
+  if (!keepCurrent && currentUser) el.value = currentUser.displayName;
 }
 
 function populateTaskAssigneeFilter() {
@@ -3324,7 +3342,7 @@ function renderDonations() {
       <td><span class="badge ${eventClass(d.event_requested)}">${d.event_requested || "—"}</span></td>
       <td>${usedForDisplay}</td>
       <td>${d.how || "—"}</td>
-      <td>${d.date_requested || "—"}</td>
+      <td>${fmtDate(d.date_requested)}</td>
       <td><span class="badge ${grantedBadge(d.granted)}">${d.granted || "Pending"}</span></td>
       <td>${d.value ? "$"+parseFloat(d.value).toLocaleString() : "—"}</td>
       <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.item || "—"}</td>
@@ -3384,7 +3402,7 @@ function viewDonation(id) {
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px;margin-bottom:20px">
       <div><span style="color:var(--gray);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px">How Contacted</span><br>${d.how || "—"}</div>
-      <div><span style="color:var(--gray);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Date Requested</span><br>${d.date_requested || "—"}</div>
+      <div><span style="color:var(--gray);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Date Requested</span><br>${fmtDate(d.date_requested)}</div>
       <div><span style="color:var(--gray);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Item Donated</span><br>${d.item || "—"}</div>
       <div><span style="color:var(--gray);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Estimated Value</span><br>${d.value ? "$"+parseFloat(d.value).toLocaleString() : "—"}</div>
       <div><span style="color:var(--gray);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Used For</span><br>${d.used_for || "—"}</div>
@@ -3432,14 +3450,14 @@ function editDonation(id) {
   if (!d) return;
   editingDonationId = id;
   document.getElementById("donModalTitle").textContent = "Edit Donation";
-  populateWhoDropdown();
+  populateWhoDropdown(true); // true = keep existing value, don't default to current user
   document.getElementById("donOrg").value = d.organization || "";
   document.getElementById("donType2").value = d.type || "";
-  document.getElementById("donWho").value = d.who || "";
+  document.getElementById("donWho").value = d.who || ""; // set AFTER populateWhoDropdown
   document.getElementById("donYearField").value = d.year || new Date().getFullYear();
-  document.getElementById("donEventReq").value = d.event_requested || "";
-  // Populate and set event instance
+  // Populate dropdowns first, then set values
   populateEventDropdowns();
+  document.getElementById("donEventReq").value = d.event_requested || "";
   document.getElementById("donEventInstance").value = d.event_instance_id || "";
   document.getElementById("donUsedFor").value = d.used_for || "";
   // Category
@@ -3456,7 +3474,7 @@ function editDonation(id) {
     document.getElementById("donCategoryOtherRow").style.display = "none";
   }
   document.getElementById("donHow").value = d.how || "";
-  document.getElementById("donDate").value = d.date_requested || "";
+  document.getElementById("donDate").value = (d.date_requested || "").substring(0, 10);
   document.getElementById("donLeadTime").value = d.lead_time || "";
   document.getElementById("donGranted2").value = d.granted || "";
   document.getElementById("donItem").value = d.item || "";
@@ -3765,7 +3783,7 @@ function renderReport() {
     <tr>
       <td>${d.year}</td><td><strong>${d.organization}</strong></td><td>${d.type || "—"}</td>
       <td>${d.event_requested || "—"}</td><td>${d.used_for || "—"}</td><td>${d.how || "—"}</td>
-      <td>${d.date_requested || "—"}</td>
+      <td>${fmtDate(d.date_requested)}</td>
       <td><span class="badge ${grantedBadge(d.granted)}">${d.granted || "Pending"}</span></td>
       <td>${d.value ? "$"+parseFloat(d.value).toLocaleString() : "—"}</td>
       <td>${d.item || "—"}</td><td>${d.lead_time || "—"}</td><td>${d.who || "—"}</td>
