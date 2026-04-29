@@ -867,7 +867,7 @@ if ('serviceWorker' in navigator) {
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Who is entering this?</label>
+        <label class="form-label">Requested By</label>
         <select class="form-select" id="donWho"></select>
       </div>
       <div class="form-group">
@@ -1807,7 +1807,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.11p-DEV · Apr 29 2026 · 11:05 AM";
+const BUILD_VERSION = "v5.11p-DEV · Apr 29 2026 · 11:20 AM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -2682,25 +2682,29 @@ function populateEventDropdowns() {
     if (cur) donInst.value = cur;
   }
 
-  // Used For filter dropdown (event names)
+  // Used For filter dropdown — uses event TYPE names to match used_for field
   const ufEl = document.getElementById("donUsedForFilter");
   if (ufEl) {
-    ufEl.innerHTML = `<option value="">All Used For</option><option value="__available__">⭐ Available (not yet used)</option>` + nameOpts;
+    ufEl.innerHTML = `<option value="">All Used For</option><option value="__available__">⭐ Available (not yet used)</option>` + typeFilterOpts;
   }
 
-  // Used For in donation form (event names)
+  // Used For in donation form — event TYPE names (short), matching what's stored in used_for
   ["donUsedFor"].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.innerHTML = blankOpt + nameOpts;
+    if (el) el.innerHTML = blankOpt + typeFilterOpts;
   });
 
   renderAdminEvents();
 }
 
-function populateWhoDropdown(keepCurrent) {
+function populateWhoDropdown(keepCurrent, storedValue) {
   const el = document.getElementById("donWho");
   if (!el) return;
-  el.innerHTML = APP_USERS.map(u => `<option value="${u.displayName}">${u.displayName}</option>`).join("");
+  const userNames = APP_USERS.map(u => u.displayName);
+  // If stored value isn't in current user list, add it so it's selectable
+  const extraOpts = (storedValue && !userNames.includes(storedValue))
+    ? `<option value="${esc(storedValue)}">${esc(storedValue)}</option>` : "";
+  el.innerHTML = extraOpts + APP_USERS.map(u => `<option value="${u.displayName}">${u.displayName}</option>`).join("");
   // Only default to current user when adding new — not when editing (keepCurrent=true)
   if (!keepCurrent && currentUser) el.value = currentUser.displayName;
 }
@@ -3450,7 +3454,7 @@ function editDonation(id) {
   if (!d) return;
   editingDonationId = id;
   document.getElementById("donModalTitle").textContent = "Edit Donation";
-  populateWhoDropdown(true); // true = keep existing value, don't default to current user
+  populateWhoDropdown(true, d.who); // pass stored value so it appears even if not in current user list
   document.getElementById("donOrg").value = d.organization || "";
   document.getElementById("donType2").value = d.type || "";
   document.getElementById("donWho").value = d.who || ""; // set AFTER populateWhoDropdown
