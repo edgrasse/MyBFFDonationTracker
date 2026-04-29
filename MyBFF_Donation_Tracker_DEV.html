@@ -1807,7 +1807,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.11p-DEV · Apr 26 2026 · 09:45 AM";
+const BUILD_VERSION = "v5.11p-DEV · Apr 29 2026 · 10:15 AM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5681,7 +5681,13 @@ async function saveAISettings() {
 
   try {
     if (AI_CONFIG.id) {
-      await sbUpdate("MyBFFAIConfig", AI_CONFIG.id, row, "id");
+      // Try update first — if record doesn't exist, insert it
+      try {
+        await sbUpdate("MyBFFAIConfig", AI_CONFIG.id, row, "id");
+      } catch(updateErr) {
+        // Record may not exist yet — insert instead
+        await sbInsert("MyBFFAIConfig", row);
+      }
     } else {
       await sbInsert("MyBFFAIConfig", row);
     }
@@ -5695,8 +5701,12 @@ async function saveAISettings() {
     }
     AI_CONFIG = row;
     showToast("💾 Brand Brain saved!");
-    renderAISettings();
-  } catch(e) { showToast("Error saving: " + e.message, "error"); }
+    // Update just the section review timestamps without re-rendering the whole form
+    // (re-rendering would scroll user back to top and reset their editing position)
+  } catch(e) {
+    console.error("saveAISettings error:", e);
+    showToast("Error saving: " + e.message, "error");
+  }
 }
 
 // ── AI Intake (analyze library item) ─────────────────────────
