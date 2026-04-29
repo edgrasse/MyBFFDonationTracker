@@ -1807,7 +1807,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.11p-DEV · Apr 29 2026 · 10:15 AM";
+const BUILD_VERSION = "v5.11p-DEV · Apr 29 2026 · 10:30 AM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5656,12 +5656,17 @@ async function saveAISettings() {
     updated_at: now
   };
 
-  // Campaign-specific flags
+  // Campaign-specific flags (only columns that exist in schema)
   ["org_name","stats"].forEach(f => {
     row["campaign_"+f] = document.getElementById("campaign_"+f)?.checked || false;
   });
+  // Note: campaign_event_* columns require MyBFF_v511_SQL.sql to be run first
+  // Only include them if they exist in AI_CONFIG (safe check)
   ["cornhole","trivia","walk_run","golf","super_bowl_squares"].forEach(ev => {
-    row["campaign_event_"+ev] = document.getElementById("campaign_event_"+ev)?.checked || false;
+    const key = "campaign_event_"+ev;
+    if (AI_CONFIG.hasOwnProperty(key)) {
+      row[key] = document.getElementById(key)?.checked || false;
+    }
   });
 
   // Audience segments
