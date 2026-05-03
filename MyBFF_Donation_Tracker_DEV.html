@@ -1859,7 +1859,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.12b-DEV · May 03 2026 · 10:20 AM";
+const BUILD_VERSION = "v5.12c-DEV · May 03 2026 · 10:35 AM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5841,36 +5841,27 @@ async function saveAsset() {
     }
 
     // Step 2: Upload file directly from browser to Supabase Storage
-    // Use the signed URL if available, otherwise fall back to direct upload with key
+    // Worker returned uploadUrl + serviceKey — browser uploads directly (no size limit)
     let publicUrl = signResult.publicUrl;
-    if (signResult.signedUrl) {
-      console.log("[saveAsset] Uploading directly to Supabase via signed URL...");
-      const uploadRes = await fetch(signResult.signedUrl, {
-        method: "PUT",
+    if (signResult.uploadUrl && signResult.serviceKey) {
+      console.log("[saveAsset] Uploading directly to Supabase...", signResult.uploadUrl);
+      const uploadRes = await fetch(signResult.uploadUrl, {
+        method: "POST",
         headers: {
           "Content-Type": file.type || "application/octet-stream",
+          "apikey": signResult.serviceKey,
+          "Authorization": "Bearer " + signResult.serviceKey,
           "x-upsert": "true"
         },
         body: file
       });
+      console.log("[saveAsset] Upload response status:", uploadRes.status);
       if (!uploadRes.ok) {
         const err = await uploadRes.text();
-        throw new Error("Upload failed: " + err);
+        throw new Error("Upload failed (" + uploadRes.status + "): " + err);
       }
     } else {
-      // Fallback: upload via Worker (small files only)
-      console.log("[saveAsset] Falling back to Worker upload...");
-      const base64Data = await readFileAsBase64(file);
-      const result = await workerCall({
-        method: "STORAGE_UPLOAD",
-        appId: APP_ID,
-        bucket: "mybff-content",
-        filePath,
-        base64Data,
-        contentType: file.type || "application/octet-stream"
-      });
-      if (!result?.publicUrl) throw new Error("Upload failed: " + JSON.stringify(result));
-      publicUrl = result.publicUrl;
+      throw new Error("No upload URL returned from Worker: " + JSON.stringify(signResult));
     }
 
     console.log("[saveAsset] Upload done. publicUrl:", publicUrl);
