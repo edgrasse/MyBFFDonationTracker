@@ -1859,7 +1859,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.12-DEV · Apr 29 2026 · 12:00 PM";
+const BUILD_VERSION = "v5.12-DEV · May 01 2026 · 09:00 AM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -4474,6 +4474,423 @@ function grantedBadge(g) {
   return "badge-blank";
 }
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// GRANTS MODULE — v5.10
+// ═══════════════════════════════════════════════════════════
+
+async function loadGrants() {
+  try {
+    const rows = await sbGet("MyBFFGrants", "order=name.asc");
+    ALL_GRANTS = rows || [];
+  } catch(e) { console.warn("loadGrants:", e.message); ALL_GRANTS = []; }
+}
+
+async function loadGrantRequests() {
+  try {
+    const rows = await sbGet("MyBFFGrantRequests", "order=req_date.desc");
+    ALL_GRANT_REQUESTS = rows || [];
+  } catch(e) { console.warn("loadGrantRequests:", e.message); ALL_GRANT_REQUESTS = []; }
+}
+
+const GRANT_STATUSES = ["All","Identified","Drafting","Submitted","Under Review","Awarded","Declined","Withdrawn","Closed","Up for Renewal"];
+
+const GRANT_STATUS_COLORS = {
+  "Identified":    { bg:"#f3f4f6", color:"#374151" },
+  "Drafting":      { bg:"#dbeafe", color:"#1e40af" },
+  "Submitted":     { bg:"#fef3c7", color:"#92400e" },
+  "Under Review":  { bg:"#fde68a", color:"#78350f" },
+  "Awarded":       { bg:"#d1fae5", color:"#065f46" },
+  "Declined":      { bg:"#fee2e2", color:"#991b1b" },
+  "Withdrawn":     { bg:"#f3f4f6", color:"#6b7280" },
+  "Closed":        { bg:"#e5e7eb", color:"#374151" },
+  "Up for Renewal":{ bg:"#ede9fe", color:"#5b21b6" },
+};
+
+function grantStatusBadge(status) {
+  const s = GRANT_STATUS_COLORS[status] || { bg:"#f3f4f6", color:"#374151" };
+  return `<span style="background:${s.bg};color:${s.color};padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600">${status||"Unknown"}</span>`;
+}
+
+function populateGrantYearFilter() {
+  const sel = document.getElementById("grantYearFilter");
+  if (!sel) return;
+  const years = [...new Set(ALL_GRANT_REQUESTS.map(r => r.year).filter(Boolean))].sort((a,b) => b-a);
+  const curYear = String(new Date().getFullYear());
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">All Years</option>` +
+    years.map(y => `<option value="${y}">${y}</option>`).join("");
+  if (!cur && years.includes(curYear)) sel.value = curYear;
+  else if (cur) sel.value = cur;
+}
+
+function autoFillGrantYear() {
+  const d = document.getElementById("grantReqDate")?.value;
+  if (d) document.getElementById("grantReqYear").value = d.substring(0,4);
+}
+
+function renderGrantsPage() {
+  populateGrantYearFilter();
+  renderGrantDashboard();
+  renderGrantStatusChips();
+  renderGrantList();
+  const addBtn = document.getElementById("grantAddBtn");
+  if (addBtn) addBtn.style.display = isContributor() ? "" : "none";
+}
+
+function renderGrantDashboard() {
+  const container = document.getElementById("grantDashboard");
+  if (!container) return;
+  const yearFilter = document.getElementById("grantYearFilter")?.value || "";
+  let reqs = yearFilter ? ALL_GRANT_REQUESTS.filter(r => String(r.year) === String(yearFilter)) : ALL_GRANT_REQUESTS;
+  const total      = reqs.length;
+  const awarded    = reqs.filter(r => r.status === "Awarded").length;
+  const declined   = reqs.filter(r => r.status === "Declined").length;
+  const pending    = reqs.filter(r => ["Submitted","Under Review","Drafting"].includes(r.status)).length;
+  const totalAmt   = reqs.filter(r => r.status === "Awarded").reduce((s,r) => s + (parseFloat(r.amount_awarded)||0), 0);
+  const today      = new Date().toISOString().split("T")[0];
+  const reportsDue = reqs.filter(r => r.report_due && r.report_due >= today && r.status === "Awarded").length;
+  const renewalDue = reqs.filter(r => r.status === "Up for Renewal").length;
+  const soonDeadline = reqs.filter(r => r.deadline && r.deadline >= today && r.deadline <= new Date(Date.now()+14*86400000).toISOString().split("T")[0] && !["Awarded","Declined","Closed"].includes(r.status)).length;
+  const stats = [
+    { label:"Applied",        value:total,      bg:"var(--navy)",  color:"white" },
+    { label:"Awarded",        value:awarded,    bg:"#d1fae5",      color:"#065f46" },
+    { label:"Declined",       value:declined,   bg:"#fee2e2",      color:"#991b1b" },
+    { label:"In Progress",    value:pending,    bg:"#dbeafe",      color:"#1e40af" },
+    { label:"Total Awarded",  value:`$${totalAmt.toLocaleString("en-US",{maximumFractionDigits:0})}`, bg:"#f0fdf4", color:"#065f46" },
+    { label:"Reports Due",    value:reportsDue,   bg:reportsDue>0?"#fef3c7":"#f3f4f6",  color:reportsDue>0?"#92400e":"#374151" },
+    { label:"Up for Renewal", value:renewalDue,   bg:renewalDue>0?"#ede9fe":"#f3f4f6",  color:renewalDue>0?"#5b21b6":"#374151" },
+    { label:"Deadlines Soon", value:soonDeadline, bg:soonDeadline>0?"#fee2e2":"#f3f4f6", color:soonDeadline>0?"#991b1b":"#374151" },
+  ];
+  container.innerHTML = stats.map(s => `
+    <div style="background:${s.bg};border-radius:10px;padding:14px 16px;text-align:center">
+      <div style="font-size:22px;font-weight:800;color:${s.color}">${s.value}</div>
+      <div style="font-size:11px;color:${s.color};opacity:0.8;margin-top:2px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">${s.label}</div>
+    </div>`).join("");
+}
+
+function renderGrantStatusChips() {
+  const container = document.getElementById("grantStatusChips");
+  if (!container) return;
+  const yearFilter = document.getElementById("grantYearFilter")?.value || "";
+  let reqs = yearFilter ? ALL_GRANT_REQUESTS.filter(r => String(r.year) === String(yearFilter)) : ALL_GRANT_REQUESTS;
+  container.innerHTML = GRANT_STATUSES.map(s => {
+    const count = s === "All" ? reqs.length : reqs.filter(r => r.status === s).length;
+    if (s !== "All" && count === 0) return "";
+    const active = _grantStatusFilter === s;
+    const sc = GRANT_STATUS_COLORS[s] || { bg:"#f3f4f6", color:"#374151" };
+    return `<button onclick="_grantStatusFilter='${s}';renderGrantStatusChips();renderGrantList()"
+      style="padding:5px 12px;border-radius:20px;border:2px solid ${active?"var(--navy)":"transparent"};
+      background:${active?"var(--navy)":sc.bg};color:${active?"white":sc.color};
+      font-size:12px;font-weight:600;cursor:pointer">
+      ${s} <span style="opacity:0.7">(${count})</span>
+    </button>`;
+  }).join("");
+}
+
+function renderGrantList() {
+  const container = document.getElementById("grantList");
+  if (!container) return;
+  const yearFilter = document.getElementById("grantYearFilter")?.value || "";
+  if (!ALL_GRANTS.length) {
+    container.innerHTML = `<div style="text-align:center;padding:48px;color:var(--gray)">
+      No grantors yet.${isContributor() ? " Click <strong>+ Add Grantor</strong> to add the first one." : ""}
+    </div>`;
+    return;
+  }
+  container.innerHTML = ALL_GRANTS.map(g => {
+    let reqs = ALL_GRANT_REQUESTS.filter(r => r.grant_id === g.id);
+    if (yearFilter) reqs = reqs.filter(r => String(r.year) === String(yearFilter));
+    if (_grantStatusFilter !== "All") reqs = reqs.filter(r => r.status === _grantStatusFilter);
+    const allReqs = ALL_GRANT_REQUESTS.filter(r => r.grant_id === g.id);
+    return `
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+          <div>
+            <div style="font-weight:700;font-size:16px">${esc(g.name)}</div>
+            <div style="font-size:13px;color:var(--gray);margin-top:2px;display:flex;gap:10px;flex-wrap:wrap">
+              ${g.grantor_type ? `<span>${esc(g.grantor_type)}</span>` : ""}
+              ${g.website ? `<a href="${esc(g.website)}" target="_blank" style="font-size:12px">🔗 Website</a>` : ""}
+              ${g.allows_multiple ? `<span style="background:#fef3c7;color:#92400e;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600">🏪 Multi-location</span>` : ""}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            ${isContributor() ? `<button class="btn btn-gold btn-sm" onclick="openGrantRequestModal('${esc(g.id)}')">+ Request</button>` : ""}
+            ${isEditor() ? `<button class="btn btn-outline btn-sm" onclick="openGrantModalEdit('${esc(g.id)}')">✏️</button>` : ""}
+            ${isAdmin() ? `<button class="btn btn-sm" style="color:var(--red)" onclick="deleteGrant('${esc(g.id)}')">✕</button>` : ""}
+          </div>
+        </div>
+        ${g.notes ? `<div style="font-size:13px;color:var(--gray);margin-bottom:10px;font-style:italic">${esc(g.notes)}</div>` : ""}
+        <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--gray);margin-bottom:12px">
+          <span><strong>${allReqs.length}</strong> total request${allReqs.length!==1?"s":""}</span>
+          <span style="color:#065f46"><strong>${allReqs.filter(r=>r.status==="Awarded").length}</strong> awarded</span>
+          ${allReqs.filter(r=>r.status==="Awarded").reduce((s,r)=>s+(parseFloat(r.amount_awarded)||0),0) > 0
+            ? `<span style="color:#065f46"><strong>$${allReqs.filter(r=>r.status==="Awarded").reduce((s,r)=>s+(parseFloat(r.amount_awarded)||0),0).toLocaleString("en-US",{maximumFractionDigits:0})}</strong> total awarded</span>` : ""}
+        </div>
+        ${reqs.length ? `
+          <div style="border-top:1px solid var(--border);padding-top:10px">
+            ${reqs.map(r => grantRequestRow(r, g)).join("")}
+          </div>` : `
+          <div style="font-size:13px;color:var(--gray);padding:8px 0;border-top:1px solid var(--border)">
+            No requests${_grantStatusFilter !== "All" ? ` with status "${_grantStatusFilter}"` : ""}${yearFilter ? ` in ${yearFilter}` : ""}.
+          </div>`}
+      </div>`;
+  }).join("");
+}
+
+function grantRequestRow(r, g) {
+  const today = new Date().toISOString().split("T")[0];
+  const deadlineSoon = r.deadline && r.deadline >= today && r.deadline <= new Date(Date.now()+14*86400000).toISOString().split("T")[0] && !["Awarded","Declined","Closed"].includes(r.status);
+  const reportDue = r.report_due && r.report_due >= today && r.status === "Awarded";
+  return `
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          ${grantStatusBadge(r.status)}
+          ${r.location ? `<span style="font-size:12px;font-weight:600">${esc(r.location)}</span>` : ""}
+          ${r.event_name ? `<span style="background:#f0f4ff;color:var(--navy);font-size:11px;padding:1px 7px;border-radius:20px">📅 ${esc(r.event_name)}</span>` : ""}
+        </div>
+        <div style="font-size:12px;color:var(--gray);display:flex;gap:10px;flex-wrap:wrap">
+          ${r.app_url ? `<a href="${esc(r.app_url)}" target="_blank" style="font-size:12px">🔗 Application</a>` : ""}
+          ${r.req_date ? `<span>Requested: ${fmtDate(r.req_date)}</span>` : ""}
+          ${r.req_by ? `<span>By: ${esc(r.req_by)}</span>` : ""}
+          ${r.amount_req ? `<span>Asked: <strong>$${parseFloat(r.amount_req).toLocaleString()}</strong></span>` : ""}
+          ${r.status === "Awarded" && r.amount_awarded ? `<span style="color:#065f46">Awarded: <strong>$${parseFloat(r.amount_awarded).toLocaleString()}</strong></span>` : ""}
+          ${r.deadline && !["Awarded","Declined","Closed"].includes(r.status) ? `<span style="color:${deadlineSoon?"#dc2626":"inherit"}${deadlineSoon?";font-weight:600":""}">Deadline: ${fmtDate(r.deadline)}${deadlineSoon?" ⚠️":""}</span>` : ""}
+          ${reportDue ? `<span style="color:#92400e;font-weight:600">📋 Report due: ${fmtDate(r.report_due)}</span>` : ""}
+          ${r.is_restricted === true || r.is_restricted === "true" ? `<span style="color:#991b1b">🔒 Restricted</span>` : ""}
+        </div>
+        ${r.notes ? `<div style="font-size:12px;color:var(--gray);margin-top:4px;font-style:italic">${esc(r.notes)}</div>` : ""}
+      </div>
+      ${isContributor() ? `
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-outline btn-sm" onclick="openGrantRequestModalEdit('${esc(r.id)}','${esc(g.id)}')">✏️</button>
+          ${isAdmin() ? `<button class="btn btn-sm" style="color:var(--red)" onclick="deleteGrantRequest('${esc(r.id)}')">✕</button>` : ""}
+        </div>` : ""}
+    </div>`;
+}
+
+function openGrantModal() {
+  document.getElementById("grantModalTitle").textContent = "Add Grantor";
+  document.getElementById("grantEditingId").value = "";
+  ["grantName","grantWebsite","grantContact","grantContactEmail","grantNotes"].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value = "";
+  });
+  document.getElementById("grantType").value = "";
+  document.getElementById("grantMultiLocation").checked = false;
+  openModal("grantModal");
+}
+
+function openGrantModalEdit(id) {
+  const g = ALL_GRANTS.find(x => x.id === id);
+  if (!g) return;
+  document.getElementById("grantModalTitle").textContent = "Edit Grantor";
+  document.getElementById("grantEditingId").value = id;
+  document.getElementById("grantName").value = g.name || "";
+  document.getElementById("grantType").value = g.grantor_type || "";
+  document.getElementById("grantWebsite").value = g.website || "";
+  document.getElementById("grantContact").value = g.contact_name || "";
+  document.getElementById("grantContactEmail").value = g.contact_email || "";
+  document.getElementById("grantNotes").value = g.notes || "";
+  document.getElementById("grantMultiLocation").checked = !!g.allows_multiple;
+  openModal("grantModal");
+}
+
+async function saveGrant() {
+  const name = document.getElementById("grantName").value.trim();
+  if (!name) { showToast("Grantor name is required.", "error"); return; }
+  const editingId = document.getElementById("grantEditingId").value;
+  const row = {
+    name,
+    grantor_type:    document.getElementById("grantType").value || null,
+    website:         document.getElementById("grantWebsite").value.trim() || null,
+    contact_name:    document.getElementById("grantContact").value.trim() || null,
+    contact_email:   document.getElementById("grantContactEmail").value.trim() || null,
+    notes:           document.getElementById("grantNotes").value.trim() || null,
+    allows_multiple: document.getElementById("grantMultiLocation").checked,
+  };
+  try {
+    if (editingId) {
+      await sbUpdate("MyBFFGrants", editingId, row, "id");
+      const idx = ALL_GRANTS.findIndex(g => g.id === editingId);
+      if (idx >= 0) ALL_GRANTS[idx] = { ...ALL_GRANTS[idx], ...row };
+    } else {
+      row.id = genId();
+      await sbInsert("MyBFFGrants", row);
+      ALL_GRANTS.push(row);
+      ALL_GRANTS.sort((a,b) => (a.name||"").localeCompare(b.name||""));
+    }
+    closeModal("grantModal");
+    showToast("Grantor saved!");
+    renderGrantsPage();
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+async function deleteGrant(id) {
+  if (!confirm("Delete this grantor and ALL its requests? This cannot be undone.")) return;
+  try {
+    const reqsToDelete = ALL_GRANT_REQUESTS.filter(r => r.grant_id === id);
+    for (const r of reqsToDelete) {
+      await sbDelete("MyBFFGrantRequests", r.id, "id");
+    }
+    await sbDelete("MyBFFGrants", id, "id");
+    ALL_GRANTS = ALL_GRANTS.filter(g => g.id !== id);
+    ALL_GRANT_REQUESTS = ALL_GRANT_REQUESTS.filter(r => r.grant_id !== id);
+    showToast("Grantor deleted.");
+    renderGrantsPage();
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+function openGrantRequestModal(grantId) {
+  const g = ALL_GRANTS.find(x => x.id === grantId);
+  document.getElementById("grantReqModalTitle").textContent = "Add Grant Request";
+  document.getElementById("grantReqGrantorName").textContent = g ? `Grantor: ${g.name}` : "";
+  document.getElementById("grantReqGrantorId").value = grantId;
+  document.getElementById("grantReqEditingId").value = "";
+  document.getElementById("grantReqLocationRow").style.display = g?.allows_multiple ? "" : "none";
+  ["grantReqLocation","grantReqUrl","grantReqDate","grantReqDeadline","grantReqYear","grantReqNotes",
+   "grantReqAwarded","grantReqAwardDate","grantReqPeriodStart","grantReqPeriodEnd",
+   "grantReqRestriction","grantReqReportDate","grantReqRenewalDate"].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value = "";
+  });
+  document.getElementById("grantReqYear").value = new Date().getFullYear();
+  document.getElementById("grantReqBy").innerHTML = `<option value="">— Select —</option>` +
+    APP_USERS.map(u => `<option value="${esc(u.displayName)}">${esc(u.displayName)}</option>`).join("");
+  document.getElementById("grantReqStatus").value = "Identified";
+  document.getElementById("grantReqEventTied").checked = false;
+  document.getElementById("grantReqEventRow").style.display = "none";
+  document.getElementById("grantReqEvent").innerHTML = `<option value="">— Select event —</option>` +
+    ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
+  ["grantReqRestricted","grantReqReportReq","grantReqRenewable"].forEach(id => {
+    const el = document.getElementById(id); if(el) el.checked = false;
+  });
+  ["grantReqRestrictionRow","grantReqReportRow","grantReqRenewalRow"].forEach(id => {
+    const el = document.getElementById(id); if(el) el.style.display = "none";
+  });
+  toggleGrantResponseFields();
+  openModal("grantRequestModal");
+}
+
+function openGrantRequestModalEdit(reqId, grantId) {
+  const r = ALL_GRANT_REQUESTS.find(x => x.id === reqId);
+  const g = ALL_GRANTS.find(x => x.id === grantId);
+  if (!r) return;
+  document.getElementById("grantReqModalTitle").textContent = "Edit Grant Request";
+  document.getElementById("grantReqGrantorName").textContent = g ? `Grantor: ${g.name}` : "";
+  document.getElementById("grantReqGrantorId").value = grantId;
+  document.getElementById("grantReqEditingId").value = reqId;
+  document.getElementById("grantReqLocationRow").style.display = g?.allows_multiple ? "" : "none";
+  document.getElementById("grantReqLocation").value = r.location || "";
+  document.getElementById("grantReqUrl").value = r.app_url || "";
+  document.getElementById("grantReqBy").innerHTML = `<option value="">— Select —</option>` +
+    APP_USERS.map(u => `<option value="${esc(u.displayName)}" ${u.displayName===r.req_by?"selected":""}>${esc(u.displayName)}</option>`).join("");
+  document.getElementById("grantReqAmount").value = r.amount_req || "";
+  document.getElementById("grantReqDate").value = (r.req_date||"").substring(0,10);
+  document.getElementById("grantReqDeadline").value = r.deadline || "";
+  document.getElementById("grantReqYear").value = r.year || new Date().getFullYear();
+  document.getElementById("grantReqStatus").value = r.status || "Identified";
+  document.getElementById("grantReqNotes").value = r.notes || "";
+  const eventTied = !!(r.event_name);
+  document.getElementById("grantReqEventTied").checked = eventTied;
+  document.getElementById("grantReqEventRow").style.display = eventTied ? "" : "none";
+  document.getElementById("grantReqEvent").innerHTML = `<option value="">— Select event —</option>` +
+    ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}" ${e.name===r.event_name?"selected":""}>${esc(e.name)}</option>`).join("");
+  document.getElementById("grantReqAwarded").value = r.amount_awarded || "";
+  document.getElementById("grantReqAwardDate").value = r.award_date || "";
+  document.getElementById("grantReqPeriodStart").value = r.period_start || "";
+  document.getElementById("grantReqPeriodEnd").value = r.period_end || "";
+  document.getElementById("grantReqRestricted").checked = !!(r.is_restricted);
+  document.getElementById("grantReqRestriction").value = r.restriction_desc || "";
+  document.getElementById("grantReqRestrictionRow").style.display = r.is_restricted ? "" : "none";
+  document.getElementById("grantReqReportReq").checked = !!(r.report_required);
+  document.getElementById("grantReqReportDate").value = r.report_due || "";
+  document.getElementById("grantReqReportRow").style.display = r.report_required ? "" : "none";
+  document.getElementById("grantReqRenewable").checked = !!(r.is_renewable);
+  document.getElementById("grantReqRenewalDate").value = r.renewal_date || "";
+  document.getElementById("grantReqRenewalRow").style.display = r.is_renewable ? "" : "none";
+  toggleGrantResponseFields();
+  openModal("grantRequestModal");
+}
+
+function toggleGrantResponseFields() {
+  const status = document.getElementById("grantReqStatus")?.value;
+  const block = document.getElementById("grantReqResponseBlock");
+  if (block) block.style.display = ["Awarded","Declined","Closed","Up for Renewal"].includes(status) ? "" : "none";
+}
+function toggleGrantEventField() {
+  const checked = document.getElementById("grantReqEventTied")?.checked;
+  const row = document.getElementById("grantReqEventRow");
+  if (row) row.style.display = checked ? "" : "none";
+}
+function toggleGrantRestrictionField() {
+  const checked = document.getElementById("grantReqRestricted")?.checked;
+  const row = document.getElementById("grantReqRestrictionRow");
+  if (row) row.style.display = checked ? "" : "none";
+}
+function toggleGrantReportField() {
+  const checked = document.getElementById("grantReqReportReq")?.checked;
+  const row = document.getElementById("grantReqReportRow");
+  if (row) row.style.display = checked ? "" : "none";
+}
+function toggleGrantRenewalField() {
+  const checked = document.getElementById("grantReqRenewable")?.checked;
+  const row = document.getElementById("grantReqRenewalRow");
+  if (row) row.style.display = checked ? "" : "none";
+}
+
+async function saveGrantRequest() {
+  const grantId = document.getElementById("grantReqGrantorId").value;
+  const editingId = document.getElementById("grantReqEditingId").value;
+  if (!grantId) { showToast("Grantor not set.", "error"); return; }
+  const row = {
+    grant_id:        grantId,
+    location:        document.getElementById("grantReqLocation").value.trim() || null,
+    app_url:         document.getElementById("grantReqUrl").value.trim() || null,
+    req_by:          document.getElementById("grantReqBy").value || null,
+    amount_req:      parseFloat(document.getElementById("grantReqAmount").value) || null,
+    req_date:        document.getElementById("grantReqDate").value || null,
+    deadline:        document.getElementById("grantReqDeadline").value || null,
+    year:            document.getElementById("grantReqYear").value || String(new Date().getFullYear()),
+    status:          document.getElementById("grantReqStatus").value || "Identified",
+    event_name:      document.getElementById("grantReqEventTied").checked ? document.getElementById("grantReqEvent").value : null,
+    notes:           document.getElementById("grantReqNotes").value.trim() || null,
+    amount_awarded:  parseFloat(document.getElementById("grantReqAwarded").value) || null,
+    award_date:      document.getElementById("grantReqAwardDate").value || null,
+    period_start:    document.getElementById("grantReqPeriodStart").value || null,
+    period_end:      document.getElementById("grantReqPeriodEnd").value || null,
+    is_restricted:   document.getElementById("grantReqRestricted").checked,
+    restriction_desc: document.getElementById("grantReqRestricted").checked ? document.getElementById("grantReqRestriction").value.trim() : null,
+    report_required: document.getElementById("grantReqReportReq").checked,
+    report_due:      document.getElementById("grantReqReportReq").checked ? document.getElementById("grantReqReportDate").value : null,
+    is_renewable:    document.getElementById("grantReqRenewable").checked,
+    renewal_date:    document.getElementById("grantReqRenewable").checked ? document.getElementById("grantReqRenewalDate").value : null,
+  };
+  try {
+    if (editingId) {
+      await sbUpdate("MyBFFGrantRequests", editingId, row, "id");
+      const idx = ALL_GRANT_REQUESTS.findIndex(r => r.id === editingId);
+      if (idx >= 0) ALL_GRANT_REQUESTS[idx] = { ...ALL_GRANT_REQUESTS[idx], ...row };
+    } else {
+      row.id = genId();
+      await sbInsert("MyBFFGrantRequests", row);
+      ALL_GRANT_REQUESTS.push(row);
+    }
+    closeModal("grantRequestModal");
+    showToast("Grant request saved!");
+    renderGrantsPage();
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+async function deleteGrantRequest(id) {
+  if (!confirm("Delete this grant request?")) return;
+  try {
+    await sbDelete("MyBFFGrantRequests", id, "id");
+    ALL_GRANT_REQUESTS = ALL_GRANT_REQUESTS.filter(r => r.id !== id);
+    showToast("Request deleted.");
+    renderGrantsPage();
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+// ═══════════════════════════════════════════════════════════
 // MARKETING HUB — v5.8
 // ═══════════════════════════════════════════════════════════
 
@@ -6502,6 +6919,35 @@ async function deleteAILibraryItem(id) {
     renderAISettings();
     showToast("Item removed.");
   } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+// ── DEV TOOLS ────────────────────────────────────────────────
+async function clearSeedContent() {
+  if (!confirm("Delete ALL marketing content, comments, and reviewer records? This cannot be undone.")) return;
+  showToast("🗑️ Clearing all content…");
+  try {
+    // Delete all content comments
+    for (const c of [...ALL_CONTENT_COMMENTS]) {
+      try { await sbDelete("MyBFFContentComments", c.id, "id"); } catch(e) {}
+    }
+    // Delete all reviewer records
+    for (const r of [...ALL_CONTENT_REVIEWERS]) {
+      try { await sbDelete("MyBFFContentReviewers", r.id, "id"); } catch(e) {}
+    }
+    // Delete all content items
+    for (const c of [...ALL_CONTENT]) {
+      try { await sbDelete("MyBFFContent", c.id, "id"); } catch(e) {}
+    }
+    // Clear in-memory arrays
+    ALL_CONTENT = [];
+    ALL_CONTENT_COMMENTS = [];
+    ALL_CONTENT_REVIEWERS = [];
+    updateMktgBadge();
+    renderMarketing();
+    showToast("✅ All content cleared.");
+  } catch(e) {
+    showToast("Error clearing content: " + e.message, "error");
+  }
 }
 
 const HELP_DATA = [
