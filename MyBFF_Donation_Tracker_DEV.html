@@ -5847,7 +5847,10 @@ async function saveAsset() {
       console.log("[saveAsset] Uploading directly to Supabase via signed URL...");
       const uploadRes = await fetch(signResult.signedUrl, {
         method: "PUT",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
+        headers: {
+          "Content-Type": file.type || "application/octet-stream",
+          "x-upsert": "true"
+        },
         body: file
       });
       if (!uploadRes.ok) {
