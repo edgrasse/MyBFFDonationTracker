@@ -1859,7 +1859,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.12-DEV · May 01 2026 · 09:00 AM";
+const BUILD_VERSION = "v5.12a-DEV · May 03 2026 · 10:04 AM";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5822,25 +5822,60 @@ async function saveAsset() {
   const forAI = document.getElementById("assetForAI").checked;
   const now = new Date().toISOString();
   const assetId = genId();
+  const ext = file.name.split(".").pop().toLowerCase();
+  const filePath = `assets/${category}/${assetId}.${ext}`;
+  console.log("[saveAsset] Starting:", { name, category, fileSize: file.size, fileType: file.type });
   showToast("⏳ Uploading…");
   try {
-    // Read file as base64
-    const base64Data = await readFileAsBase64(file);
-    const ext = file.name.split(".").pop().toLowerCase();
-    const filePath = `assets/${category}/${assetId}.${ext}`;
-    // Upload to Supabase Storage via Worker
-    const result = await workerCall({
-      method: "STORAGE_UPLOAD",
+    // Step 1: Get a presigned upload URL from Worker (small request — no file data)
+    console.log("[saveAsset] Getting signed URL from Worker...");
+    const signResult = await workerCall({
+      method: "STORAGE_SIGN",
       appId: APP_ID,
       bucket: "mybff-content",
-      filePath,
-      base64Data,
-      contentType: file.type || "application/octet-stream"
+      filePath
     });
-    if (!result?.publicUrl) throw new Error("Upload failed — no public URL returned");
+    console.log("[saveAsset] Sign result:", signResult);
+    if (!signResult?.signedUrl && !signResult?.publicUrl) {
+      throw new Error("Could not get upload URL: " + JSON.stringify(signResult));
+    }
+
+    // Step 2: Upload file directly from browser to Supabase Storage
+    // Use the signed URL if available, otherwise fall back to direct upload with key
+    let publicUrl = signResult.publicUrl;
+    if (signResult.signedUrl) {
+      console.log("[saveAsset] Uploading directly to Supabase via signed URL...");
+      const uploadRes = await fetch(signResult.signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file
+      });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.text();
+        throw new Error("Upload failed: " + err);
+      }
+    } else {
+      // Fallback: upload via Worker (small files only)
+      console.log("[saveAsset] Falling back to Worker upload...");
+      const base64Data = await readFileAsBase64(file);
+      const result = await workerCall({
+        method: "STORAGE_UPLOAD",
+        appId: APP_ID,
+        bucket: "mybff-content",
+        filePath,
+        base64Data,
+        contentType: file.type || "application/octet-stream"
+      });
+      if (!result?.publicUrl) throw new Error("Upload failed: " + JSON.stringify(result));
+      publicUrl = result.publicUrl;
+    }
+
+    console.log("[saveAsset] Upload done. publicUrl:", publicUrl);
+
+    // Step 3: Save metadata to MyBFFAssets
     const row = {
       id: assetId, name, category, event_name: eventName,
-      file_url: result.publicUrl, file_path: filePath,
+      file_url: publicUrl, file_path: filePath,
       file_type: file.type, file_size: file.size,
       tags, notes, for_ai: forAI,
       created_by: currentUser?.displayName || "",
@@ -5848,18 +5883,20 @@ async function saveAsset() {
     };
     await sbInsert("MyBFFAssets", row);
     ALL_ASSETS.unshift(row);
-    // Also cache file for immediate AI analysis
+
+    // Cache file for immediate AI analysis if needed
     if (forAI) {
+      const base64Data = await readFileAsBase64(file);
       AI_FILE_CACHE.set(assetId, { base64: base64Data, mediaType: file.type, name: file.name });
     }
+
     closeModal("assetUploadModal");
     showToast(`✅ ${name} uploaded!`);
     renderAssetLibrary();
-    // If for_ai, also refresh Brand Library in AI Settings
     if (forAI) renderAISettings();
   } catch(e) {
+    console.error("[saveAsset] FAILED:", e);
     showToast("Upload failed: " + e.message, "error");
-    console.error("saveAsset error:", e);
   }
 }
 
