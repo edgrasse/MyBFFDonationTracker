@@ -1660,6 +1660,21 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ASSET PICKER MODAL (pull from Asset Library into Brand Library) -->
+<div class="modal-overlay" id="assetPickerModal">
+  <div class="modal" style="max-width:560px;max-height:90vh;display:flex;flex-direction:column">
+    <button class="modal-close" onclick="closeModal('assetPickerModal')" style="top:14px;right:14px">&#10005;</button>
+    <div class="modal-title">📂 Pull from Asset Library</div>
+    <div style="font-size:13px;color:var(--gray);margin-bottom:12px">
+      Select an asset to bring into the Brand Library for AI analysis. Only assets not already in the Brand Library are shown.
+    </div>
+    <div id="assetPickerList" style="flex:1;overflow-y:auto;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;padding:8px"></div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal('assetPickerModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- GRANT MODAL (add/edit grantor) -->
 <div class="modal-overlay" id="grantModal">
   <div class="modal" style="max-width:600px">
@@ -1907,7 +1922,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.12f-DEV · May 09 2026";
+const BUILD_VERSION = "v5.12g-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -6047,7 +6062,6 @@ function renderAssetLibrary() {
             </div>` : ""}
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:auto">
               ${a.file_url ? `<a href="${esc(a.file_url)}" target="_blank" class="btn btn-sm btn-outline" style="font-size:11px">⬇️ Download</a>` : ""}
-              ${a.file_url ? `<button class="btn btn-sm btn-outline" style="font-size:11px" onclick="analyzeAsset('${esc(a.id)}')">🔍 Analyze</button>` : ""}
               ${isAdmin() ? `<button class="btn btn-sm" style="color:var(--red);font-size:11px" onclick="deleteAsset('${esc(a.id)}')">✕</button>` : ""}
             </div>
             ${a.file_size ? `<div style="font-size:10px;color:var(--gray)">${(a.file_size/1024).toFixed(1)} KB · ${a.file_type||"file"}</div>` : ""}
@@ -6328,10 +6342,13 @@ function renderAISettings() {
       <div class="card" style="margin-bottom:16px">
         <div style="font-weight:700;font-size:15px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           📚 Brand Library
-          <button class="btn btn-gold btn-sm" onclick="openAILibraryModal()">+ Add Item</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-outline btn-sm" onclick="openAssetPickerModal()">📂 From Asset Library</button>
+            <button class="btn btn-gold btn-sm" onclick="openAILibraryModal()">+ Add Item</button>
+          </div>
         </div>
         <div style="font-size:12px;color:var(--gray);margin-bottom:16px">
-          Staging area for source documents. Add a URL, upload a document, or paste text — click <strong>🔍 Analyze</strong> to extract Brand Brain values. Once reviewed, document items can be <strong>saved to the Asset Library</strong> where they live permanently.
+          Staging area for AI analysis. Add a URL, upload a document, or pull an existing file from the Asset Library — click <strong>🔍 Analyze</strong> to extract Brand Brain field values. After reviewing, document items can be <strong>saved to the Asset Library</strong>. Asset Library items already here can be removed with ✕ without affecting the Asset Library.
         </div>
         <div id="aiLibraryList">
           ${(() => {
@@ -6358,7 +6375,7 @@ function renderAISettings() {
                 </div>
                 <div style="display:flex;gap:6px;flex-shrink:0">
                   ${item._isAsset
-                    ? `<button class="btn btn-sm btn-outline" onclick="analyzeAsset('${esc(item.id)}')">🔍 Analyze</button>`
+                    ? `<button class="btn btn-sm" style="color:var(--red)" title="Remove from Brand Library (stays in Asset Library)" onclick="removeAssetFromBrandLibrary('${esc(item.id)}')">✕</button>`
                     : `<button class="btn btn-sm btn-outline" onclick="analyzeLibraryItem('${esc(item.id)}')">🔍 Analyze</button>
                        <button class="btn btn-sm" style="color:var(--red)" onclick="deleteAILibraryItem('${esc(item.id)}')">✕</button>`}
                 </div>
@@ -7160,7 +7177,61 @@ async function deleteAILibraryItem(id) {
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
-// ── DEV TOOLS ────────────────────────────────────────────────
+async function removeAssetFromBrandLibrary(assetId) {
+  // Flips for_ai to false — removes from Brand Library view only.
+  // Does NOT delete the asset or its file from the Asset Library.
+  const asset = ALL_ASSETS.find(a => a.id === assetId);
+  if (!asset) return;
+  if (!confirm(`Remove "${asset.name}" from the Brand Library?\n\nThis will NOT delete it from the Asset Library.`)) return;
+  try {
+    await sbUpdate("MyBFFAssets", assetId, { for_ai: false }, "id");
+    asset.for_ai = false;
+    AI_FILE_CACHE.delete(assetId);
+    renderAISettings();
+    showToast("Removed from Brand Library. Still in Asset Library. ✅");
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+function openAssetPickerModal() {
+  // Show assets that are NOT already in the Brand Library (for_ai = false)
+  const eligible = ALL_ASSETS.filter(a => !a.for_ai && a.file_url);
+  const list = document.getElementById("assetPickerList");
+  if (!eligible.length) {
+    list.innerHTML = `<div style="text-align:center;padding:32px;color:var(--gray);font-size:13px">
+      All assets are already in the Brand Library, or no assets with files exist.<br>
+      <span style="font-size:12px">Upload new assets in the Asset Library tab first.</span>
+    </div>`;
+  } else {
+    list.innerHTML = eligible.map(a => {
+      const catInfo = ASSET_CATEGORIES[a.category] || ASSET_CATEGORIES.general;
+      const isPdf = a.file_type && a.file_type.includes("pdf");
+      const isImg = a.file_type && a.file_type.startsWith("image/");
+      const icon = isPdf ? "📄" : isImg ? "🖼️" : "📁";
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 8px;border-bottom:1px solid var(--border)">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px">${icon} ${esc(a.name)}</div>
+          <div style="font-size:11px;color:var(--gray);margin-top:2px">${catInfo.label}${a.event_name ? " · " + esc(a.event_name) : ""} · ${(a.file_size/1024).toFixed(0)} KB</div>
+        </div>
+        <button class="btn btn-sm btn-gold" onclick="addAssetToBrandLibrary('${esc(a.id)}')">+ Add</button>
+      </div>`;
+    }).join("");
+  }
+  openModal("assetPickerModal");
+}
+
+async function addAssetToBrandLibrary(assetId) {
+  const asset = ALL_ASSETS.find(a => a.id === assetId);
+  if (!asset) return;
+  try {
+    await sbUpdate("MyBFFAssets", assetId, { for_ai: true }, "id");
+    asset.for_ai = true;
+    closeModal("assetPickerModal");
+    renderAISettings();
+    showToast(`✅ "${asset.name}" added to Brand Library — click Analyze to extract Brand Brain values.`);
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+
 async function clearSeedContent() {
   if (!confirm("Delete ALL marketing content, comments, and reviewer records? This cannot be undone.")) return;
   showToast("🗑️ Clearing all content…");
