@@ -1922,7 +1922,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.12h-DEV · May 09 2026";
+const BUILD_VERSION = "v5.12i-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -6375,7 +6375,8 @@ function renderAISettings() {
                 </div>
                 <div style="display:flex;gap:6px;flex-shrink:0">
                   ${item._isAsset
-                    ? `<button class="btn btn-sm" style="color:var(--red)" title="Remove from Brand Library (stays in Asset Library)" onclick="removeAssetFromBrandLibrary('${esc(item.id)}')">✕</button>`
+                    ? `<button class="btn btn-sm btn-outline" onclick="analyzeAsset('${esc(item.id)}')">🔍 Analyze</button>
+                       <button class="btn btn-sm" style="color:var(--red)" title="Remove from Brand Library (stays in Asset Library)" onclick="removeAssetFromBrandLibrary('${esc(item.id)}')">✕</button>`
                     : `<button class="btn btn-sm btn-outline" onclick="analyzeLibraryItem('${esc(item.id)}')">🔍 Analyze</button>
                        <button class="btn btn-sm" style="color:var(--red)" onclick="deleteAILibraryItem('${esc(item.id)}')">✕</button>`}
                 </div>
@@ -6664,7 +6665,7 @@ function renderIntakeModal() {
   container.innerHTML = suggestions.map((s, i) => {
     const confBg = s.confidence==="High" ? "#d1fae5" : s.confidence==="Medium" ? "#fef3c7" : "#fee2e2";
     const confColor = s.confidence==="High" ? "#065f46" : s.confidence==="Medium" ? "#92400e" : "#991b1b";
-    const existing = AI_CONFIG[s.field];
+    const existing = AI_CONFIG[mapToConfigField(s.field) || s.field];
     const isApproved = approved.has(i);
     const isSkipped = skipped.has(i);
     if (isSkipped) return ""; // Don't render skipped items
@@ -6675,7 +6676,7 @@ function renderIntakeModal() {
         <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
           <div>
             <span style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.5px">${esc(s.field)}</span>
-            ${mappedField && mappedField !== s.field ? `<span style="font-size:11px;color:#065f46;background:#d1fae5;padding:1px 6px;border-radius:20px;margin-left:6px">→ saves to: ${esc(mappedField)}</span>` : ""}
+            ${mappedField && mappedField !== s.field ? `<span style="font-size:11px;color:#065f46;background:#d1fae5;padding:1px 6px;border-radius:20px;margin-left:6px">→ saves to: ${esc(FIELD_LABELS[mappedField]||mappedField)}</span>` : ""}
             ${!mappedField ? `<span style="font-size:11px;color:#92400e;background:#fef3c7;padding:1px 6px;border-radius:20px;margin-left:6px">⚠️ no matching field — copy manually</span>` : ""}
             <span style="background:${confBg};color:${confColor};padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;margin-left:8px">${s.confidence}</span>
             ${s.conflict ? `<span style="background:#fee2e2;color:#991b1b;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;margin-left:4px">⚠️ Conflict</span>` : ""}
@@ -6700,8 +6701,8 @@ function renderIntakeModal() {
             ${existing ? `<div style="display:flex;align-items:center;gap:4px;font-size:12px">
               <label style="color:var(--gray)">Action:</label>
               <select id="intake-action-${i}" style="font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:white">
+                <option value="append" selected>Append to existing</option>
                 <option value="replace">Replace existing</option>
-                <option value="append">Append to existing</option>
               </select>
             </div>
             <div style="font-size:11px;color:var(--gray)">Current: ${esc(String(existing).substring(0,60))}${String(existing).length>60?"...":""}</div>` : ""}
