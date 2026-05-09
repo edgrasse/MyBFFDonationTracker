@@ -1660,18 +1660,89 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
-<!-- ASSET PICKER MODAL (pull from Asset Library into Brand Library) -->
-<div class="modal-overlay" id="assetPickerModal">
-  <div class="modal" style="max-width:560px;max-height:90vh;display:flex;flex-direction:column">
-    <button class="modal-close" onclick="closeModal('assetPickerModal')" style="top:14px;right:14px">&#10005;</button>
-    <div class="modal-title">📂 Pull from Asset Library</div>
-    <div style="font-size:13px;color:var(--gray);margin-bottom:12px">
-      Select an asset to bring into the Brand Library for AI analysis. Only assets not already in the Brand Library are shown.
+<!-- ANALYZE DOCUMENT MODAL — unified entry point for Brand Brain analysis -->
+<div class="modal-overlay" id="analyzeDocModal">
+  <div class="modal" style="max-width:540px;max-height:90vh;display:flex;flex-direction:column">
+    <button class="modal-close" onclick="closeModal('analyzeDocModal')" style="top:14px;right:14px">&#10005;</button>
+    <div class="modal-title">🔍 Analyze Document</div>
+    <div style="flex:1;overflow-y:auto">
+
+      <!-- Source type selector -->
+      <div style="margin-bottom:16px">
+        <div style="font-size:12px;color:var(--gray);font-weight:600;margin-bottom:8px">WHERE IS YOUR DOCUMENT?</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button type="button" id="adSrcAsset" onclick="switchAnalyzeSource('asset')"
+            class="btn btn-gold btn-sm" style="padding:10px 8px;font-size:13px">📂 Asset Library</button>
+          <button type="button" id="adSrcDoc" onclick="switchAnalyzeSource('doc')"
+            class="btn btn-outline btn-sm" style="padding:10px 8px;font-size:13px">📄 Upload PDF</button>
+          <button type="button" id="adSrcUrl" onclick="switchAnalyzeSource('url')"
+            class="btn btn-outline btn-sm" style="padding:10px 8px;font-size:13px">🔗 URL / Website</button>
+          <button type="button" id="adSrcText" onclick="switchAnalyzeSource('text')"
+            class="btn btn-outline btn-sm" style="padding:10px 8px;font-size:13px">📝 Paste Text</button>
+        </div>
+      </div>
+
+      <!-- Asset Library panel -->
+      <div id="adAssetPanel" style="margin-bottom:16px">
+        <div style="font-size:12px;color:var(--gray);font-weight:600;margin-bottom:6px">SELECT ASSET</div>
+        <div id="adAssetList" style="border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;padding:6px"></div>
+        <div id="adAssetSelected" style="display:none;margin-top:8px;padding:8px 12px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;font-size:13px;font-weight:600;color:#065f46"></div>
+      </div>
+
+      <!-- Upload PDF panel -->
+      <div id="adDocPanel" style="display:none;margin-bottom:16px">
+        <div style="font-size:12px;color:var(--gray);font-weight:600;margin-bottom:6px">UPLOAD DOCUMENT</div>
+        <input type="file" class="form-input" id="adFile" accept=".pdf,.txt,.md" style="padding:6px" onchange="adFileSelected(this)">
+        <div id="adFilePreview" style="font-size:12px;margin-top:6px"></div>
+        <div style="font-size:11px;color:var(--gray);margin-top:4px">PDF recommended — Claude reads PDFs natively. Have a Word doc? Save as PDF first.</div>
+      </div>
+
+      <!-- URL panel -->
+      <div id="adUrlPanel" style="display:none;margin-bottom:16px">
+        <div style="font-size:12px;color:var(--gray);font-weight:600;margin-bottom:6px">WEBSITE URL</div>
+        <input type="text" class="form-input" id="adUrl" placeholder="https://...">
+      </div>
+
+      <!-- Paste Text panel -->
+      <div id="adTextPanel" style="display:none;margin-bottom:16px">
+        <div style="font-size:12px;color:var(--gray);font-weight:600;margin-bottom:6px">PASTE CONTENT</div>
+        <textarea class="form-input form-textarea" id="adText" rows="5"
+          placeholder="Paste mission statement, event description, past posts, or any text content..."></textarea>
+      </div>
+
+      <!-- Name field — shown for upload/url/text, hidden for asset (uses asset name) -->
+      <div id="adNameRow" style="display:none;margin-bottom:16px">
+        <div style="font-size:12px;color:var(--gray);font-weight:600;margin-bottom:6px">NAME / DESCRIPTION</div>
+        <input type="text" class="form-input" id="adName" placeholder="e.g. MyBFF Website, Walk/Run Flyer 2026">
+      </div>
+
+      <!-- Purpose tags — always visible -->
+      <div style="margin-bottom:16px">
+        <div style="font-size:12px;color:var(--gray);font-weight:600;margin-bottom:6px">WHAT SHOULD THE AI LOOK FOR? <span style="font-weight:400">(select all that apply)</span></div>
+        <div style="display:flex;flex-direction:column;gap:7px;border:2px solid var(--border);border-radius:7px;padding:12px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" value="Foundation Identity" class="ad-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> 🏛️ Foundation Identity — mission, history, people, stats</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" value="Voice & Tone" class="ad-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> 🎙️ Voice & Tone — personality, words, hashtags</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" value="Event Context" class="ad-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> 🗓️ Event Context — event descriptions, dates, pricing</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" value="Campaign" class="ad-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> 🎯 Campaign — current focus, urgency, key messages</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" value="Legal & Compliance" class="ad-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> ⚖️ Legal & Compliance — disclosures, claims to avoid</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" value="Audience" class="ad-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> 👥 Audience — how to speak to different groups</label>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div style="margin-bottom:8px">
+        <div style="font-size:12px;color:var(--gray);font-weight:600;margin-bottom:6px">NOTES <span style="font-weight:400">optional context for the AI</span></div>
+        <textarea class="form-input form-textarea" id="adNotes" rows="2"
+          placeholder="e.g. This is an event flyer for the 2026 Walk/Run. Focus on event details."></textarea>
+      </div>
+
+    </div><!-- end scrollable area -->
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border);padding-top:14px;margin-top:8px">
+      <button class="btn btn-outline" onclick="closeModal('analyzeDocModal')">Cancel</button>
+      <button class="btn btn-gold" onclick="runAnalyzeDoc()">🔍 Analyze</button>
     </div>
-    <div id="assetPickerList" style="flex:1;overflow-y:auto;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;padding:8px"></div>
-    <div class="form-actions">
-      <button class="btn btn-outline" onclick="closeModal('assetPickerModal')">Cancel</button>
-    </div>
+    <input type="hidden" id="adSelectedAssetId">
   </div>
 </div>
 
@@ -1846,73 +1917,6 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
-<!-- AI LIBRARY MODAL -->
-<div class="modal-overlay" id="aiLibraryModal">
-  <div class="modal" style="max-width:500px">
-    <button class="modal-close" onclick="closeModal('aiLibraryModal')">&#10005;</button>
-    <div class="modal-title">Add to Brand Library</div>
-    <div class="form-grid single">
-      <div class="form-group">
-        <label class="form-label">Name / Description <span class="req">*</span> <span style="font-size:11px;color:#dc2626;font-weight:400">— required before saving</span></label>
-        <input type="text" class="form-input" id="aiLibModalName" placeholder="e.g. MyBFF Website, Mission Statement 2025" style="border-color:var(--gold)" oninput="this.style.borderColor=this.value?'':'#dc2626'">
-      </div>
-      <!-- Source type toggle -->
-      <div class="form-group">
-        <label class="form-label">Source Type</label>
-        <div style="display:flex;gap:8px">
-          <button type="button" id="aiLibSrcUrl" onclick="switchAILibSource('url')"
-            class="btn btn-gold btn-sm" style="flex:1">🔗 URL / Link</button>
-          <button type="button" id="aiLibSrcDoc" onclick="switchAILibSource('doc')"
-            class="btn btn-outline btn-sm" style="flex:1">📄 Upload Document</button>
-          <button type="button" id="aiLibSrcText" onclick="switchAILibSource('text')"
-            class="btn btn-outline btn-sm" style="flex:1">📝 Paste Text</button>
-        </div>
-      </div>
-      <!-- URL input -->
-      <div class="form-group" id="aiLibUrlRow">
-        <label class="form-label">URL</label>
-        <input type="text" class="form-input" id="aiLibModalUrl" placeholder="https://...">
-      </div>
-      <!-- Document upload -->
-      <div class="form-group" id="aiLibDocRow" style="display:none">
-        <label class="form-label">Upload Document <span style="font-size:11px;color:var(--gray);font-weight:400">PDF, Word, TXT</span></label>
-        <input type="file" class="form-input" id="aiLibModalFile" accept=".pdf,.doc,.docx,.txt,.md" style="padding:6px" onchange="aiLibFileSelected(this)">
-        <div id="aiLibFilePreview" style="font-size:12px;color:var(--gray);margin-top:6px"></div>
-      </div>
-      <!-- Paste text -->
-      <div class="form-group" id="aiLibTextRow" style="display:none">
-        <label class="form-label">Paste Text Content</label>
-        <textarea class="form-input form-textarea" id="aiLibModalText" rows="6" placeholder="Paste your mission statement, past posts, event descriptions, or any text here..."></textarea>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Type</label>
-        <select class="form-input" id="aiLibModalType">
-          <option>URL</option><option>Document</option><option>Past Content</option>
-          <option>Social Media Page</option><option>Image / Graphic</option><option>Other</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Purpose Tags <span style="font-size:11px;color:var(--gray);font-weight:400">select all that apply</span></label>
-        <div style="display:flex;flex-direction:column;gap:6px;border:2px solid var(--border);border-radius:7px;padding:10px">
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><input type="checkbox" value="Foundation Identity" class="ai-lib-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> Foundation Identity</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><input type="checkbox" value="Voice &amp; Tone" class="ai-lib-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> Voice &amp; Tone</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><input type="checkbox" value="Reference Content" class="ai-lib-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> Reference Content</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><input type="checkbox" value="Event Context" class="ai-lib-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> Event Context</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><input type="checkbox" value="Legal &amp; Compliance" class="ai-lib-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> Legal &amp; Compliance</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><input type="checkbox" value="Audience" class="ai-lib-tag-check" style="accent-color:var(--gold);width:15px;height:15px"> Audience</label>
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Notes <span style="font-size:11px;color:var(--gray);font-weight:400">optional context for the AI</span></label>
-        <textarea class="form-input form-textarea" id="aiLibModalNotes" rows="2" placeholder="e.g. Best-performing Cornhole posts from 2025..."></textarea>
-      </div>
-    </div>
-    <div class="form-actions">
-      <button class="btn btn-outline" onclick="closeModal('aiLibraryModal')">Cancel</button>
-      <button class="btn btn-gold" onclick="saveAILibraryItem()">Add to Library</button>
-    </div>
-  </div>
-</div>
 
 
 <script>
@@ -1922,7 +1926,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.12k-DEV · May 09 2026";
+const BUILD_VERSION = "v5.12m-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5970,38 +5974,6 @@ async function deleteAsset(id) {
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
-function analyzeAsset(assetId) {
-  const asset = ALL_ASSETS.find(a => a.id === assetId);
-  if (!asset) return;
-  if (!asset.file_url) { showToast("No file URL — re-upload the asset.", "error"); return; }
-  // Build a library-item-like object for the existing analyze flow
-  const libItem = {
-    id: assetId,
-    name: asset.name,
-    url: null,
-    notes: asset.notes || null,
-    content_type: "Document",
-    tags: (asset.tags || "") + (asset.for_ai ? ",Foundation Identity" : "")
-  };
-  // Use cached base64 if available, otherwise fetch via URL
-  if (!AI_FILE_CACHE.has(assetId) && asset.file_url) {
-    showToast("Loading file for analysis…");
-    fetch(asset.file_url)
-      .then(r => r.blob())
-      .then(blob => {
-        const reader = new FileReader();
-        reader.onload = e => {
-          const b64 = e.target.result.split(",")[1];
-          AI_FILE_CACHE.set(assetId, { base64: b64, mediaType: blob.type, name: asset.name });
-          analyzeLibraryItem(assetId);
-        };
-        reader.readAsDataURL(blob);
-      })
-      .catch(e => showToast("Could not load file: " + e.message, "error"));
-    return;
-  }
-  analyzeLibraryItem(assetId);
-}
 
 function renderAssetLibrary() {
   const container = document.getElementById("mktgAssetLibrary");
@@ -6342,10 +6314,7 @@ function renderAISettings() {
       <div class="card" style="margin-bottom:16px">
         <div style="font-weight:700;font-size:15px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           📚 Brand Library
-          <div style="display:flex;gap:6px">
-            <button class="btn btn-outline btn-sm" onclick="openAssetPickerModal()">📂 From Asset Library</button>
-            <button class="btn btn-gold btn-sm" onclick="openAILibraryModal()">+ Add Item</button>
-          </div>
+          <button class="btn btn-gold btn-sm" onclick="openAnalyzeDocModal()">🔍 Analyze Document</button>
         </div>
         <div style="font-size:12px;color:var(--gray);margin-bottom:16px">
           Staging area for AI analysis. Add a URL, upload a document, or pull an existing file from the Asset Library — click <strong>🔍 Analyze</strong> to extract Brand Brain field values. After reviewing, document items can be <strong>saved to the Asset Library</strong>. Asset Library items already here can be removed with ✕ without affecting the Asset Library.
@@ -6559,6 +6528,7 @@ async function analyzeLibraryItem(itemId) {
 
 Source: ${item.name || item.url}
 Type: ${item.content_type || "Unknown"}
+${window._analyzeContextTags?.length ? `\nFocus areas requested by user: ${window._analyzeContextTags.join(", ")}\nPrioritize extracting fields relevant to these focus areas, but include any other clearly useful Brand Brain fields you find.` : ""}
 
 ${contentToAnalyze}
 
@@ -6620,10 +6590,11 @@ Return ONLY a valid JSON array — even if empty, return []. Never return blank.
     }
 
     setDebug(`✅ Got ${suggestions.length} suggestions — reviewing now`, "#065f46");
+    window._analyzeContextTags = null; // clear after use
     showAIIntakeModal(item, suggestions);
     // Update debug line with reopen button after modal opens
     setTimeout(() => {
-      if (debugEl) debugEl.innerHTML = `<span style="color:#065f46">✅ ${suggestions.length} suggestions analyzed</span> &nbsp;
+      if (debugEl) debugEl.innerHTML = `<span style="color:#065f46">✅ ${suggestions.length} suggestions — </span>
         <button class="btn btn-sm btn-outline" style="font-size:11px;padding:2px 8px" onclick="reopenIntakeModal()">View / Continue Review</button>`;
     }, 100);
   } catch(e) {
@@ -6719,11 +6690,11 @@ function renderIntakeModal() {
     const isLibraryItem = !isAssetItem && !!(window._aiIntakeItem && AI_LIBRARY.find(x => x.id === window._aiIntakeItem.id));
     if (allDone) {
       if (isAssetItem) {
-        // Asset Library item — auto-remove from Brand Library and close
+        // Asset Library item — auto-remove from Brand Library silently then show Done
         removeAssetFromBrandLibrary(window._aiIntakeItem.id, true /* silent */);
         footerEl.innerHTML = `
           <button class="btn btn-outline" onclick="closeModal('aiIntakeModal')">Close</button>
-          <button class="btn btn-gold" onclick="closeModal('aiIntakeModal')">✅ Done</button>`;
+          <button class="btn btn-gold" onclick="window._aiIntakeSuggestions=[];closeModal('aiIntakeModal');renderAISettings();">✅ Done</button>`;
       } else if (isLibraryItem) {
         // Brand Library upload — offer to promote to Asset Library
         footerEl.innerHTML = `
@@ -6732,7 +6703,7 @@ function renderIntakeModal() {
       } else {
         footerEl.innerHTML = `
           <button class="btn btn-outline" onclick="closeModal('aiIntakeModal')">Close</button>
-          <button class="btn btn-gold" onclick="closeModal('aiIntakeModal')">✅ Done</button>`;
+          <button class="btn btn-gold" onclick="window._aiIntakeSuggestions=[];closeModal('aiIntakeModal');renderAISettings();">✅ Done</button>`;
       }
     } else {
       footerEl.innerHTML = `
@@ -7158,48 +7129,91 @@ async function saveLibraryItemToAsset() {
   }
 }
 
-function openAILibraryModal() {
-  document.getElementById("aiLibModalName").value = "";
-  document.getElementById("aiLibModalUrl").value = "";
-  document.getElementById("aiLibModalType").value = "URL";
-  document.getElementById("aiLibModalNotes").value = "";
-  document.getElementById("aiLibModalText").value = "";
-  document.getElementById("aiLibFilePreview").textContent = "";
-  const fileEl = document.getElementById("aiLibModalFile");
+// ═══════════════════════════════════════════════════════════
+// UNIFIED ANALYZE DOCUMENT MODAL
+// ═══════════════════════════════════════════════════════════
+
+function openAnalyzeDocModal() {
+  // Reset all fields
+  document.getElementById("adName").value = "";
+  document.getElementById("adUrl").value = "";
+  document.getElementById("adText").value = "";
+  document.getElementById("adNotes").value = "";
+  document.getElementById("adSelectedAssetId").value = "";
+  document.getElementById("adAssetSelected").style.display = "none";
+  document.getElementById("adAssetSelected").textContent = "";
+  const fileEl = document.getElementById("adFile");
   if (fileEl) fileEl.value = "";
-  document.querySelectorAll(".ai-lib-tag-check").forEach(cb => cb.checked = false);
-  switchAILibSource("url");
-  openModal("aiLibraryModal");
+  document.getElementById("adFilePreview").textContent = "";
+  document.querySelectorAll(".ad-tag-check").forEach(cb => cb.checked = false);
+  // Populate asset list
+  const eligible = ALL_ASSETS.filter(a => a.file_url);
+  const list = document.getElementById("adAssetList");
+  if (!eligible.length) {
+    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--gray);font-size:13px">No assets uploaded yet. Use the Asset Library tab to upload files first.</div>`;
+  } else {
+    list.innerHTML = eligible.map(a => {
+      const catInfo = ASSET_CATEGORIES[a.category] || ASSET_CATEGORIES.general;
+      const isPdf = a.file_type && a.file_type.includes("pdf");
+      const icon = isPdf ? "📄" : "📁";
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px;border-radius:6px;cursor:pointer;border:2px solid transparent"
+        id="adAssetRow-${esc(a.id)}"
+        onclick="selectAnalyzeAsset('${esc(a.id)}','${esc(a.name)}','${esc(a.category)}')">
+        <div>
+          <div style="font-weight:600;font-size:13px">${icon} ${esc(a.name)}</div>
+          <div style="font-size:11px;color:var(--gray)">${catInfo.label}${a.event_name ? " · " + esc(a.event_name) : ""}</div>
+        </div>
+        <div style="font-size:11px;color:var(--gray);flex-shrink:0">${a.file_size ? (a.file_size/1024).toFixed(0)+" KB" : ""}</div>
+      </div>`;
+    }).join("");
+  }
+  switchAnalyzeSource("asset");
+  openModal("analyzeDocModal");
 }
 
-function switchAILibSource(type) {
-  // Toggle row visibility
-  document.getElementById("aiLibUrlRow").style.display  = type === "url"  ? "" : "none";
-  document.getElementById("aiLibDocRow").style.display  = type === "doc"  ? "" : "none";
-  document.getElementById("aiLibTextRow").style.display = type === "text" ? "" : "none";
-  // Update type dropdown
-  const typeMap = { url:"URL", doc:"Document", text:"Past Content" };
-  document.getElementById("aiLibModalType").value = typeMap[type] || "URL";
-  // Highlight active button
-  ["url","doc","text"].forEach(t => {
-    const btn = document.getElementById("aiLibSrc" + t.charAt(0).toUpperCase() + t.slice(1));
-    if (btn) {
-      btn.className = t === type ? "btn btn-gold btn-sm" : "btn btn-outline btn-sm";
-      btn.style.flex = "1";
-    }
+function selectAnalyzeAsset(assetId, assetName, assetCategory) {
+  document.getElementById("adSelectedAssetId").value = assetId;
+  document.getElementById("adAssetSelected").style.display = "block";
+  document.getElementById("adAssetSelected").textContent = "✅ Selected: " + assetName;
+  // Highlight selected row
+  document.querySelectorAll("[id^='adAssetRow-']").forEach(el => {
+    el.style.border = "2px solid transparent";
+    el.style.background = "";
+  });
+  const row = document.getElementById("adAssetRow-" + assetId);
+  if (row) { row.style.border = "2px solid var(--gold)"; row.style.background = "#fffbeb"; }
+  // Auto-check relevant purpose tags based on category
+  document.querySelectorAll(".ad-tag-check").forEach(cb => {
+    cb.checked = cb.value === "Event Context" ? assetCategory === "event" :
+                 cb.value === "Foundation Identity" ? (assetCategory === "ai_source" || assetCategory === "brand") :
+                 false;
   });
 }
 
-function aiLibFileSelected(input) {
+function switchAnalyzeSource(type) {
+  ["asset","doc","url","text"].forEach(t => {
+    const panel = document.getElementById("ad" + t.charAt(0).toUpperCase() + t.slice(1) + "Panel");
+    if (panel) panel.style.display = t === type ? "" : "none";
+    const btn = document.getElementById("adSrc" + t.charAt(0).toUpperCase() + t.slice(1));
+    if (btn) btn.className = t === type ? "btn btn-gold btn-sm" : "btn btn-outline btn-sm";
+    if (btn) btn.style.padding = "10px 8px";
+    if (btn) btn.style.fontSize = "13px";
+  });
+  // Show name field only for non-asset sources
+  const nameRow = document.getElementById("adNameRow");
+  if (nameRow) nameRow.style.display = type === "asset" ? "none" : "";
+}
+
+function adFileSelected(input) {
   const file = input.files[0];
-  const preview = document.getElementById("aiLibFilePreview");
+  const preview = document.getElementById("adFilePreview");
   if (!file) { preview.textContent = ""; return; }
   const isWord = file.name.match(/\.docx?$/i);
   const isPdf  = file.name.match(/\.pdf$/i);
   const isTxt  = file.name.match(/\.(txt|md)$/i);
   let msg = `📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
   if (isWord) {
-    msg += " — ⚠️ Word docs can't be analyzed directly. Save as PDF first, or paste the text into Notes.";
+    msg += " — ⚠️ Word docs can't be analyzed directly. Save as PDF first.";
     preview.style.color = "#dc2626";
   } else if (isPdf) {
     msg += " — ✅ PDF ready for analysis";
@@ -7210,92 +7224,151 @@ function aiLibFileSelected(input) {
   }
   preview.textContent = msg;
   // Auto-fill name if empty
-  const nameEl = document.getElementById("aiLibModalName");
-  if (!nameEl.value) nameEl.value = file.name.replace(/\.[^.]+$/,"");
+  const nameEl = document.getElementById("adName");
+  if (nameEl && !nameEl.value) nameEl.value = file.name.replace(/\.[^.]+$/,"");
 }
 
-async function saveAILibraryItem() {
-  const name = document.getElementById("aiLibModalName").value.trim();
-  const url = document.getElementById("aiLibModalUrl").value.trim();
-  const pastedText = document.getElementById("aiLibModalText").value.trim();
-  const fileInput = document.getElementById("aiLibModalFile");
-  const file = fileInput?.files?.[0];
+async function runAnalyzeDoc() {
+  // Determine active source
+  const assetPanel = document.getElementById("adAssetPanel");
+  const docPanel   = document.getElementById("adDocPanel");
+  const urlPanel   = document.getElementById("adUrlPanel");
+  const textPanel  = document.getElementById("adTextPanel");
+  const isAsset = assetPanel?.style.display !== "none";
+  const isDoc   = docPanel?.style.display   !== "none";
+  const isUrl   = urlPanel?.style.display   !== "none";
+  const isText  = textPanel?.style.display  !== "none";
 
-  if (!name) { showToast("Please enter a name or description.", "error"); return; }
+  const contextTags = Array.from(document.querySelectorAll(".ad-tag-check:checked")).map(c => c.value);
+  const notes = document.getElementById("adNotes").value.trim();
 
-  // Determine active source type — read from button state
-  const urlVisible  = document.getElementById("aiLibUrlRow")?.style.display  !== "none";
-  const docVisible  = document.getElementById("aiLibDocRow")?.style.display  !== "none";
-  const textVisible = document.getElementById("aiLibTextRow")?.style.display !== "none";
-
-  if (docVisible && !file) { showToast("Please select a file.", "error"); return; }
-  if (textVisible && !pastedText) { showToast("Please paste some text.", "error"); return; }
-  if (urlVisible && !docVisible && !textVisible && !url) {
-    showToast("Please enter a URL.", "error"); return;
-  }
-
-  const tags = Array.from(document.querySelectorAll(".ai-lib-tag-check:checked")).map(c => c.value).join(", ");
-  const now = new Date().toISOString();
-
-  // Handle document upload
-  let docText = null;
-  let fileBase64 = null;
-  let fileMediaType = null;
-
-  if (docVisible && file) {
-    fileMediaType = file.type || "application/octet-stream";
-    const isPdfOrWord = file.name.match(/\.(pdf|doc|docx)$/i);
-    if (isPdfOrWord) {
-      // Read as base64 — Claude can read PDFs natively via the API
-      try {
-        fileBase64 = await readFileAsBase64(file);
-        docText = `[${file.name} — will be sent as document to AI for analysis]`;
-      } catch(e) {
-        showToast("Could not read file.", "error"); return;
-      }
-    } else {
-      // Plain text files — read as text
-      try {
-        docText = await new Promise((res, rej) => {
-          const r = new FileReader();
-          r.onload = e => res(e.target.result);
-          r.onerror = () => rej(new Error("Read failed"));
-          r.readAsText(file);
-        });
-      } catch(e) {
-        showToast("Could not read file.", "error"); return;
-      }
+  if (isAsset) {
+    // — Asset Library path —
+    const assetId = document.getElementById("adSelectedAssetId").value;
+    if (!assetId) { showToast("Please select an asset from the list.", "error"); return; }
+    const asset = ALL_ASSETS.find(a => a.id === assetId);
+    if (!asset) { showToast("Asset not found.", "error"); return; }
+    // Ensure it's flagged for_ai so it appears in Brand Library list
+    if (!asset.for_ai) {
+      await sbUpdate("MyBFFAssets", assetId, { for_ai: true }, "id");
+      asset.for_ai = true;
     }
+    closeModal("analyzeDocModal");
+    window._analyzeContextTags = contextTags;
+    if (!AI_FILE_CACHE.has(assetId) && asset.file_url) {
+      showToast("Loading file for analysis…");
+      fetch(asset.file_url)
+        .then(r => r.blob())
+        .then(blob => {
+          const reader = new FileReader();
+          reader.onload = e => {
+            const b64 = e.target.result.split(",")[1];
+            AI_FILE_CACHE.set(assetId, { base64: b64, mediaType: blob.type, name: asset.name });
+            analyzeLibraryItem(assetId);
+          };
+          reader.readAsDataURL(blob);
+        })
+        .catch(e => showToast("Could not load file: " + e.message, "error"));
+    } else {
+      analyzeLibraryItem(assetId);
+    }
+    return;
   }
 
-  const rowId = genId();
-  const row = {
-    id: rowId,
-    name,
-    url: urlVisible ? (url || null) : null,
-    content_type: document.getElementById("aiLibModalType").value,
-    notes: pastedText || docText || document.getElementById("aiLibModalNotes").value.trim() || null,
-    tags,
-    created_at: now
-  };
-
-  // Cache file in memory for this session (not stored in DB — too large)
-  if (fileBase64 && fileMediaType) {
+  if (isDoc) {
+    // — Upload PDF path — save to AI_LIBRARY then analyze —
+    const name = document.getElementById("adName").value.trim();
+    const file = document.getElementById("adFile").files[0];
+    if (!name) { showToast("Please enter a name.", "error"); return; }
+    if (!file)  { showToast("Please select a file.", "error"); return; }
+    if (file.name.match(/\.docx?$/i)) { showToast("Word docs can't be analyzed — save as PDF first.", "error"); return; }
+    const rowId = genId();
+    let fileBase64 = null, fileMediaType = file.type || "application/octet-stream";
+    try {
+      fileBase64 = await readFileAsBase64(file);
+    } catch(e) { showToast("Could not read file.", "error"); return; }
+    const row = {
+      id: rowId, name,
+      url: null,
+      content_type: "Document",
+      notes: `[${file.name} — will be sent as document to AI for analysis]${notes ? "\n" + notes : ""}`,
+      tags: contextTags.join(", "),
+      created_at: new Date().toISOString()
+    };
     AI_FILE_CACHE.set(rowId, { base64: fileBase64, mediaType: fileMediaType, name: file.name });
+    try {
+      await sbInsert("MyBFFAILibrary", row);
+      AI_LIBRARY.unshift(row);
+    } catch(e) { AI_FILE_CACHE.delete(rowId); showToast("Error saving: " + e.message, "error"); return; }
+    closeModal("analyzeDocModal");
+    window._analyzeContextTags = contextTags;
+    renderAISettings();
+    analyzeLibraryItem(rowId);
+    return;
   }
 
-  try {
-    await sbInsert("MyBFFAILibrary", row);
-    AI_LIBRARY.unshift(row);
-    closeModal("aiLibraryModal");
-    showToast("✅ Added to Brand Library!");
+  if (isUrl) {
+    // — URL path —
+    const name = document.getElementById("adName").value.trim();
+    const url  = document.getElementById("adUrl").value.trim();
+    if (!url)  { showToast("Please enter a URL.", "error"); return; }
+    const rowId = genId();
+    const row = {
+      id: rowId, name: name || url,
+      url, content_type: "URL",
+      notes: notes || null,
+      tags: contextTags.join(", "),
+      created_at: new Date().toISOString()
+    };
+    try {
+      await sbInsert("MyBFFAILibrary", row);
+      AI_LIBRARY.unshift(row);
+    } catch(e) { showToast("Error saving: " + e.message, "error"); return; }
+    closeModal("analyzeDocModal");
+    window._analyzeContextTags = contextTags;
     renderAISettings();
-  } catch(e) {
-    AI_FILE_CACHE.delete(rowId);
-    showToast("Error saving: " + e.message, "error");
-    console.error("saveAILibraryItem error:", e);
+    analyzeLibraryItem(rowId);
+    return;
+  }
+
+  if (isText) {
+    // — Paste Text path —
+    const name = document.getElementById("adName").value.trim();
+    const text = document.getElementById("adText").value.trim();
+    if (!text) { showToast("Please paste some text.", "error"); return; }
+    const rowId = genId();
+    const row = {
+      id: rowId, name: name || "Pasted Content",
+      url: null, content_type: "Past Content",
+      notes: text + (notes ? "\n\n" + notes : ""),
+      tags: contextTags.join(", "),
+      created_at: new Date().toISOString()
+    };
+    try {
+      await sbInsert("MyBFFAILibrary", row);
+      AI_LIBRARY.unshift(row);
+    } catch(e) { showToast("Error saving: " + e.message, "error"); return; }
+    closeModal("analyzeDocModal");
+    window._analyzeContextTags = contextTags;
+    renderAISettings();
+    analyzeLibraryItem(rowId);
+    return;
   }
 }
+
+// Stub kept for any lingering onclick references — routes to unified modal
+function openAILibraryModal() { openAnalyzeDocModal(); }
+function analyzeAsset(assetId) {
+  // Pre-select the asset and open the unified modal
+  openAnalyzeDocModal();
+  setTimeout(() => selectAnalyzeAsset(
+    assetId,
+    ALL_ASSETS.find(a => a.id === assetId)?.name || "",
+    ALL_ASSETS.find(a => a.id === assetId)?.category || ""
+  ), 50);
+}
+
+
 
 function readFileAsBase64(file) {
   return new Promise((resolve, reject) => {
@@ -7334,45 +7407,6 @@ async function removeAssetFromBrandLibrary(assetId, silent = false) {
       showToast("Removed from Brand Library. Still in Asset Library. ✅");
     }
   } catch(e) { if (!silent) showToast("Error: " + e.message, "error"); }
-}
-
-function openAssetPickerModal() {
-  // Show assets that are NOT already in the Brand Library (for_ai = false)
-  const eligible = ALL_ASSETS.filter(a => !a.for_ai && a.file_url);
-  const list = document.getElementById("assetPickerList");
-  if (!eligible.length) {
-    list.innerHTML = `<div style="text-align:center;padding:32px;color:var(--gray);font-size:13px">
-      All assets are already in the Brand Library, or no assets with files exist.<br>
-      <span style="font-size:12px">Upload new assets in the Asset Library tab first.</span>
-    </div>`;
-  } else {
-    list.innerHTML = eligible.map(a => {
-      const catInfo = ASSET_CATEGORIES[a.category] || ASSET_CATEGORIES.general;
-      const isPdf = a.file_type && a.file_type.includes("pdf");
-      const isImg = a.file_type && a.file_type.startsWith("image/");
-      const icon = isPdf ? "📄" : isImg ? "🖼️" : "📁";
-      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 8px;border-bottom:1px solid var(--border)">
-        <div style="flex:1">
-          <div style="font-weight:600;font-size:13px">${icon} ${esc(a.name)}</div>
-          <div style="font-size:11px;color:var(--gray);margin-top:2px">${catInfo.label}${a.event_name ? " · " + esc(a.event_name) : ""} · ${(a.file_size/1024).toFixed(0)} KB</div>
-        </div>
-        <button class="btn btn-sm btn-gold" onclick="addAssetToBrandLibrary('${esc(a.id)}')">+ Add</button>
-      </div>`;
-    }).join("");
-  }
-  openModal("assetPickerModal");
-}
-
-async function addAssetToBrandLibrary(assetId) {
-  const asset = ALL_ASSETS.find(a => a.id === assetId);
-  if (!asset) return;
-  try {
-    await sbUpdate("MyBFFAssets", assetId, { for_ai: true }, "id");
-    asset.for_ai = true;
-    closeModal("assetPickerModal");
-    renderAISettings();
-    showToast(`✅ "${asset.name}" added to Brand Library — click Analyze to extract Brand Brain values.`);
-  } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
 
