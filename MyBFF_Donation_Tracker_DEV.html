@@ -681,21 +681,136 @@ if ('serviceWorker' in navigator) {
     <div class="page" id="page-grants">
       <div class="page-header">
         <div class="section-title" style="margin:0">Grants</div>
-        <div style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <select class="filter-select" id="grantYearFilter" onchange="renderGrantsPage()">
             <option value="">All Years</option>
           </select>
+          <div id="grantAiToolsBtn" style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="toggleNewThisWeek()">&#128269; New This Week</button>
+            <button class="btn btn-outline btn-sm" onclick="openBulkGrantImport()">&#128203; Import from URL</button>
+            <button class="btn btn-outline btn-sm" onclick="openSheetImport()">&#128229; Import Spreadsheet</button>
+          </div>
           <div id="grantAddBtn">
             <button class="btn btn-gold btn-sm" onclick="openGrantModal()">+ Add Grantor</button>
           </div>
         </div>
       </div>
+
+      <!-- NEW THIS WEEK panel -->
+      <div id="newThisWeekPanel" style="display:none;margin-bottom:20px">
+        <div class="card" style="border:2px solid var(--gold);padding:18px 20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+            <div>
+              <div style="font-weight:700;font-size:15px">&#128269; New This Week &mdash; AI Grant Search</div>
+              <div style="font-size:13px;color:var(--gray);margin-top:3px">AI searches the web for grants matching MyBFF's profile: cancer support nonprofit, Chicagoland area, 501(c)(3).</div>
+            </div>
+            <button class="btn btn-gold" onclick="runGrantSearch()" id="grantSearchBtn">Search for Grants</button>
+          </div>
+          <div id="grantSearchStatus" style="font-size:13px;color:var(--gray);display:none"></div>
+          <div id="grantSearchResults" style="margin-top:12px"></div>
+        </div>
+      </div>
+
       <!-- Dashboard summary -->
       <div id="grantDashboard" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:24px"></div>
       <!-- Status filter chips -->
       <div id="grantStatusChips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"></div>
       <!-- Grant list -->
       <div id="grantList"></div>
+    </div>
+
+    <!-- GRANT APPLICATION ASSISTANT MODAL -->
+    <div class="modal-overlay" id="grantAnswerModal" style="display:none" onclick="if(event.target===this)closeModal('grantAnswerModal')">
+      <div class="modal" style="max-width:780px;max-height:90vh;overflow-y:auto">
+        <div class="modal-header">
+          <div class="modal-title">&#129302; Application Assistant</div>
+          <button class="modal-close" onclick="closeModal('grantAnswerModal')">&#x2715;</button>
+        </div>
+        <div style="font-size:13px;color:var(--gray);margin-bottom:16px" id="grantAnswerGrantName"></div>
+        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+          <button class="btn btn-sm" id="gaMode_url" onclick="setGrantAnswerMode('url')" style="background:var(--navy);color:white">&#128279; Application URL</button>
+          <button class="btn btn-sm btn-outline" id="gaMode_paste" onclick="setGrantAnswerMode('paste')">&#128203; Paste Questions</button>
+          <button class="btn btn-sm btn-outline" id="gaMode_upload" onclick="setGrantAnswerMode('upload')">&#128196; Upload File</button>
+        </div>
+        <div id="gaInputUrl" style="margin-bottom:14px">
+          <label class="form-label">Application URL</label>
+          <input type="text" class="form-input" id="gaUrl" placeholder="https://...">
+        </div>
+        <div id="gaInputPaste" style="display:none;margin-bottom:14px">
+          <label class="form-label">Paste the application questions here</label>
+          <textarea class="form-input form-textarea" id="gaPasteText" rows="6" placeholder="Paste the full list of questions from the grant application..."></textarea>
+        </div>
+        <div id="gaInputUpload" style="display:none;margin-bottom:14px">
+          <label class="form-label">Upload application (PDF, Word, or text)</label>
+          <input type="file" class="form-input" id="gaUploadFile" accept=".pdf,.docx,.doc,.txt" onchange="handleGrantUpload(this)">
+          <div id="gaUploadName" style="font-size:12px;color:var(--gray);margin-top:4px"></div>
+        </div>
+        <div style="margin-bottom:14px">
+          <label class="form-label">Additional context for this application <span style="font-size:11px;color:var(--gray);font-weight:400">&mdash; board composition, financials, specific program, anything Brand Brain doesn't cover</span></label>
+          <textarea class="form-input form-textarea" id="gaExtraContext" rows="3" placeholder="e.g. Our board has 9 members including 3 cancer survivors. This grant would fund our 2026 Walk/Run. Annual budget approx. $85,000..."></textarea>
+        </div>
+        <div style="margin-bottom:16px">
+          <button class="btn btn-gold" onclick="runGrantAnswers()" id="gaRunBtn">Generate Answers</button>
+          <span id="gaStatus" style="font-size:13px;color:var(--gray);margin-left:12px"></span>
+        </div>
+        <div id="gaResults" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-weight:600;font-size:14px">Suggested Answers</div>
+            <button class="btn btn-outline btn-sm" onclick="copyAllGrantAnswers()">&#128203; Copy All</button>
+          </div>
+          <div id="gaResultsList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BULK GRANT IMPORT MODAL -->
+    <div class="modal-overlay" id="bulkGrantModal" style="display:none" onclick="if(event.target===this)closeModal('bulkGrantModal')">
+      <div class="modal" style="max-width:720px;max-height:90vh;overflow-y:auto">
+        <div class="modal-header">
+          <div class="modal-title">&#128203; Import Grantors from URL</div>
+          <button class="modal-close" onclick="closeModal('bulkGrantModal')">&#x2715;</button>
+        </div>
+        <div style="font-size:13px;color:var(--gray);margin-bottom:16px">Paste the URL of a grant list article or database. AI will extract grantor names, amounts, deadlines, and websites for you to review and import.</div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">URL</label>
+          <input type="text" class="form-input" id="bulkGrantUrl" placeholder="https://...">
+        </div>
+        <div style="margin-bottom:16px">
+          <button class="btn btn-gold" onclick="runBulkGrantImport()" id="bulkGrantBtn">Extract Grantors</button>
+          <span id="bulkGrantStatus" style="font-size:13px;color:var(--gray);margin-left:12px"></span>
+        </div>
+        <div id="bulkGrantResults" style="display:none">
+          <div style="font-weight:600;font-size:14px;margin-bottom:10px">Review &amp; Import</div>
+          <div id="bulkGrantList" style="margin-bottom:14px"></div>
+          <button class="btn btn-gold" onclick="importSelectedGrants()">Import Selected</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SPREADSHEET IMPORT MODAL -->
+    <div class="modal-overlay" id="sheetImportModal" style="display:none" onclick="if(event.target===this)closeModal('sheetImportModal')">
+      <div class="modal" style="max-width:760px;max-height:90vh;overflow-y:auto">
+        <div class="modal-header">
+          <div class="modal-title">&#128229; Import Grantors from Spreadsheet</div>
+          <button class="modal-close" onclick="closeModal('sheetImportModal')">&#x2715;</button>
+        </div>
+        <div style="font-size:13px;color:var(--gray);margin-bottom:16px">Upload a CSV or Excel file. Map the columns to grantor fields, preview the data, then import.</div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Upload file (CSV or .xlsx)</label>
+          <input type="file" class="form-input" id="sheetImportFile" accept=".csv,.xlsx,.xls" onchange="handleSheetUpload(this)">
+        </div>
+        <div id="sheetMapperArea" style="display:none;margin-bottom:16px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:10px">Map Columns</div>
+          <div style="font-size:13px;color:var(--gray);margin-bottom:10px">Match your spreadsheet columns to grantor fields. Only <strong>Name</strong> is required.</div>
+          <div id="sheetColumnMapper" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px"></div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px">Preview (first 5 rows)</div>
+          <div style="overflow-x:auto;margin-bottom:14px"><table id="sheetPreviewTable" style="width:100%;border-collapse:collapse;font-size:12px"></table></div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <button class="btn btn-gold" onclick="importSheetGrants()">Import All Rows</button>
+            <span id="sheetImportStatus" style="font-size:13px;color:var(--gray)"></span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- MARKETING HUB -->
@@ -1923,7 +2038,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.12n-DEV · May 09 2026";
+const BUILD_VERSION = "v5.13-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3462,7 +3577,7 @@ function renderDonations() {
       <td><span class="badge ${eventClass(d.event_requested)}">${d.event_requested || "—"}</span></td>
       <td>${usedForDisplay}</td>
       <td>${d.how || "—"}</td>
-      <td>${fmtDate(d.date_requested)}</td>
+      <td style="white-space:nowrap">${fmtDate(d.date_requested)}</td>
       <td><span class="badge ${grantedBadge(d.granted)}">${d.granted || "Pending"}</span></td>
       <td>${d.value ? "$"+parseFloat(d.value).toLocaleString() : "—"}</td>
       <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.item || "—"}</td>
@@ -3903,7 +4018,7 @@ function renderReport() {
     <tr>
       <td>${d.year}</td><td><strong>${d.organization}</strong></td><td>${d.type || "—"}</td>
       <td>${d.event_requested || "—"}</td><td>${d.used_for || "—"}</td><td>${d.how || "—"}</td>
-      <td>${fmtDate(d.date_requested)}</td>
+      <td style="white-space:nowrap">${fmtDate(d.date_requested)}</td>
       <td><span class="badge ${grantedBadge(d.granted)}">${d.granted || "Pending"}</span></td>
       <td>${d.value ? "$"+parseFloat(d.value).toLocaleString() : "—"}</td>
       <td>${d.item || "—"}</td><td>${d.lead_time || "—"}</td><td>${d.who || "—"}</td>
@@ -4725,11 +4840,11 @@ function grantRequestRow(r, g) {
         </div>
         ${r.notes ? `<div style="font-size:12px;color:var(--gray);margin-top:4px;font-style:italic">${esc(r.notes)}</div>` : ""}
       </div>
-      ${isContributor() ? `
-        <div style="display:flex;gap:4px">
-          <button class="btn btn-outline btn-sm" onclick="openGrantRequestModalEdit('${esc(r.id)}','${esc(g.id)}')">✏️</button>
-          ${isAdmin() ? `<button class="btn btn-sm" style="color:var(--red)" onclick="deleteGrantRequest('${esc(r.id)}')">✕</button>` : ""}
-        </div>` : ""}
+      <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:flex-start">
+        <button class="btn btn-outline btn-sm" onclick="openGrantAnswerModal('${esc(r.id)}','${esc(g.id)}')" title="AI Application Assistant" style="color:var(--navy)">&#129302; Answers</button>
+        ${isContributor() ? `<button class="btn btn-outline btn-sm" onclick="openGrantRequestModalEdit('${esc(r.id)}','${esc(g.id)}')">&#9998;</button>` : ""}
+        ${isAdmin() ? `<button class="btn btn-sm" style="color:var(--red)" onclick="deleteGrantRequest('${esc(r.id)}')">&#x2715;</button>` : ""}
+      </div>
     </div>`;
 }
 
@@ -4952,6 +5067,665 @@ async function deleteGrantRequest(id) {
     showToast("Request deleted.");
     renderGrantsPage();
   } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// v5.13 — AI GRANT ASSISTANT
+// ═══════════════════════════════════════════════════════════
+
+// ── Feature 1: New This Week — AI Grant Search ──────────────
+
+function toggleNewThisWeek() {
+  const panel = document.getElementById("newThisWeekPanel");
+  if (!panel) return;
+  panel.style.display = panel.style.display === "none" ? "" : "none";
+}
+
+async function runGrantSearch() {
+  const btn = document.getElementById("grantSearchBtn");
+  const statusEl = document.getElementById("grantSearchStatus");
+  const resultsEl = document.getElementById("grantSearchResults");
+  if (!btn || !statusEl || !resultsEl) return;
+
+  btn.disabled = true;
+  btn.textContent = "Searching...";
+  statusEl.style.display = "";
+  statusEl.textContent = "⏳ AI is searching the web for grants — this may take 20–30 seconds...";
+  resultsEl.innerHTML = "";
+
+  const brandContext = `
+Organization: ${AI_CONFIG.org_name || "My Best Friends Foundation"}
+Mission: ${AI_CONFIG.mission || "To cultivate friendships and build a community to serve those impacted by cancer with personal, emotional, and/or financial support throughout their journey."}
+Geography: ${AI_CONFIG.geography || "Chicagoland, Illinois"}
+Type: 501(c)(3) cancer support nonprofit
+Stats: ${AI_CONFIG.stats || ""}
+Current focus: ${AI_CONFIG.current_focus || ""}`.trim();
+
+  const prompt = `You are a grant research assistant for a nonprofit organization. Search the web RIGHT NOW for currently open grants available to this organization.
+
+${brandContext}
+
+Search for grants that are:
+1. Currently accepting applications or opening soon in 2026
+2. Available to cancer support nonprofits OR general nonprofits in Illinois/Chicagoland
+3. From foundations, corporations, or government sources
+
+Return a JSON array of up to 10 grants. Each object must have:
+- name: grantor/foundation name
+- program: specific grant program name if applicable
+- url: direct link to grant information
+- amount: estimated amount or range (string, e.g. "Up to $10,000" or "Varies")
+- deadline: application deadline if known (string)
+- notes: 1-2 sentence summary of eligibility and focus
+
+Return ONLY valid JSON array. No markdown, no text outside the array.`;
+
+  try {
+    const result = await workerCall({
+      method: "CLAUDE_API",
+      appId: APP_ID,
+      claudeMethod: "mybffGrantSearch",
+      prompt,
+      webSearch: true
+    });
+
+    if (result?.error) {
+      statusEl.textContent = "❌ Error: " + result.error;
+      btn.disabled = false;
+      btn.textContent = "Search for Grants";
+      return;
+    }
+
+    let grants = [];
+    try {
+      const raw = result?.text || result?.content || JSON.stringify(result);
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+      const match = cleaned.match(/\[[\s\S]*\]/);
+      if (match) grants = JSON.parse(match[0]);
+    } catch(parseErr) {
+      statusEl.textContent = "⚠️ Could not parse AI response. Try again.";
+      console.error("[GrantSearch] parse error:", parseErr, result);
+      btn.disabled = false;
+      btn.textContent = "Search for Grants";
+      return;
+    }
+
+    if (!grants.length) {
+      statusEl.textContent = "No grants found. Try again or search manually.";
+      btn.disabled = false;
+      btn.textContent = "Search for Grants";
+      return;
+    }
+
+    statusEl.textContent = `✅ Found ${grants.length} potential grants. Review below and add any that look promising.`;
+
+    resultsEl.innerHTML = grants.map((g, i) => `
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:10px;background:#fafafa">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:14px">${esc(g.name || "Unknown Grantor")}</div>
+            ${g.program ? `<div style="font-size:12px;color:var(--navy);font-weight:600;margin-top:1px">${esc(g.program)}</div>` : ""}
+            <div style="font-size:12px;color:var(--gray);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap">
+              ${g.amount ? `<span>💰 ${esc(g.amount)}</span>` : ""}
+              ${g.deadline ? `<span>📅 Deadline: ${esc(g.deadline)}</span>` : ""}
+              ${g.url ? `<a href="${esc(g.url)}" target="_blank" style="font-size:12px">🔗 Info</a>` : ""}
+            </div>
+            ${g.notes ? `<div style="font-size:13px;margin-top:6px">${esc(g.notes)}</div>` : ""}
+          </div>
+          <button class="btn btn-gold btn-sm" onclick="addGrantFromSearch(${i})" style="white-space:nowrap">+ Add to Grants</button>
+        </div>
+      </div>`).join("");
+
+    // Store results for add-to-grants
+    window._grantSearchResults = grants;
+
+  } catch(e) {
+    statusEl.textContent = "❌ Error: " + e.message;
+    console.error("[GrantSearch]", e);
+  }
+
+  btn.disabled = false;
+  btn.textContent = "Search Again";
+}
+
+function addGrantFromSearch(idx) {
+  const g = (window._grantSearchResults || [])[idx];
+  if (!g) return;
+  // Pre-fill the Add Grantor modal
+  openGrantModal();
+  setTimeout(() => {
+    const nameEl = document.getElementById("grantName");
+    const siteEl = document.getElementById("grantWebsite");
+    const notesEl = document.getElementById("grantNotes");
+    if (nameEl) nameEl.value = g.name || "";
+    if (siteEl) siteEl.value = g.url || "";
+    if (notesEl) notesEl.value = [g.program, g.notes, g.amount ? `Amount: ${g.amount}` : "", g.deadline ? `Deadline: ${g.deadline}` : ""].filter(Boolean).join("\n");
+  }, 50);
+}
+
+// ── Feature 2: Application Assistant ───────────────────────
+
+let _gaCurrentReqId = null;
+let _gaCurrentGrantId = null;
+let _gaUploadData = null; // { base64, mediaType, name }
+let _gaMode = "url";
+
+function openGrantAnswerModal(reqId, grantId) {
+  _gaCurrentReqId = reqId;
+  _gaCurrentGrantId = grantId;
+  _gaUploadData = null;
+
+  const req = ALL_GRANT_REQUESTS.find(r => r.id === reqId);
+  const grant = ALL_GRANTS.find(g => g.id === grantId);
+  const nameEl = document.getElementById("grantAnswerGrantName");
+  if (nameEl) nameEl.textContent = grant ? grant.name : "";
+
+  // Pre-fill URL if available
+  const urlEl = document.getElementById("gaUrl");
+  if (urlEl) urlEl.value = req?.app_url || "";
+
+  // Reset state
+  document.getElementById("gaStatus").textContent = "";
+  document.getElementById("gaResults").style.display = "none";
+  document.getElementById("gaResultsList").innerHTML = "";
+  document.getElementById("gaExtraContext").value = "";
+  document.getElementById("gaPasteText").value = "";
+  document.getElementById("gaUploadName").textContent = "";
+  if (document.getElementById("gaUploadFile")) document.getElementById("gaUploadFile").value = "";
+
+  setGrantAnswerMode("url");
+  openModal("grantAnswerModal");
+}
+
+function setGrantAnswerMode(mode) {
+  _gaMode = mode;
+  ["url","paste","upload"].forEach(m => {
+    const btn = document.getElementById("gaMode_" + m);
+    const inp = document.getElementById("gaInput" + m.charAt(0).toUpperCase() + m.slice(1));
+    if (btn) {
+      btn.style.background = m === mode ? "var(--navy)" : "";
+      btn.style.color = m === mode ? "white" : "";
+      btn.className = m === mode ? "btn btn-sm" : "btn btn-sm btn-outline";
+    }
+    if (inp) inp.style.display = m === mode ? "" : "none";
+  });
+}
+
+function handleGrantUpload(input) {
+  const file = input?.files?.[0];
+  if (!file) return;
+  document.getElementById("gaUploadName").textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const b64 = e.target.result.split(",")[1];
+    const mediaType = file.type || (file.name.endsWith(".pdf") ? "application/pdf" : "application/octet-stream");
+    _gaUploadData = { base64: b64, mediaType, name: file.name };
+  };
+  reader.readAsDataURL(file);
+}
+
+async function runGrantAnswers() {
+  const statusEl = document.getElementById("gaStatus");
+  const resultsEl = document.getElementById("gaResults");
+  const listEl = document.getElementById("gaResultsList");
+  const btn = document.getElementById("gaRunBtn");
+
+  statusEl.textContent = "⏳ Generating answers — this may take 20–30 seconds...";
+  resultsEl.style.display = "none";
+  listEl.innerHTML = "";
+  btn.disabled = true;
+
+  const grant = ALL_GRANTS.find(g => g.id === _gaCurrentGrantId);
+  const req = ALL_GRANT_REQUESTS.find(r => r.id === _gaCurrentReqId);
+  const extraContext = document.getElementById("gaExtraContext").value.trim();
+
+  const brandSummary = `
+Organization: ${AI_CONFIG.org_name || "My Best Friends Foundation"}
+Mission: ${AI_CONFIG.mission || "To cultivate friendships and build a community to serve those impacted by cancer."}
+History: ${AI_CONFIG.history || ""}
+Geography: ${AI_CONFIG.geography || "Chicagoland, Illinois"}
+Stats: ${AI_CONFIG.stats || ""}
+People served: ${AI_CONFIG.people || ""}
+Current focus: ${AI_CONFIG.current_focus || ""}
+Active event: ${AI_CONFIG.active_event || ""}
+Required disclosures: ${AI_CONFIG.disclosures || ""}
+Claims to avoid: ${AI_CONFIG.avoid_claims || ""}`.trim();
+
+  const grantContext = grant ? `Grantor: ${grant.name}\nGrantor type: ${grant.grantor_type || ""}\nGrantor notes: ${grant.notes || ""}` : "";
+  const reqContext = req ? `Amount requested: ${req.amount_req ? "$" + req.amount_req : "Not set"}\nRequest notes: ${req.notes || ""}` : "";
+
+  const prompt = `You are a grant writing assistant for a nonprofit. Generate suggested answers to grant application questions.
+
+BRAND BRAIN — Organization Profile:
+${brandSummary}
+
+GRANT INFORMATION:
+${grantContext}
+${reqContext}
+
+${extraContext ? `ADDITIONAL CONTEXT PROVIDED BY STAFF:\n${extraContext}` : ""}
+
+APPLICATION SOURCE: ${_gaMode === "url" ? document.getElementById("gaUrl").value : _gaMode === "paste" ? "Questions pasted below" : _gaUploadData?.name || "Uploaded file"}
+
+${_gaMode === "paste" ? `APPLICATION QUESTIONS:\n${document.getElementById("gaPasteText").value}` : ""}
+
+${_gaMode === "url" ? `Please fetch and read the application at the URL provided. Identify all questions or required fields in the application.` : ""}
+
+For each question you identify, provide a suggested answer that:
+- Is honest and accurate based on the Brand Brain profile
+- Uses a warm, mission-driven tone
+- Is specific rather than generic
+- Flags anything that needs staff to fill in specific data (use [STAFF: fill in X])
+
+Return a JSON array. Each object must have:
+- question: the exact question text
+- answer: the suggested answer
+- confidence: "High", "Medium", or "Low"
+- note: any caveat or staff action needed (or empty string)
+
+Return ONLY a valid JSON array. No markdown, no text outside the array.`;
+
+  const callBody = {
+    method: "CLAUDE_API",
+    appId: APP_ID,
+    claudeMethod: "mybffGrantAnswers",
+    prompt
+  };
+
+  if (_gaMode === "url") {
+    const url = document.getElementById("gaUrl").value.trim();
+    if (!url) { statusEl.textContent = "❌ Please enter a URL."; btn.disabled = false; return; }
+    callBody.url = url;
+  } else if (_gaMode === "upload") {
+    if (!_gaUploadData) { statusEl.textContent = "❌ Please upload a file first."; btn.disabled = false; return; }
+    callBody.base64Data = _gaUploadData.base64;
+    callBody.mediaType = _gaUploadData.mediaType;
+  } else if (_gaMode === "paste") {
+    const text = document.getElementById("gaPasteText").value.trim();
+    if (!text) { statusEl.textContent = "❌ Please paste the questions first."; btn.disabled = false; return; }
+    // Paste mode — prompt already includes the text; no extra payload needed
+  }
+
+  try {
+    const result = await workerCall(callBody);
+
+    if (result?.error) {
+      statusEl.textContent = "❌ Error: " + result.error;
+      btn.disabled = false;
+      return;
+    }
+
+    let answers = [];
+    try {
+      const raw = result?.text || result?.content || JSON.stringify(result);
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+      const match = cleaned.match(/\[[\s\S]*\]/);
+      if (match) answers = JSON.parse(match[0]);
+    } catch(parseErr) {
+      statusEl.textContent = "⚠️ Could not parse response. Try again.";
+      console.error("[GrantAnswers] parse:", parseErr, result);
+      btn.disabled = false;
+      return;
+    }
+
+    if (!answers.length) {
+      statusEl.textContent = "⚠️ No questions found. Try Paste Questions mode and type them in directly.";
+      btn.disabled = false;
+      return;
+    }
+
+    statusEl.textContent = `✅ ${answers.length} question${answers.length !== 1 ? "s" : ""} answered. Edit any response before copying.`;
+
+    listEl.innerHTML = answers.map((a, i) => `
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:6px;color:var(--navy)">${esc(a.question || "Question " + (i+1))}</div>
+        <textarea id="gaAnswer_${i}" class="form-input form-textarea" rows="4" style="font-size:13px;margin-bottom:6px">${esc(a.answer || "")}</textarea>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+          <span style="font-size:11px;color:var(--gray)">
+            Confidence: <strong style="color:${a.confidence === "High" ? "#065f46" : a.confidence === "Medium" ? "#92400e" : "#991b1b"}">${a.confidence || "—"}</strong>
+            ${a.note ? ` · <em>${esc(a.note)}</em>` : ""}
+          </span>
+          <button class="btn btn-outline btn-sm" onclick="copyOneGrantAnswer(${i})" style="font-size:11px">Copy</button>
+        </div>
+      </div>`).join("");
+
+    resultsEl.style.display = "";
+  } catch(e) {
+    statusEl.textContent = "❌ Error: " + e.message;
+    console.error("[GrantAnswers]", e);
+  }
+
+  btn.disabled = false;
+}
+
+function copyOneGrantAnswer(i) {
+  const el = document.getElementById("gaAnswer_" + i);
+  if (!el) return;
+  navigator.clipboard.writeText(el.value).then(() => showToast("Copied!")).catch(() => showToast("Copy failed", "error"));
+}
+
+function copyAllGrantAnswers() {
+  const textareas = document.querySelectorAll("[id^='gaAnswer_']");
+  let out = "";
+  textareas.forEach((ta, i) => {
+    // Get the question label from the sibling div
+    const card = ta.closest("div[style*='border:1px solid']");
+    const qEl = card?.querySelector("div[style*='font-weight:600']");
+    const q = qEl ? qEl.textContent.trim() : `Question ${i+1}`;
+    out += `Q: ${q}\nA: ${ta.value.trim()}\n\n`;
+  });
+  navigator.clipboard.writeText(out.trim()).then(() => showToast("All answers copied!")).catch(() => showToast("Copy failed", "error"));
+}
+
+// ── Feature 3: Bulk Grant Import from URL ──────────────────
+
+function openBulkGrantImport() {
+  if (!isContributor()) { showToast("Contributor access required.", "error"); return; }
+  document.getElementById("bulkGrantUrl").value = "";
+  document.getElementById("bulkGrantStatus").textContent = "";
+  document.getElementById("bulkGrantResults").style.display = "none";
+  document.getElementById("bulkGrantList").innerHTML = "";
+  document.getElementById("bulkGrantBtn").disabled = false;
+  openModal("bulkGrantModal");
+}
+
+async function runBulkGrantImport() {
+  const url = document.getElementById("bulkGrantUrl").value.trim();
+  if (!url) { showToast("Please enter a URL.", "error"); return; }
+
+  const statusEl = document.getElementById("bulkGrantStatus");
+  const btn = document.getElementById("bulkGrantBtn");
+  const resultsEl = document.getElementById("bulkGrantResults");
+  const listEl = document.getElementById("bulkGrantList");
+
+  btn.disabled = true;
+  statusEl.textContent = "⏳ AI is reading the page and extracting grantors...";
+  resultsEl.style.display = "none";
+
+  const prompt = `You are a grant research assistant. Read the web page at the URL provided and extract all grant opportunities or funding sources listed.
+
+For each grantor or grant program found, return:
+- name: organization or foundation name
+- program: specific grant program name (if different from org name)
+- url: direct link if available, otherwise the source URL
+- amount: funding amount or range (string)
+- deadline: application deadline if mentioned (string)
+- focus_area: what the grant funds (1 sentence)
+- notes: any eligibility requirements or other key info (1 sentence)
+
+Return ONLY a valid JSON array. No markdown, no text outside the array. If no grants are found, return [].`;
+
+  try {
+    const result = await workerCall({
+      method: "CLAUDE_API",
+      appId: APP_ID,
+      claudeMethod: "mybffBulkGrant",
+      prompt,
+      url
+    });
+
+    if (result?.error) { statusEl.textContent = "❌ " + result.error; btn.disabled = false; return; }
+
+    let grants = [];
+    try {
+      const raw = result?.text || result?.content || JSON.stringify(result);
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+      const match = cleaned.match(/\[[\s\S]*\]/);
+      if (match) grants = JSON.parse(match[0]);
+    } catch(e) {
+      statusEl.textContent = "⚠️ Could not parse response. Try a different URL.";
+      btn.disabled = false;
+      return;
+    }
+
+    if (!grants.length) { statusEl.textContent = "No grantors found on that page. Try a different URL."; btn.disabled = false; return; }
+
+    statusEl.textContent = `✅ Found ${grants.length} grantors. Check the ones you want to import.`;
+    window._bulkGrantImportData = grants;
+
+    listEl.innerHTML = grants.map((g, i) => `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <input type="checkbox" id="bgCheck_${i}" checked style="margin-top:3px;width:16px;height:16px;accent-color:var(--gold)">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px">${esc(g.name || "Unknown")}</div>
+          ${g.program ? `<div style="font-size:12px;color:var(--navy)">${esc(g.program)}</div>` : ""}
+          <div style="font-size:12px;color:var(--gray);display:flex;gap:10px;flex-wrap:wrap;margin-top:2px">
+            ${g.amount ? `<span>💰 ${esc(g.amount)}</span>` : ""}
+            ${g.deadline ? `<span>📅 ${esc(g.deadline)}</span>` : ""}
+            ${g.url ? `<a href="${esc(g.url)}" target="_blank">🔗 Link</a>` : ""}
+          </div>
+          ${g.focus_area || g.notes ? `<div style="font-size:12px;margin-top:3px">${esc(g.focus_area || "")}${g.notes ? " — " + esc(g.notes) : ""}</div>` : ""}
+        </div>
+      </div>`).join("");
+
+    resultsEl.style.display = "";
+  } catch(e) {
+    statusEl.textContent = "❌ Error: " + e.message;
+    console.error("[BulkGrant]", e);
+  }
+  btn.disabled = false;
+}
+
+async function importSelectedGrants() {
+  const grants = window._bulkGrantImportData || [];
+  const selected = grants.filter((g, i) => document.getElementById("bgCheck_" + i)?.checked);
+  if (!selected.length) { showToast("No grantors selected.", "error"); return; }
+
+  const statusEl = document.getElementById("bulkGrantStatus");
+  statusEl.textContent = `⏳ Importing ${selected.length} grantor${selected.length !== 1 ? "s" : ""}...`;
+
+  let imported = 0;
+  let skipped = 0;
+  for (const g of selected) {
+    // Skip if name already exists
+    const exists = ALL_GRANTS.some(existing => existing.name?.toLowerCase() === (g.name || "").toLowerCase());
+    if (exists) { skipped++; continue; }
+    try {
+      const row = {
+        id: genId(),
+        name: g.name || "Unknown",
+        website: g.url || "",
+        grantor_type: g.focus_area || "",
+        notes: [g.program, g.notes, g.amount ? `Amount: ${g.amount}` : "", g.deadline ? `Deadline: ${g.deadline}` : ""].filter(Boolean).join("\n"),
+        allows_multiple: false,
+        created_at: new Date().toISOString()
+      };
+      await sbInsert("MyBFFGrants", row);
+      ALL_GRANTS.push(row);
+      imported++;
+    } catch(e) { console.warn("[BulkGrant import]", e.message); skipped++; }
+  }
+
+  ALL_GRANTS.sort((a,b) => (a.name||"").localeCompare(b.name||""));
+  statusEl.textContent = `✅ Imported ${imported}${skipped ? `, ${skipped} skipped (already exist or error)` : ""}.`;
+  showToast(`Imported ${imported} grantor${imported !== 1 ? "s" : ""}.`);
+  renderGrantsPage();
+  if (imported > 0) setTimeout(() => closeModal("bulkGrantModal"), 1500);
+}
+
+// ── Feature 4: Spreadsheet Import ─────────────────────────
+
+let _sheetRows = [];
+let _sheetHeaders = [];
+
+const SHEET_FIELD_OPTIONS = [
+  { value: "", label: "— Skip —" },
+  { value: "name", label: "Name *" },
+  { value: "website", label: "Website" },
+  { value: "grantor_type", label: "Type / Focus Area" },
+  { value: "contact_name", label: "Contact Name" },
+  { value: "contact_email", label: "Contact Email" },
+  { value: "notes", label: "Notes" },
+];
+
+function openSheetImport() {
+  if (!isContributor()) { showToast("Contributor access required.", "error"); return; }
+  _sheetRows = [];
+  _sheetHeaders = [];
+  document.getElementById("sheetImportFile").value = "";
+  document.getElementById("sheetMapperArea").style.display = "none";
+  document.getElementById("sheetImportStatus").textContent = "";
+  openModal("sheetImportModal");
+}
+
+async function handleSheetUpload(input) {
+  const file = input?.files?.[0];
+  if (!file) return;
+
+  const ext = file.name.split(".").pop().toLowerCase();
+  const statusEl = document.getElementById("sheetImportStatus");
+  statusEl.textContent = "Reading file...";
+
+  try {
+    if (ext === "csv") {
+      const text = await file.text();
+      parseCSVtoSheet(text);
+    } else if (ext === "xlsx" || ext === "xls") {
+      await parseXLSXtoSheet(file);
+    } else {
+      showToast("Please upload a .csv or .xlsx file.", "error");
+      return;
+    }
+    renderSheetMapper();
+    statusEl.textContent = `Loaded ${_sheetRows.length} row${_sheetRows.length !== 1 ? "s" : ""}.`;
+  } catch(e) {
+    showToast("Error reading file: " + e.message, "error");
+    statusEl.textContent = "Error reading file.";
+    console.error("[SheetImport]", e);
+  }
+}
+
+function parseCSVtoSheet(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) throw new Error("Empty file");
+  // Simple CSV parse (handles quoted commas)
+  const parseRow = row => {
+    const cells = [];
+    let cur = "", inQ = false;
+    for (let i = 0; i < row.length; i++) {
+      const ch = row[i];
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { cells.push(cur.trim()); cur = ""; }
+      else { cur += ch; }
+    }
+    cells.push(cur.trim());
+    return cells;
+  };
+  _sheetHeaders = parseRow(lines[0]);
+  _sheetRows = lines.slice(1).map(parseRow);
+}
+
+async function parseXLSXtoSheet(file) {
+  // Load SheetJS from CDN if not already loaded
+  if (!window.XLSX) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  const ab = await file.arrayBuffer();
+  const wb = window.XLSX.read(ab, { type: "array" });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const data = window.XLSX.utils.sheet_to_json(ws, { header: 1 });
+  if (!data.length) throw new Error("Empty spreadsheet");
+  _sheetHeaders = (data[0] || []).map(h => String(h || ""));
+  _sheetRows = data.slice(1).map(row => _sheetHeaders.map((_, i) => String(row[i] ?? "")));
+}
+
+function renderSheetMapper() {
+  const mapperEl = document.getElementById("sheetColumnMapper");
+  const previewEl = document.getElementById("sheetPreviewTable");
+  const area = document.getElementById("sheetMapperArea");
+
+  // Auto-detect common column names
+  const autoMap = {
+    name: ["name","grantor","organization","org","grantorname","grantname","foundation"],
+    website: ["website","url","link","web","site"],
+    grantor_type: ["type","focus","focusarea","category","grantortype","granttype","kind"],
+    contact_name: ["contact","contactname","person","contactperson"],
+    contact_email: ["email","contactemail","emailaddress"],
+    notes: ["notes","description","details","comments","info"],
+  };
+
+  mapperEl.innerHTML = _sheetHeaders.map((h, i) => {
+    const hLower = h.toLowerCase().replace(/[^a-z]/g, "");
+    let autoVal = "";
+    for (const [field, synonyms] of Object.entries(autoMap)) {
+      if (synonyms.some(s => hLower.includes(s))) { autoVal = field; break; }
+    }
+    return `
+      <div style="background:#f9f9f9;border:1px solid var(--border);border-radius:6px;padding:10px 12px">
+        <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:6px">${esc(h)}</div>
+        <select class="form-input" id="sheetMap_${i}" style="font-size:13px">
+          ${SHEET_FIELD_OPTIONS.map(o => `<option value="${o.value}"${o.value === autoVal ? " selected" : ""}>${o.label}</option>`).join("")}
+        </select>
+      </div>`;
+  }).join("");
+
+  // Preview table
+  const preview = _sheetRows.slice(0, 5);
+  previewEl.innerHTML = `
+    <thead><tr>${_sheetHeaders.map(h => `<th style="background:var(--navy);color:white;padding:6px 10px;text-align:left;font-size:11px">${esc(h)}</th>`).join("")}</tr></thead>
+    <tbody>${preview.map(row => `<tr>${row.map(cell => `<td style="padding:5px 10px;border-bottom:1px solid var(--border);font-size:12px">${esc(String(cell||""))}</td>`).join("")}</tr>`).join("")}</tbody>`;
+
+  area.style.display = "";
+}
+
+async function importSheetGrants() {
+  const statusEl = document.getElementById("sheetImportStatus");
+
+  // Build mapping: column index → field name
+  const mapping = {};
+  _sheetHeaders.forEach((h, i) => {
+    const sel = document.getElementById("sheetMap_" + i);
+    if (sel?.value) mapping[i] = sel.value;
+  });
+
+  if (!Object.values(mapping).includes("name")) {
+    showToast("Please map at least the Name column.", "error");
+    return;
+  }
+
+  statusEl.textContent = "⏳ Importing...";
+  let imported = 0;
+  let skipped = 0;
+
+  for (const row of _sheetRows) {
+    const record = {};
+    Object.entries(mapping).forEach(([i, field]) => { record[field] = (row[i] || "").trim(); });
+    if (!record.name) { skipped++; continue; }
+
+    // Skip duplicates
+    const exists = ALL_GRANTS.some(g => g.name?.toLowerCase() === record.name.toLowerCase());
+    if (exists) { skipped++; continue; }
+
+    try {
+      const newRow = {
+        id: genId(),
+        name: record.name,
+        website: record.website || "",
+        grantor_type: record.grantor_type || "",
+        contact_name: record.contact_name || "",
+        contact_email: record.contact_email || "",
+        notes: record.notes || "",
+        allows_multiple: false,
+        created_at: new Date().toISOString()
+      };
+      await sbInsert("MyBFFGrants", newRow);
+      ALL_GRANTS.push(newRow);
+      imported++;
+    } catch(e) { console.warn("[SheetImport row]", e.message); skipped++; }
+  }
+
+  ALL_GRANTS.sort((a,b) => (a.name||"").localeCompare(b.name||""));
+  const msg = `Imported ${imported}${skipped ? `, ${skipped} skipped (duplicates or blank name)` : ""}.`;
+  statusEl.textContent = "✅ " + msg;
+  showToast(msg);
+  renderGrantsPage();
+  if (imported > 0) setTimeout(() => closeModal("sheetImportModal"), 1800);
 }
 
 // ═══════════════════════════════════════════════════════════
