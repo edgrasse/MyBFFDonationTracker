@@ -1612,6 +1612,54 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- SAVE TO ASSET LIBRARY MODAL (from Brand Library analyze flow) -->
+<div class="modal-overlay" id="saveToAssetModal">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeModal('saveToAssetModal')" style="top:14px;right:14px">&#10005;</button>
+    <div class="modal-title">📁 Save to Asset Library</div>
+    <div style="font-size:13px;color:var(--gray);margin-bottom:16px">
+      This document will be saved to the Asset Library and removed from the Brand Library staging area.
+    </div>
+    <div class="form-grid single">
+      <div class="form-group">
+        <label class="form-label">Name</label>
+        <input type="text" class="form-input" id="sta_name" placeholder="Asset name">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-input" id="sta_category" onchange="toggleStaEventField()">
+          <option value="brand">🏆 Brand Assets</option>
+          <option value="event">📅 Event-Specific</option>
+          <option value="ai_source">🤖 AI Source Materials</option>
+          <option value="general">📁 General</option>
+        </select>
+      </div>
+      <div class="form-group" id="sta_eventRow" style="display:none">
+        <label class="form-label">Event</label>
+        <select class="form-input" id="sta_event">
+          <option value="">— Select event —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tags <span style="font-size:11px;color:var(--gray);font-weight:400">comma-separated, optional</span></label>
+        <input type="text" class="form-input" id="sta_tags" placeholder="e.g. flyer, walk-run, 2026">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <textarea class="form-input form-textarea" id="sta_notes" rows="2" placeholder="Any notes about this asset..."></textarea>
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" id="sta_forAI" checked style="width:18px;height:18px;accent-color:var(--gold)">
+        <label for="sta_forAI" style="font-size:14px;cursor:pointer">Keep in Brand Library for future AI analysis</label>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal('saveToAssetModal')">Cancel</button>
+      <button class="btn btn-gold" onclick="saveLibraryItemToAsset()">📁 Save to Asset Library</button>
+    </div>
+  </div>
+</div>
+
 <!-- GRANT MODAL (add/edit grantor) -->
 <div class="modal-overlay" id="grantModal">
   <div class="modal" style="max-width:600px">
@@ -1859,7 +1907,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.12d-DEV · May 09 2026";
+const BUILD_VERSION = "v5.12e-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -6283,8 +6331,7 @@ function renderAISettings() {
           <button class="btn btn-gold btn-sm" onclick="openAILibraryModal()">+ Add Item</button>
         </div>
         <div style="font-size:12px;color:var(--gray);margin-bottom:16px">
-          URLs, documents, and past content. One item can serve multiple purposes — tag it with everything it applies to.
-          Click <strong>🔍 Analyze</strong> on any item to have AI suggest Brand Brain field values for your review.
+          Staging area for source documents. Add a URL, upload a document, or paste text — click <strong>🔍 Analyze</strong> to extract Brand Brain values. Once reviewed, document items can be <strong>saved to the Asset Library</strong> where they live permanently.
         </div>
         <div id="aiLibraryList">
           ${(() => {
@@ -6645,6 +6692,24 @@ function renderIntakeModal() {
         ${s.conflict && s.conflict_note ? `<div style="font-size:11px;color:#dc2626;margin-top:4px">⚠️ ${esc(s.conflict_note)}</div>` : ""}
       </div>`;
   }).join("");
+
+  // Dynamically update footer buttons based on review state
+  const footerEl = document.querySelector("#aiIntakeModal .modal > div:last-child");
+  if (footerEl) {
+    const isLibraryItem = !!(window._aiIntakeItem && AI_LIBRARY.find(x => x.id === window._aiIntakeItem.id));
+    if (allDone) {
+      footerEl.innerHTML = `
+        <button class="btn btn-outline" onclick="closeModal('aiIntakeModal')">Close</button>
+        ${isLibraryItem
+          ? `<button class="btn btn-gold" onclick="openSaveToAssetModal()">📁 Save to Asset Library</button>`
+          : `<button class="btn btn-gold" onclick="closeModal('aiIntakeModal')">✅ Done</button>`}`;
+    } else {
+      footerEl.innerHTML = `
+        <button class="btn btn-outline" onclick="closeModal('aiIntakeModal')">Close</button>
+        <button class="btn btn-outline" onclick="skipAllSuggestions()">Skip All</button>
+        <button class="btn btn-gold" onclick="approveAllSuggestions()">✅ Approve All High Confidence</button>`;
+    }
+  }
 }
 
 // All valid Brand Brain field names for the field assignment dropdown
@@ -6772,16 +6837,8 @@ function skipSuggestion(i) {
   (window._aiSkipped = window._aiSkipped || new Set()).add(i);
   const row = document.getElementById("intake-row-"+i);
   if (row) row.remove(); // Remove from DOM immediately
-  // Check if all items are now handled
-  const suggestions = window._aiIntakeSuggestions || [];
-  const approved = window._aiApproved || new Set();
-  const skipped = window._aiSkipped || new Set();
-  const pending = suggestions.filter((_,j) => !approved.has(j) && !skipped.has(j)).length;
-  if (pending === 0) {
-    document.getElementById("aiIntakeSource").textContent =
-      `Source: ${window._aiIntakeItem?.name || ""} — All items reviewed ✅`;
-    showToast("All suggestions reviewed. Click Close to finish.");
-  }
+  // Refresh footer buttons (will switch to Save to Asset Library when all done)
+  renderIntakeModal();
 }
 
 async function approveAllSuggestions() {
@@ -6795,6 +6852,7 @@ async function approveAllSuggestions() {
     }
   }
   showToast(`✅ ${approved} high-confidence suggestion${approved!==1?"s":""} approved.`);
+  renderIntakeModal(); // Refresh footer — may switch to Save to Asset Library
 }
 
 function skipAllSuggestions() {
@@ -6807,7 +6865,141 @@ function skipAllSuggestions() {
   closeModal("aiIntakeModal");
 }
 
-function openAILibraryModal() {
+function toggleStaEventField() {
+  const cat = document.getElementById("sta_category")?.value;
+  const row = document.getElementById("sta_eventRow");
+  if (row) row.style.display = cat === "event" ? "" : "none";
+}
+
+function openSaveToAssetModal() {
+  const item = window._aiIntakeItem || {};
+  // Pre-fill name from the item being analyzed
+  document.getElementById("sta_name").value = item.name || "";
+  document.getElementById("sta_category").value = "ai_source";
+  document.getElementById("sta_tags").value = "";
+  document.getElementById("sta_notes").value = item.notes || "";
+  document.getElementById("sta_forAI").checked = true;
+  toggleStaEventField();
+  // Populate event dropdown from ALL_EVENTS
+  const eventSel = document.getElementById("sta_event");
+  eventSel.innerHTML = `<option value="">— Select event —</option>`;
+  (ALL_EVENTS || []).forEach(ev => {
+    const opt = document.createElement("option");
+    opt.value = ev.name || ev.id;
+    opt.textContent = ev.name || ev.id;
+    eventSel.appendChild(opt);
+  });
+  openModal("saveToAssetModal");
+}
+
+async function saveLibraryItemToAsset() {
+  const item = window._aiIntakeItem || {};
+  if (!item.id) { showToast("No item to save.", "error"); return; }
+
+  // Only document-type items (those with a file_url in MyBFFAILibrary) can be promoted
+  // Check if this is actually an AI_LIBRARY item with a stored file reference
+  const libItem = AI_LIBRARY.find(x => x.id === item.id);
+  if (!libItem) {
+    showToast("Only Brand Library document items can be saved to Asset Library this way.", "error");
+    closeModal("saveToAssetModal");
+    return;
+  }
+
+  const name = document.getElementById("sta_name").value.trim() || libItem.name || "Untitled";
+  const category = document.getElementById("sta_category").value;
+  const eventName = document.getElementById("sta_event").value || null;
+  const tags = document.getElementById("sta_tags").value.trim() || null;
+  const notes = document.getElementById("sta_notes").value.trim() || libItem.notes || null;
+  const forAI = document.getElementById("sta_forAI").checked;
+  const now = new Date().toISOString();
+
+  // Build asset row — file is already in Supabase Storage if it was uploaded,
+  // otherwise it was pasted text / URL with no stored file
+  const cached = AI_FILE_CACHE.get(item.id);
+  const hasStoredFile = cached && cached.base64;
+
+  if (!hasStoredFile && !libItem.url) {
+    showToast("This item has no stored file — only uploaded documents can be saved to the Asset Library.", "error");
+    closeModal("saveToAssetModal");
+    return;
+  }
+
+  showToast("⏳ Saving to Asset Library…");
+
+  try {
+    let publicUrl = null;
+    let filePath = null;
+    let fileType = libItem.content_type || "application/octet-stream";
+    let fileSize = null;
+
+    if (hasStoredFile) {
+      // Re-upload the cached file to mybff-content/assets bucket
+      const assetId = genId();
+      const ext = (cached.name || "file").split(".").pop().toLowerCase();
+      filePath = `assets/${category}/${assetId}.${ext}`;
+      fileType = cached.mediaType || fileType;
+
+      const signResult = await workerCall({
+        method: "STORAGE_SIGN",
+        appId: APP_ID,
+        bucket: "mybff-content",
+        filePath
+      });
+      if (!signResult?.uploadUrl) throw new Error("Could not get upload URL");
+
+      // Convert base64 back to blob for upload
+      const byteChars = atob(cached.base64);
+      const byteArr = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([byteArr], { type: fileType });
+      fileSize = blob.size;
+
+      const uploadRes = await fetch(signResult.uploadUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": fileType,
+          "apikey": signResult.serviceKey,
+          "Authorization": "Bearer " + signResult.serviceKey,
+          "x-upsert": "true"
+        },
+        body: blob
+      });
+      if (!uploadRes.ok) throw new Error("Upload failed: " + await uploadRes.text());
+      publicUrl = signResult.publicUrl;
+
+      // Save asset row
+      const assetRow = {
+        id: assetId, name, category, event_name: eventName,
+        file_url: publicUrl, file_path: filePath,
+        file_type: fileType, file_size: fileSize,
+        tags, notes, for_ai: forAI,
+        created_by: currentUser?.displayName || "",
+        created_at: now
+      };
+      await sbInsert("MyBFFAssets", assetRow);
+      ALL_ASSETS.unshift(assetRow);
+      if (forAI) {
+        AI_FILE_CACHE.set(assetId, { base64: cached.base64, mediaType: fileType, name: cached.name });
+      }
+    }
+
+    // Remove from AI_LIBRARY + Supabase MyBFFAILibrary
+    await sbDelete("MyBFFAILibrary", item.id, "id");
+    AI_LIBRARY = AI_LIBRARY.filter(x => x.id !== item.id);
+    AI_FILE_CACHE.delete(item.id);
+
+    closeModal("saveToAssetModal");
+    closeModal("aiIntakeModal");
+    showToast(`✅ Saved to Asset Library${hasStoredFile ? "" : " (metadata only — no file stored)"}.`);
+    renderAssetLibrary();
+    renderAISettings();
+  } catch(e) {
+    showToast("Error: " + e.message, "error");
+    console.error("[saveLibraryItemToAsset]", e);
+  }
+}
+
+
   document.getElementById("aiLibModalName").value = "";
   document.getElementById("aiLibModalUrl").value = "";
   document.getElementById("aiLibModalType").value = "URL";
