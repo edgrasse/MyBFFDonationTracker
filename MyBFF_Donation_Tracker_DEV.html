@@ -1922,7 +1922,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.12g-DEV · May 09 2026";
+const BUILD_VERSION = "v5.12h-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -6694,7 +6694,7 @@ function renderIntakeModal() {
             <div style="display:flex;align-items:center;gap:4px;font-size:12px">
               <label style="color:var(--gray)">Save to:</label>
               <select id="intake-field-${i}" style="font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:white">
-                ${INTAKE_FIELDS.map(f => `<option value="${f}" ${(mappedField||"")===f?"selected":""}>${f}</option>`).join("")}
+                ${INTAKE_FIELDS.map(f => `<option value="${f}" ${(mappedField||"")===f?"selected":""}>${FIELD_LABELS[f]||f}</option>`).join("")}
               </select>
             </div>
             ${existing ? `<div style="display:flex;align-items:center;gap:4px;font-size:12px">
@@ -6741,54 +6741,172 @@ const INTAKE_FIELDS = [
   "disclosures","avoid_claims","privacy"
 ];
 
+// Friendly labels shown in the "Save to:" dropdown
+const FIELD_LABELS = {
+  "mission":                    "Mission Statement",
+  "org_name":                   "Organization Name & Tagline",
+  "history":                    "History & Background",
+  "years":                      "Years in Operation",
+  "geography":                  "Geographic Area Served",
+  "stats":                      "Key Impact Statistics",
+  "people":                     "Key People to Reference",
+  "personality":                "Personality Words",
+  "use_words":                  "Words / Phrases to Always Use",
+  "avoid_words":                "Words / Phrases to Never Use",
+  "emoji":                      "Emoji Usage",
+  "hashtags":                   "Standard Hashtags",
+  "tone_formal":                "Tone: Formal ←→ Casual",
+  "tone_serious":               "Tone: Serious ←→ Playful",
+  "tone_inspire":               "Tone: Inspirational ←→ Factual",
+  "current_focus":              "Current Focus / Urgency",
+  "active_event":               "Active Event",
+  "campaign_expires":           "Campaign Expires",
+  "campaign_messages":          "Key Messages This Campaign",
+  "audience_general_public":    "Audience: General Public",
+  "audience_past_attendees":    "Audience: Past Attendees",
+  "audience_donors":            "Audience: Donors",
+  "audience_sponsors":          "Audience: Sponsors",
+  "audience_volunteers":        "Audience: Volunteers",
+  "channel_facebook":           "Channel: Facebook",
+  "channel_instagram":          "Channel: Instagram",
+  "channel_email":              "Channel: Email",
+  "channel_flyer":              "Channel: Flyer",
+  "event_cornhole":             "Event Context: Cornhole",
+  "event_trivia":               "Event Context: Trivia",
+  "event_walk_run":             "Event Context: Walk/Run",
+  "event_golf":                 "Event Context: Golf",
+  "event_super_bowl_squares":   "Event Context: Super Bowl Squares",
+  "disclosures":                "Required Disclosures",
+  "avoid_claims":               "Claims to Avoid",
+  "privacy":                    "Privacy Rules",
+};
+
+// Maps the DOM element ID for each DB field (so approveSuggestion can sync the textarea)
+const FIELD_DOM_ID = {
+  "mission":                  "ai_mission",
+  "org_name":                 "ai_name",
+  "history":                  "ai_history",
+  "years":                    "ai_years",
+  "geography":                "ai_geography",
+  "stats":                    "ai_stats",
+  "people":                   "ai_people",
+  "personality":              "ai_personality",
+  "use_words":                "ai_use_words",
+  "avoid_words":              "ai_avoid_words",
+  "emoji":                    "ai_emoji",
+  "hashtags":                 "ai_hashtags",
+  "tone_formal":              "ai_tone_formal",
+  "tone_serious":             "ai_tone_serious",
+  "tone_inspire":             "ai_tone_inspire",
+  "current_focus":            "ai_current_focus",
+  "active_event":             "ai_active_event",
+  "campaign_expires":         "ai_campaign_expires",
+  "campaign_messages":        "ai_campaign_messages",
+  "audience_general_public":  "ai_audience_general_public",
+  "audience_past_attendees":  "ai_audience_past_attendees",
+  "audience_donors":          "ai_audience_donors",
+  "audience_sponsors":        "ai_audience_sponsors",
+  "audience_volunteers":      "ai_audience_volunteers",
+  "channel_facebook":         "ai_channel_facebook",
+  "channel_instagram":        "ai_channel_instagram",
+  "channel_email":            "ai_channel_email",
+  "channel_flyer":            "ai_channel_flyer",
+  "event_cornhole":           "ai_event_cornhole",
+  "event_trivia":             "ai_event_trivia",
+  "event_walk_run":           "ai_event_walk_run",
+  "event_golf":               "ai_event_golf",
+  "event_super_bowl_squares": "ai_event_super_bowl_squares",
+  "disclosures":              "ai_disclosures",
+  "avoid_claims":             "ai_avoid_claims",
+  "privacy":                  "ai_privacy",
+};
+
 // Maps Claude's suggested field names to actual MyBFFAIConfig columns
 function mapToConfigField(claudeField) {
+  const f = (claudeField || "").toLowerCase().trim();
   const map = {
-    // Direct matches
-    "mission":           "mission",
-    "personality":       "personality",
-    "use_words":         "use_words",
-    "avoid_words":       "avoid_words",
-    "hashtags":          "hashtags",
-    "history":           "history",
-    "stats":             "stats",
-    "people":            "people",
-    "years":             "years",
-    "geography":         "geography",
-    "disclosures":       "disclosures",
-    "avoid_claims":      "avoid_claims",
-    "privacy":           "privacy",
-    "current_focus":     "current_focus",
-    "campaign_messages": "campaign_messages",
+    // Direct matches — all DB columns
+    "mission":                    "mission",
+    "org_name":                   "org_name",
+    "history":                    "history",
+    "years":                      "years",
+    "geography":                  "geography",
+    "stats":                      "stats",
+    "people":                     "people",
+    "personality":                "personality",
+    "use_words":                  "use_words",
+    "avoid_words":                "avoid_words",
+    "emoji":                      "emoji",
+    "hashtags":                   "hashtags",
+    "tone_formal":                "tone_formal",
+    "tone_serious":               "tone_serious",
+    "tone_inspire":               "tone_inspire",
+    "current_focus":              "current_focus",
+    "active_event":               "active_event",
+    "campaign_expires":           "campaign_expires",
+    "campaign_messages":          "campaign_messages",
+    "audience_general_public":    "audience_general_public",
+    "audience_past_attendees":    "audience_past_attendees",
+    "audience_donors":            "audience_donors",
+    "audience_sponsors":          "audience_sponsors",
+    "audience_volunteers":        "audience_volunteers",
+    "channel_facebook":           "channel_facebook",
+    "channel_instagram":          "channel_instagram",
+    "channel_email":              "channel_email",
+    "channel_flyer":              "channel_flyer",
+    "event_cornhole":             "event_cornhole",
+    "event_trivia":               "event_trivia",
+    "event_walk_run":             "event_walk_run",
+    "event_golf":                 "event_golf",
+    "event_super_bowl_squares":   "event_super_bowl_squares",
+    "disclosures":                "disclosures",
+    "avoid_claims":               "avoid_claims",
+    "privacy":                    "privacy",
     // Common Claude variations → Brand Brain fields
-    "vision":            "mission",
-    "tagline":           "org_name",
-    "tone":              "personality",
-    "voice":             "personality",
-    "values":            "use_words",
-    "core_values":       "use_words",
-    "target_audience":   "people",
-    "audience":          "people",
-    "location":          "geography",
-    "founding_purpose":  "history",
-    "founding_date":     "history",
-    "founding_governance_date": "history",
-    "bylaws_date":       "history",
-    "organization_type": "history",
-    "services":          "stats",
-    "service_delivery_channels": "stats",
-    "governance_structure": "people",
-    "personality_words": "personality",
-    "channel_facebook":  "channel_facebook",
-    "channel_instagram": "channel_instagram",
-    "channel_email":     "channel_email",
-    "channel_flyer":     "channel_flyer",
-    "event_cornhole":    "event_cornhole",
-    "event_trivia":      "event_trivia",
-    "event_walk_run":    "event_walk_run",
-    "event_golf":        "event_golf",
+    "vision":                     "mission",
+    "mission_statement":          "mission",
+    "tagline":                    "org_name",
+    "organization_name":          "org_name",
+    "name":                       "org_name",
+    "tone":                       "personality",
+    "voice":                      "personality",
+    "personality_words":          "personality",
+    "values":                     "use_words",
+    "core_values":                "use_words",
+    "language":                   "use_words",
+    "target_audience":            "people",
+    "audience":                   "audience_general_public",
+    "key_people":                 "people",
+    "leadership":                 "people",
+    "location":                   "geography",
+    "service_area":               "geography",
+    "founding_purpose":           "history",
+    "founding_date":              "history",
+    "founding_governance_date":   "history",
+    "bylaws_date":                "history",
+    "organization_type":          "history",
+    "background":                 "history",
+    "services":                   "stats",
+    "impact":                     "stats",
+    "service_delivery_channels":  "stats",
+    "governance_structure":       "people",
+    "focus":                      "current_focus",
+    "current_campaign":           "current_focus",
+    "event_date":                 "current_focus",
+    "event_name":                 "current_focus",
+    "event_start_time":           "current_focus",
+    "event_location":             "current_focus",
+    "event_registration_pricing": "current_focus",
+    "fundraising_activities":     "current_focus",
+    "annual_events":              "current_focus",
+    "registration_pricing":       "campaign_messages",
+    "pricing":                    "campaign_messages",
+    "key_messages":               "campaign_messages",
+    "disclosures":                "disclosures",
+    "legal":                      "disclosures",
+    "hashtag":                    "hashtags",
   };
-  return map[claudeField] || null;
+  return map[f] || null;
 }
 
 async function approveSuggestion(i) {
@@ -6827,6 +6945,15 @@ async function approveSuggestion(i) {
       await sbUpdate("MyBFFAIConfig", AI_CONFIG.id, { [dbField]: finalVal, updated_at: now }, "id");
     }
     AI_CONFIG[dbField] = finalVal;
+    // Sync the Brand Brain form DOM element so saveAISettings doesn't overwrite this value
+    const domId = FIELD_DOM_ID[dbField];
+    if (domId) {
+      const el = document.getElementById(domId);
+      if (el) {
+        if (el.tagName === "TEXTAREA" || el.type === "text") el.value = finalVal;
+        else if (el.tagName === "SELECT") el.value = finalVal;
+      }
+    }
     // Log to history
     const histRow = { id: genId(), field_name: dbField + (dbField !== s.field ? " (from: "+s.field+")" : ""), old_value: oldVal, new_value: val,
       changed_by: myName, changed_at: now,
@@ -6843,7 +6970,8 @@ async function approveSuggestion(i) {
       const ta = document.getElementById("intake-val-"+i);
       if (ta) ta.disabled = true;
     }
-    showToast(`✅ "${dbField}" ${action === "append" ? "appended" : "updated"} in Brand Brain!`);
+    const friendlyName = FIELD_LABELS[dbField] || dbField;
+    showToast(`✅ "${friendlyName}" ${action === "append" ? "appended" : "updated"} in Brand Brain!`);
   } catch(e) {
     showToast("Error saving: " + e.message, "error");
     console.error("approveSuggestion error:", e);
