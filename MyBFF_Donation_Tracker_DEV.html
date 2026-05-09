@@ -1922,7 +1922,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.12i-DEV · May 09 2026";
+const BUILD_VERSION = "v5.12j-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -6698,14 +6698,14 @@ function renderIntakeModal() {
                 ${INTAKE_FIELDS.map(f => `<option value="${f}" ${(mappedField||"")===f?"selected":""}>${FIELD_LABELS[f]||f}</option>`).join("")}
               </select>
             </div>
-            ${existing ? `<div style="display:flex;align-items:center;gap:4px;font-size:12px">
+            <div style="display:flex;align-items:center;gap:4px;font-size:12px">
               <label style="color:var(--gray)">Action:</label>
               <select id="intake-action-${i}" style="font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:white">
-                <option value="append" selected>Append to existing</option>
-                <option value="replace">Replace existing</option>
+                <option value="append" selected>Append</option>
+                <option value="replace">Replace</option>
               </select>
             </div>
-            <div style="font-size:11px;color:var(--gray)">Current: ${esc(String(existing).substring(0,60))}${String(existing).length>60?"...":""}</div>` : ""}
+            ${existing ? `<div style="font-size:11px;color:var(--gray)">Current: ${esc(String(existing).substring(0,60))}${String(existing).length>60?"...":""}</div>` : ""}
           </div>` : ""}
         ${s.conflict && s.conflict_note ? `<div style="font-size:11px;color:#dc2626;margin-top:4px">⚠️ ${esc(s.conflict_note)}</div>` : ""}
       </div>`;
