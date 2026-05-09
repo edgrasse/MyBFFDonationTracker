@@ -1907,7 +1907,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.12e-DEV · May 09 2026";
+const BUILD_VERSION = "v5.12f-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -6999,7 +6999,7 @@ async function saveLibraryItemToAsset() {
   }
 }
 
-
+function openAILibraryModal() {
   document.getElementById("aiLibModalName").value = "";
   document.getElementById("aiLibModalUrl").value = "";
   document.getElementById("aiLibModalType").value = "URL";
