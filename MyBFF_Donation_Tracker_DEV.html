@@ -1859,7 +1859,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.12c-DEV · May 03 2026 · 10:35 AM";
+const BUILD_VERSION = "v5.12d-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5999,7 +5999,7 @@ function renderAssetLibrary() {
             </div>` : ""}
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:auto">
               ${a.file_url ? `<a href="${esc(a.file_url)}" target="_blank" class="btn btn-sm btn-outline" style="font-size:11px">⬇️ Download</a>` : ""}
-              ${a.for_ai ? `<button class="btn btn-sm btn-outline" style="font-size:11px" onclick="analyzeAsset('${esc(a.id)}')">🔍 Analyze</button>` : ""}
+              ${a.file_url ? `<button class="btn btn-sm btn-outline" style="font-size:11px" onclick="analyzeAsset('${esc(a.id)}')">🔍 Analyze</button>` : ""}
               ${isAdmin() ? `<button class="btn btn-sm" style="color:var(--red);font-size:11px" onclick="deleteAsset('${esc(a.id)}')">✕</button>` : ""}
             </div>
             ${a.file_size ? `<div style="font-size:10px;color:var(--gray)">${(a.file_size/1024).toFixed(1)} KB · ${a.file_type||"file"}</div>` : ""}
@@ -6435,7 +6435,23 @@ async function saveAISettings() {
 
 // ── AI Intake (analyze library item) ─────────────────────────
 async function analyzeLibraryItem(itemId) {
-  const item = AI_LIBRARY.find(x => x.id === itemId);
+  // Check AI_LIBRARY first; fall back to ALL_ASSETS (Asset Library items added to Brand Brain)
+  let item = AI_LIBRARY.find(x => x.id === itemId);
+  if (!item) {
+    const asset = ALL_ASSETS.find(a => a.id === itemId);
+    if (asset) {
+      item = {
+        id: asset.id,
+        name: asset.name,
+        url: asset.file_url || null,
+        notes: asset.notes || null,
+        content_type: asset.file_type || "Document",
+        tags: (asset.tags || "") + (asset.for_ai ? ",Foundation Identity" : "")
+      };
+      // If file is stored in Supabase (has a URL), treat it as a file not a URL to scrape
+      if (item.url) { item.url = null; }
+    }
+  }
   if (!item) { showToast("Item not found.", "error"); return; }
 
   // Show status in the library list item
