@@ -1607,7 +1607,7 @@ if ('serviceWorker' in navigator) {
     <div style="display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border);padding-top:14px">
       <button class="btn btn-outline" onclick="closeModal('aiIntakeModal')">Close</button>
       <button class="btn btn-outline" onclick="skipAllSuggestions()">Skip All</button>
-      <button class="btn btn-gold" onclick="approveAllSuggestions()">✅ Approve All High Confidence</button>
+      <button class="btn btn-gold" onclick="approveAllSuggestions()">⚡ Accept All High Confidence</button>
     </div>
   </div>
 </div>
@@ -1922,7 +1922,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.12j-DEV · May 09 2026";
+const BUILD_VERSION = "v5.12k-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -6511,7 +6511,8 @@ async function analyzeLibraryItem(itemId) {
         url: asset.file_url || null,
         notes: asset.notes || null,
         content_type: asset.file_type || "Document",
-        tags: (asset.tags || "") + (asset.for_ai ? ",Foundation Identity" : "")
+        tags: (asset.tags || "") + (asset.for_ai ? ",Foundation Identity" : ""),
+        _isAsset: true  // flag so the review modal knows this came from Asset Library
       };
       // If file is stored in Supabase (has a URL), treat it as a file not a URL to scrape
       if (item.url) { item.url = null; }
@@ -6714,18 +6715,30 @@ function renderIntakeModal() {
   // Dynamically update footer buttons based on review state
   const footerEl = document.querySelector("#aiIntakeModal .modal > div:last-child");
   if (footerEl) {
-    const isLibraryItem = !!(window._aiIntakeItem && AI_LIBRARY.find(x => x.id === window._aiIntakeItem.id));
+    const isAssetItem = !!(window._aiIntakeItem && window._aiIntakeItem._isAsset);
+    const isLibraryItem = !isAssetItem && !!(window._aiIntakeItem && AI_LIBRARY.find(x => x.id === window._aiIntakeItem.id));
     if (allDone) {
-      footerEl.innerHTML = `
-        <button class="btn btn-outline" onclick="closeModal('aiIntakeModal')">Close</button>
-        ${isLibraryItem
-          ? `<button class="btn btn-gold" onclick="openSaveToAssetModal()">📁 Save to Asset Library</button>`
-          : `<button class="btn btn-gold" onclick="closeModal('aiIntakeModal')">✅ Done</button>`}`;
+      if (isAssetItem) {
+        // Asset Library item — auto-remove from Brand Library and close
+        removeAssetFromBrandLibrary(window._aiIntakeItem.id, true /* silent */);
+        footerEl.innerHTML = `
+          <button class="btn btn-outline" onclick="closeModal('aiIntakeModal')">Close</button>
+          <button class="btn btn-gold" onclick="closeModal('aiIntakeModal')">✅ Done</button>`;
+      } else if (isLibraryItem) {
+        // Brand Library upload — offer to promote to Asset Library
+        footerEl.innerHTML = `
+          <button class="btn btn-outline" onclick="closeModal('aiIntakeModal')">Close</button>
+          <button class="btn btn-gold" onclick="openSaveToAssetModal()">📁 Save to Asset Library</button>`;
+      } else {
+        footerEl.innerHTML = `
+          <button class="btn btn-outline" onclick="closeModal('aiIntakeModal')">Close</button>
+          <button class="btn btn-gold" onclick="closeModal('aiIntakeModal')">✅ Done</button>`;
+      }
     } else {
       footerEl.innerHTML = `
         <button class="btn btn-outline" onclick="closeModal('aiIntakeModal')">Close</button>
         <button class="btn btn-outline" onclick="skipAllSuggestions()">Skip All</button>
-        <button class="btn btn-gold" onclick="approveAllSuggestions()">✅ Approve All High Confidence</button>`;
+        <button class="btn btn-gold" onclick="approveAllSuggestions()">⚡ Accept All High Confidence</button>`;
     }
   }
 }
@@ -7306,19 +7319,21 @@ async function deleteAILibraryItem(id) {
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
-async function removeAssetFromBrandLibrary(assetId) {
+async function removeAssetFromBrandLibrary(assetId, silent = false) {
   // Flips for_ai to false — removes from Brand Library view only.
   // Does NOT delete the asset or its file from the Asset Library.
   const asset = ALL_ASSETS.find(a => a.id === assetId);
   if (!asset) return;
-  if (!confirm(`Remove "${asset.name}" from the Brand Library?\n\nThis will NOT delete it from the Asset Library.`)) return;
+  if (!silent && !confirm(`Remove "${asset.name}" from the Brand Library?\n\nThis will NOT delete it from the Asset Library.`)) return;
   try {
     await sbUpdate("MyBFFAssets", assetId, { for_ai: false }, "id");
     asset.for_ai = false;
     AI_FILE_CACHE.delete(assetId);
-    renderAISettings();
-    showToast("Removed from Brand Library. Still in Asset Library. ✅");
-  } catch(e) { showToast("Error: " + e.message, "error"); }
+    if (!silent) {
+      renderAISettings();
+      showToast("Removed from Brand Library. Still in Asset Library. ✅");
+    }
+  } catch(e) { if (!silent) showToast("Error: " + e.message, "error"); }
 }
 
 function openAssetPickerModal() {
