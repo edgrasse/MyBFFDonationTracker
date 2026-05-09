@@ -830,17 +830,6 @@ if ('serviceWorker' in navigator) {
           <div style="font-size:13px;color:var(--gray);margin-bottom:12px">How donations are used at events: Raffle, Prize, Silent Auction, etc.</div>
           <div id="donCatList"></div>
         </div>
-        <!-- DEV Tools -->
-        <div class="card" style="grid-column:1/-1;border:2px dashed var(--gold);background:#fffbf0">
-          <div style="font-weight:700;font-size:16px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
-            🛠️ DEV Tools <span style="font-size:11px;color:var(--gray);font-weight:400">Visible in DEV build only</span>
-          </div>
-          <div style="font-size:13px;color:var(--gray);margin-bottom:14px">Seed test data for demonstrations. Only seeds if the target data is empty.</div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <button class="btn btn-outline btn-sm" onclick="clearSeedContent()" style="color:var(--red);border-color:var(--red)">🗑️ Clear Seeded Content</button>
-          </div>
-          <div id="seedStatus" style="margin-top:10px;font-size:13px;color:var(--gray)"></div>
-        </div>
       </div>
     </div>
 </div>
@@ -1555,13 +1544,21 @@ if ('serviceWorker' in navigator) {
         <input type="text" class="form-input" id="assetName" placeholder="e.g. MyBFF Logo White, Cornhole Flyer 2026">
       </div>
       <div class="form-group">
-        <label class="form-label">Category</label>
-        <select class="form-input" id="assetCategory" onchange="toggleAssetEventField()">
-          <option value="brand">🏆 Brand Assets</option>
-          <option value="event">📅 Event-Specific</option>
-          <option value="ai_source">🤖 AI Source Materials</option>
-          <option value="general">📁 General</option>
-        </select>
+        <label class="form-label">Category <span style="font-size:11px;color:var(--gray);font-weight:400">select all that apply</span></label>
+        <div style="display:flex;flex-direction:column;gap:7px;border:2px solid var(--border);border-radius:7px;padding:10px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" value="brand" class="asset-cat-check" style="accent-color:var(--gold);width:15px;height:15px" onchange="toggleAssetEventField()"> 🏆 Brand Assets
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" value="event" class="asset-cat-check" style="accent-color:var(--gold);width:15px;height:15px" onchange="toggleAssetEventField()"> 📅 Event-Specific
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" value="ai_source" class="asset-cat-check" style="accent-color:var(--gold);width:15px;height:15px" onchange="toggleAssetEventField()"> 🤖 AI Source Materials
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" value="general" class="asset-cat-check" style="accent-color:var(--gold);width:15px;height:15px" onchange="toggleAssetEventField()"> 📁 General
+          </label>
+        </div>
       </div>
       <div class="form-group" id="assetEventRow" style="display:none">
         <label class="form-label">Event</label>
@@ -1591,7 +1588,7 @@ if ('serviceWorker' in navigator) {
     </div>
     <div class="form-actions">
       <button class="btn btn-outline" onclick="closeModal('assetUploadModal')">Cancel</button>
-      <button class="btn btn-gold" onclick="saveAsset()">📤 Upload Asset</button>
+      <button class="btn btn-gold" id="assetSaveBtn" onclick="saveAsset()">📤 Upload Asset</button>
     </div>
     <input type="hidden" id="assetEditingId">
   </div>
@@ -1926,7 +1923,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.12m-DEV · May 09 2026";
+const BUILD_VERSION = "v5.12n-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5854,48 +5851,111 @@ function assetFileSelected(input) {
 }
 
 function toggleAssetEventField() {
-  const cat = document.getElementById("assetCategory")?.value;
+  // Show event row if "event" checkbox is checked
+  const eventChecked = Array.from(document.querySelectorAll(".asset-cat-check:checked")).some(cb => cb.value === "event");
   const row = document.getElementById("assetEventRow");
-  if (row) row.style.display = cat === "event" ? "" : "none";
+  if (row) row.style.display = eventChecked ? "" : "none";
 }
 
 function openAssetUploadModal() {
   document.getElementById("assetUploadTitle").textContent = "Upload Asset";
   document.getElementById("assetEditingId").value = "";
   document.getElementById("assetName").value = "";
-  document.getElementById("assetCategory").value = "brand";
   document.getElementById("assetTags").value = "";
   document.getElementById("assetNotes").value = "";
   document.getElementById("assetFile").value = "";
   document.getElementById("assetFilePreview").textContent = "";
   document.getElementById("assetForAI").checked = false;
   document.getElementById("assetEventRow").style.display = "none";
+  // Reset category checkboxes
+  document.querySelectorAll(".asset-cat-check").forEach(cb => cb.checked = false);
   // Populate event dropdown
   const evSel = document.getElementById("assetEvent");
   if (evSel) evSel.innerHTML = `<option value="">— Select event —</option>` +
     ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
+  // Show file field for upload
+  document.getElementById("assetFile").closest(".form-group").style.display = "";
+  document.getElementById("assetFilePreview").style.display = "";
+  const saveBtn = document.getElementById("assetSaveBtn");
+  if (saveBtn) saveBtn.textContent = "📤 Upload Asset";
+  openModal("assetUploadModal");
+}
+
+function openEditAssetModal(assetId) {
+  const asset = ALL_ASSETS.find(a => a.id === assetId);
+  if (!asset) return;
+  document.getElementById("assetUploadTitle").textContent = "Edit Asset";
+  document.getElementById("assetEditingId").value = assetId;
+  document.getElementById("assetName").value = asset.name || "";
+  document.getElementById("assetTags").value = asset.tags || "";
+  document.getElementById("assetNotes").value = asset.notes || "";
+  document.getElementById("assetForAI").checked = !!asset.for_ai;
+  // Set category checkboxes
+  const cats = (asset.category || "").split(",").map(c => c.trim());
+  document.querySelectorAll(".asset-cat-check").forEach(cb => {
+    cb.checked = cats.includes(cb.value);
+  });
+  toggleAssetEventField();
+  // Populate and set event dropdown
+  const evSel = document.getElementById("assetEvent");
+  if (evSel) {
+    evSel.innerHTML = `<option value="">— Select event —</option>` +
+      ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}" ${asset.event_name===e.name?"selected":""}>${esc(e.name)}</option>`).join("");
+  }
+  // Hide file field — editing doesn't change the file
+  const fileGroup = document.getElementById("assetFile").closest(".form-group");
+  if (fileGroup) fileGroup.style.display = "none";
+  document.getElementById("assetFilePreview").style.display = "none";
+  const saveBtn = document.getElementById("assetSaveBtn");
+  if (saveBtn) saveBtn.textContent = "💾 Save Changes";
   openModal("assetUploadModal");
 }
 
 async function saveAsset() {
+  const editingId = document.getElementById("assetEditingId").value;
   const name = document.getElementById("assetName").value.trim();
-  const file = document.getElementById("assetFile").files[0];
   if (!name) { showToast("Name is required.", "error"); return; }
-  if (!file) { showToast("Please select a file.", "error"); return; }
-  const category = document.getElementById("assetCategory").value;
-  const eventName = document.getElementById("assetEvent").value || null;
+
+  // Multi-category: collect all checked values as comma-separated string
+  const checkedCats = Array.from(document.querySelectorAll(".asset-cat-check:checked")).map(cb => cb.value);
+  const category = checkedCats.length ? checkedCats.join(",") : "general";
+  const eventName = document.getElementById("assetEventRow").style.display !== "none"
+    ? (document.getElementById("assetEvent").value || null) : null;
   const tags = document.getElementById("assetTags").value.trim() || null;
   const notes = document.getElementById("assetNotes").value.trim() || null;
   const forAI = document.getElementById("assetForAI").checked;
+
+  if (editingId) {
+    // — Edit mode: update metadata only, file stays unchanged —
+    const asset = ALL_ASSETS.find(a => a.id === editingId);
+    if (!asset) return;
+    showToast("⏳ Saving…");
+    try {
+      const update = { name, category, event_name: eventName, tags, notes, for_ai: forAI };
+      await sbUpdate("MyBFFAssets", editingId, update, "id");
+      Object.assign(asset, update);
+      closeModal("assetUploadModal");
+      showToast(`✅ ${name} updated!`);
+      renderAssetLibrary();
+      renderAISettings();
+    } catch(e) {
+      showToast("Update failed: " + e.message, "error");
+    }
+    return;
+  }
+
+  // — Upload mode: file required —
+  const file = document.getElementById("assetFile").files[0];
+  if (!file) { showToast("Please select a file.", "error"); return; }
   const now = new Date().toISOString();
   const assetId = genId();
+  // Use first category for storage path
+  const pathCat = checkedCats[0] || "general";
   const ext = file.name.split(".").pop().toLowerCase();
-  const filePath = `assets/${category}/${assetId}.${ext}`;
+  const filePath = `assets/${pathCat}/${assetId}.${ext}`;
   console.log("[saveAsset] Starting:", { name, category, fileSize: file.size, fileType: file.type });
   showToast("⏳ Uploading…");
   try {
-    // Step 1: Get a presigned upload URL from Worker (small request — no file data)
-    console.log("[saveAsset] Getting signed URL from Worker...");
     const signResult = await workerCall({
       method: "STORAGE_SIGN",
       appId: APP_ID,
@@ -5906,12 +5966,8 @@ async function saveAsset() {
     if (!signResult?.signedUrl && !signResult?.publicUrl) {
       throw new Error("Could not get upload URL: " + JSON.stringify(signResult));
     }
-
-    // Step 2: Upload file directly from browser to Supabase Storage
-    // Worker returned uploadUrl + serviceKey — browser uploads directly (no size limit)
     let publicUrl = signResult.publicUrl;
     if (signResult.uploadUrl && signResult.serviceKey) {
-      console.log("[saveAsset] Uploading directly to Supabase...", signResult.uploadUrl);
       const uploadRes = await fetch(signResult.uploadUrl, {
         method: "POST",
         headers: {
@@ -5922,7 +5978,6 @@ async function saveAsset() {
         },
         body: file
       });
-      console.log("[saveAsset] Upload response status:", uploadRes.status);
       if (!uploadRes.ok) {
         const err = await uploadRes.text();
         throw new Error("Upload failed (" + uploadRes.status + "): " + err);
@@ -5930,10 +5985,6 @@ async function saveAsset() {
     } else {
       throw new Error("No upload URL returned from Worker: " + JSON.stringify(signResult));
     }
-
-    console.log("[saveAsset] Upload done. publicUrl:", publicUrl);
-
-    // Step 3: Save metadata to MyBFFAssets
     const row = {
       id: assetId, name, category, event_name: eventName,
       file_url: publicUrl, file_path: filePath,
@@ -5944,13 +5995,10 @@ async function saveAsset() {
     };
     await sbInsert("MyBFFAssets", row);
     ALL_ASSETS.unshift(row);
-
-    // Cache file for immediate AI analysis if needed
     if (forAI) {
       const base64Data = await readFileAsBase64(file);
       AI_FILE_CACHE.set(assetId, { base64: base64Data, mediaType: file.type, name: file.name });
     }
-
     closeModal("assetUploadModal");
     showToast(`✅ ${name} uploaded!`);
     renderAssetLibrary();
@@ -5979,15 +6027,16 @@ function renderAssetLibrary() {
   const container = document.getElementById("mktgAssetLibrary");
   if (!container) return;
 
-  // Filters
+  // Filters — category is now comma-separated, e.g. "brand,event"
   const cats = ["all","brand","event","ai_source","general"];
   const activeCat = window._assetCatFilter || "all";
+  const assetHasCat = (a, cat) => cat === "all" || (a.category || "").split(",").map(c=>c.trim()).includes(cat);
 
   let assets = [...ALL_ASSETS];
-  if (activeCat !== "all") assets = assets.filter(a => a.category === activeCat);
+  if (activeCat !== "all") assets = assets.filter(a => assetHasCat(a, activeCat));
 
   const catCounts = {};
-  cats.forEach(c => catCounts[c] = c === "all" ? ALL_ASSETS.length : ALL_ASSETS.filter(a => a.category === c).length);
+  cats.forEach(c => catCounts[c] = c === "all" ? ALL_ASSETS.length : ALL_ASSETS.filter(a => assetHasCat(a, c)).length);
 
   container.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
@@ -6022,18 +6071,23 @@ function renderAssetLibrary() {
           const isImg = a.file_type && a.file_type.startsWith("image/");
           const isPdf = a.file_type && a.file_type.includes("pdf");
           const icon = isImg ? "🖼️" : isPdf ? "📄" : "📁";
-          const catInfo = ASSET_CATEGORIES[a.category] || ASSET_CATEGORIES.general;
+          // Multi-category: show all category labels
+          const catLabels = (a.category || "general").split(",").map(c => {
+            const info = ASSET_CATEGORIES[c.trim()] || ASSET_CATEGORIES.general;
+            return info.label;
+          }).join(" · ");
           return `<div class="card" style="padding:14px;display:flex;flex-direction:column;gap:8px">
             ${isImg && a.file_url
               ? `<img src="${esc(a.file_url)}" style="width:100%;height:120px;object-fit:contain;border-radius:6px;background:#f9fafb;border:1px solid var(--border)">`
               : `<div style="width:100%;height:80px;display:flex;align-items:center;justify-content:center;font-size:40px;background:#f9fafb;border-radius:6px;border:1px solid var(--border)">${icon}</div>`}
             <div style="font-weight:600;font-size:14px;word-break:break-word">${esc(a.name)}</div>
-            <div style="font-size:11px;color:var(--gray)">${catInfo.label}${a.event_name?" · "+esc(a.event_name):""}</div>
+            <div style="font-size:11px;color:var(--gray)">${catLabels}${a.event_name?" · "+esc(a.event_name):""}</div>
             ${a.tags ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
               ${a.tags.split(",").filter(Boolean).map(t=>`<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:20px;font-size:10px">${esc(t.trim())}</span>`).join("")}
             </div>` : ""}
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:auto">
               ${a.file_url ? `<a href="${esc(a.file_url)}" target="_blank" class="btn btn-sm btn-outline" style="font-size:11px">⬇️ Download</a>` : ""}
+              ${isContributor() ? `<button class="btn btn-sm btn-outline" style="font-size:11px" onclick="openEditAssetModal('${esc(a.id)}')">✏️ Edit</button>` : ""}
               ${isAdmin() ? `<button class="btn btn-sm" style="color:var(--red);font-size:11px" onclick="deleteAsset('${esc(a.id)}')">✕</button>` : ""}
             </div>
             ${a.file_size ? `<div style="font-size:10px;color:var(--gray)">${(a.file_size/1024).toFixed(1)} KB · ${a.file_type||"file"}</div>` : ""}
@@ -7409,34 +7463,6 @@ async function removeAssetFromBrandLibrary(assetId, silent = false) {
   } catch(e) { if (!silent) showToast("Error: " + e.message, "error"); }
 }
 
-
-async function clearSeedContent() {
-  if (!confirm("Delete ALL marketing content, comments, and reviewer records? This cannot be undone.")) return;
-  showToast("🗑️ Clearing all content…");
-  try {
-    // Delete all content comments
-    for (const c of [...ALL_CONTENT_COMMENTS]) {
-      try { await sbDelete("MyBFFContentComments", c.id, "id"); } catch(e) {}
-    }
-    // Delete all reviewer records
-    for (const r of [...ALL_CONTENT_REVIEWERS]) {
-      try { await sbDelete("MyBFFContentReviewers", r.id, "id"); } catch(e) {}
-    }
-    // Delete all content items
-    for (const c of [...ALL_CONTENT]) {
-      try { await sbDelete("MyBFFContent", c.id, "id"); } catch(e) {}
-    }
-    // Clear in-memory arrays
-    ALL_CONTENT = [];
-    ALL_CONTENT_COMMENTS = [];
-    ALL_CONTENT_REVIEWERS = [];
-    updateMktgBadge();
-    renderMarketing();
-    showToast("✅ All content cleared.");
-  } catch(e) {
-    showToast("Error clearing content: " + e.message, "error");
-  }
-}
 
 const HELP_DATA = [
   {
