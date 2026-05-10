@@ -1677,6 +1677,7 @@ if ('serviceWorker' in navigator) {
           <option value="General">&#128193; General</option>
           <option value="Brand">&#127942; Brand</option>
           <option value="Events">&#128197; Events</option>
+          <option value="Newsletters">&#128240; Newsletters</option>
           <option value="Grants">&#128204; Grants</option>
           <option value="Donations">&#127873; Donations</option>
         </select>
@@ -2074,7 +2075,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.14a-DEV · May 09 2026";
+const BUILD_VERSION = "v5.14b-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -6984,7 +6985,7 @@ function renderAssetLibrary() {
   const path = window._assetPath;
 
   // Top-level folders
-  const TOP_FOLDERS = ["Brand","Events","Grants","Donations","General"];
+  const TOP_FOLDERS = ["Brand","Events","Newsletters","Grants","Donations","General"];
 
   // Helper: get the stored folder value for an asset and test against a path
   const assetFolder = a => a.folder || "General";
@@ -7015,7 +7016,7 @@ function renderAssetLibrary() {
     bodyHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px">
       ${TOP_FOLDERS.map(f => {
         const count = ALL_ASSETS.filter(a => assetInPath(a, [f])).length;
-        const icons = {Brand:"&#127942;",Events:"&#128197;",Grants:"&#128204;",Donations:"&#127873;",General:"&#128193;"};
+        const icons = {Brand:"&#127942;",Events:"&#128197;",Newsletters:"&#128240;",Grants:"&#128204;",Donations:"&#127873;",General:"&#128193;"};
         return `<div onclick="window._assetPath=['${f}'];renderAssetLibrary()"
           class="card" style="padding:20px 14px;text-align:center;cursor:pointer;transition:box-shadow 0.15s"
           onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow=''">
