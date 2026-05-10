@@ -1673,12 +1673,25 @@ if ('serviceWorker' in navigator) {
       </div>
       <div class="form-group">
         <label class="form-label">Folder</label>
-        <select class="form-input" id="assetFolder">
+        <select class="form-input" id="assetFolderTop" onchange="handleAssetFolderTopChange()">
           <option value="General">&#128193; General</option>
           <option value="Brand">&#127942; Brand</option>
           <option value="Events">&#128197; Events</option>
           <option value="Grants">&#128204; Grants</option>
           <option value="Donations">&#127873; Donations</option>
+        </select>
+      </div>
+      <!-- Events sub-selectors — shown only when Events is selected -->
+      <div class="form-group" id="assetFolderEventRow" style="display:none">
+        <label class="form-label">Event</label>
+        <select class="form-input" id="assetFolderEvent">
+          <option value="">— Select event —</option>
+        </select>
+      </div>
+      <div class="form-group" id="assetFolderYearRow" style="display:none">
+        <label class="form-label">Year</label>
+        <select class="form-input" id="assetFolderYear">
+          ${[2026,2025,2024,2023,2022].map(y=>`<option value="${y}">${y}</option>`).join("")}
         </select>
       </div>
       <div class="form-group">
@@ -2061,7 +2074,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.14-DEV · May 09 2026";
+const BUILD_VERSION = "v5.14a-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -4738,6 +4751,17 @@ function renderGrantsPage() {
   renderGrantList();
   const addBtn = document.getElementById("grantAddBtn");
   if (addBtn) addBtn.style.display = isContributor() ? "" : "none";
+  // Restore grant search panel if results exist from this session
+  if (window._grantSearchResults && window._grantSearchResults.length) {
+    const panel = document.getElementById("newThisWeekPanel");
+    const statusEl = document.getElementById("grantSearchStatus");
+    const resultsEl = document.getElementById("grantSearchResults");
+    const btn = document.getElementById("grantSearchBtn");
+    if (panel) panel.style.display = "";
+    if (statusEl) { statusEl.style.display = ""; statusEl.textContent = `✅ Found ${window._grantSearchResults.length} potential grants — results preserved from this session.`; }
+    if (resultsEl && window._grantSearchHTML) resultsEl.innerHTML = window._grantSearchHTML;
+    if (btn) btn.textContent = "Search Again";
+  }
 }
 
 function renderGrantDashboard() {
@@ -5200,8 +5224,9 @@ Return ONLY valid JSON array. No markdown, no text outside the array.`;
         </div>
       </div>`).join("");
 
-    // Store results for add-to-grants
+    // Store results and rendered HTML for panel persistence across tab navigation
     window._grantSearchResults = grants;
+    window._grantSearchHTML = resultsEl.innerHTML;
 
   } catch(e) {
     statusEl.textContent = "❌ Error: " + e.message;
@@ -6731,6 +6756,28 @@ function toggleAssetEventField() {
   if (row) row.style.display = eventChecked ? "" : "none";
 }
 
+function handleAssetFolderTopChange() {
+  const top = document.getElementById("assetFolderTop").value;
+  const evRow = document.getElementById("assetFolderEventRow");
+  const yrRow = document.getElementById("assetFolderYearRow");
+  if (top === "Events") {
+    // Populate event dropdown from ALL_EVENTS_DATA
+    const evSel = document.getElementById("assetFolderEvent");
+    if (evSel) {
+      evSel.innerHTML = `<option value="">— Select event —</option>` +
+        ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
+      evSel.onchange = () => {
+        document.getElementById("assetFolderYearRow").style.display = evSel.value ? "" : "none";
+      };
+    }
+    evRow.style.display = "";
+    yrRow.style.display = "none";
+  } else {
+    evRow.style.display = "none";
+    yrRow.style.display = "none";
+  }
+}
+
 function openAssetUploadModal() {
   document.getElementById("assetUploadTitle").textContent = "Upload Asset";
   document.getElementById("assetEditingId").value = "";
@@ -6740,7 +6787,9 @@ function openAssetUploadModal() {
   document.getElementById("assetFile").value = "";
   document.getElementById("assetFilePreview").textContent = "";
   document.getElementById("assetForAI").checked = false;
-  document.getElementById("assetFolder").value = "General";
+  document.getElementById("assetFolderTop").value = "General";
+  document.getElementById("assetFolderEventRow").style.display = "none";
+  document.getElementById("assetFolderYearRow").style.display = "none";
   document.getElementById("assetEventRow").style.display = "none";
   // Reset category checkboxes
   document.querySelectorAll(".asset-cat-check").forEach(cb => cb.checked = false);
@@ -6765,7 +6814,26 @@ function openEditAssetModal(assetId) {
   document.getElementById("assetTags").value = asset.tags || "";
   document.getElementById("assetNotes").value = asset.notes || "";
   document.getElementById("assetForAI").checked = !!asset.for_ai;
-  document.getElementById("assetFolder").value = asset.folder || "General";
+  // Restore folder — may be "Brand", "General", or "Events/Cornhole/2026"
+  const folderParts = (asset.folder || "General").split("/");
+  const folderTop = folderParts[0] || "General";
+  document.getElementById("assetFolderTop").value = folderTop;
+  if (folderTop === "Events") {
+    const evSel2 = document.getElementById("assetFolderEvent");
+    if (evSel2) {
+      evSel2.innerHTML = `<option value="">— Select event —</option>` +
+        ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}" ${folderParts[1]===e.name?"selected":""}>${esc(e.name)}</option>`).join("");
+    }
+    document.getElementById("assetFolderEventRow").style.display = "";
+    if (folderParts[1]) {
+      const yrSel = document.getElementById("assetFolderYear");
+      if (yrSel && folderParts[2]) yrSel.value = folderParts[2];
+      document.getElementById("assetFolderYearRow").style.display = "";
+    }
+  } else {
+    document.getElementById("assetFolderEventRow").style.display = "none";
+    document.getElementById("assetFolderYearRow").style.display = "none";
+  }
   // Set category checkboxes
   const cats = (asset.category || "").split(",").map(c => c.trim());
   document.querySelectorAll(".asset-cat-check").forEach(cb => {
@@ -6800,7 +6868,14 @@ async function saveAsset() {
   const tags = document.getElementById("assetTags").value.trim() || null;
   const notes = document.getElementById("assetNotes").value.trim() || null;
   const forAI = document.getElementById("assetForAI").checked;
-  const folder = document.getElementById("assetFolder").value || "General";
+  // Build folder path: "Brand" | "General" | "Events/Cornhole/2026" etc.
+  const folderTop = document.getElementById("assetFolderTop").value || "General";
+  let folder = folderTop;
+  if (folderTop === "Events") {
+    const evName = document.getElementById("assetFolderEvent")?.value;
+    const evYear = document.getElementById("assetFolderYear")?.value;
+    if (evName) folder = evYear ? `Events/${evName}/${evYear}` : `Events/${evName}`;
+  }
 
   if (editingId) {
     // — Edit mode: update metadata only, file stays unchanged —
@@ -6904,101 +6979,168 @@ function renderAssetLibrary() {
   const container = document.getElementById("mktgAssetLibrary");
   if (!container) return;
 
-  // Filters — folder (new) and category (existing comma-separated)
-  const FOLDERS = [
-    {key:"all",       label:"All Folders"},
-    {key:"Brand",     label:"&#127942; Brand"},
-    {key:"Events",    label:"&#128197; Events"},
-    {key:"Grants",    label:"&#128204; Grants"},
-    {key:"Donations", label:"&#127873; Donations"},
-    {key:"General",   label:"&#128193; General"},
-  ];
-  const cats = ["all","brand","event","ai_source","general"];
-  const activeFolder = window._assetFolderFilter || "all";
-  const activeCat    = window._assetCatFilter    || "all";
-  const assetHasCat  = (a, cat) => cat === "all" || (a.category || "").split(",").map(c=>c.trim()).includes(cat);
-  const assetInFolder = (a, fld) => fld === "all" || (a.folder || "General") === fld;
+  // Navigation state — array of path segments, e.g. [] | ["Events"] | ["Events","Cornhole"] | ["Events","Cornhole","2026"]
+  if (!window._assetPath) window._assetPath = [];
+  const path = window._assetPath;
 
-  let assets = [...ALL_ASSETS];
-  if (activeFolder !== "all") assets = assets.filter(a => assetInFolder(a, activeFolder));
-  if (activeCat !== "all")    assets = assets.filter(a => assetHasCat(a, activeCat));
+  // Top-level folders
+  const TOP_FOLDERS = ["Brand","Events","Grants","Donations","General"];
 
-  const folderCounts = {};
-  FOLDERS.forEach(f => folderCounts[f.key] = f.key === "all" ? ALL_ASSETS.length : ALL_ASSETS.filter(a => assetInFolder(a, f.key)).length);
-  const catCounts = {};
-  const folderBase = activeFolder === "all" ? ALL_ASSETS : ALL_ASSETS.filter(a => assetInFolder(a, activeFolder));
-  cats.forEach(c => catCounts[c] = c === "all" ? folderBase.length : folderBase.filter(a => assetHasCat(a, c)).length);
+  // Helper: get the stored folder value for an asset and test against a path
+  const assetFolder = a => a.folder || "General";
+  const assetInPath = (a, p) => {
+    if (!p.length) return true; // root — all assets
+    const f = assetFolder(a);
+    // p = ["Events"] → match any starting with "Events/"
+    // p = ["Events","Cornhole"] → match "Events/Cornhole" or "Events/Cornhole/..."
+    // p = ["Events","Cornhole","2026"] → exact match
+    return f === p.join("/") || f.startsWith(p.join("/") + "/");
+  };
+
+  // Breadcrumb
+  const crumbs = ["Asset Library", ...path];
+  const breadcrumb = crumbs.map((c, i) => {
+    const isLast = i === crumbs.length - 1;
+    if (isLast) return `<span style="color:var(--navy);font-weight:700">${esc(c)}</span>`;
+    const targetPath = path.slice(0, i); // i=0 → root
+    return `<button onclick="window._assetPath=${JSON.stringify(targetPath)};renderAssetLibrary()" style="background:none;border:none;color:var(--gray);cursor:pointer;padding:0;font-size:14px;font-weight:600">${esc(c)}</button>
+            <span style="color:var(--gray);margin:0 4px">›</span>`;
+  }).join("");
+
+  // What to render depends on depth
+  let bodyHTML = "";
+
+  if (!path.length) {
+    // ROOT — show top-level folder icons with counts
+    bodyHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px">
+      ${TOP_FOLDERS.map(f => {
+        const count = ALL_ASSETS.filter(a => assetInPath(a, [f])).length;
+        const icons = {Brand:"&#127942;",Events:"&#128197;",Grants:"&#128204;",Donations:"&#127873;",General:"&#128193;"};
+        return `<div onclick="window._assetPath=['${f}'];renderAssetLibrary()"
+          class="card" style="padding:20px 14px;text-align:center;cursor:pointer;transition:box-shadow 0.15s"
+          onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow=''">
+          <div style="font-size:44px;margin-bottom:8px">${icons[f]||"&#128193;"}</div>
+          <div style="font-weight:700;font-size:14px">${f}</div>
+          <div style="font-size:12px;color:var(--gray);margin-top:4px">${count} file${count!==1?"s":""}</div>
+        </div>`;
+      }).join("")}
+    </div>`;
+
+  } else if (path[0] === "Events" && path.length === 1) {
+    // EVENTS ROOT — show event subfolders + unknown bucket
+    const eventNames = [...new Set(
+      ALL_ASSETS
+        .filter(a => assetFolder(a).startsWith("Events/"))
+        .map(a => assetFolder(a).split("/")[1])
+        .filter(Boolean)
+    )];
+    // Also show all known events from ALL_EVENTS_DATA that have assets
+    const allEventNames = [...new Set([
+      ...eventNames,
+      ...ALL_EVENTS_DATA.map(e => e.name).filter(n => ALL_ASSETS.some(a => assetFolder(a).startsWith("Events/"+n)))
+    ])].sort();
+
+    const unassigned = ALL_ASSETS.filter(a => assetFolder(a) === "Events");
+
+    bodyHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px">
+      ${allEventNames.map(ev => {
+        const count = ALL_ASSETS.filter(a => assetInPath(a, ["Events", ev])).length;
+        return `<div onclick="window._assetPath=['Events','${ev.replace(/'/g,"\\'")}'];renderAssetLibrary()"
+          class="card" style="padding:20px 14px;text-align:center;cursor:pointer;transition:box-shadow 0.15s"
+          onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow=''">
+          <div style="font-size:44px;margin-bottom:8px">&#128197;</div>
+          <div style="font-weight:700;font-size:14px">${esc(ev)}</div>
+          <div style="font-size:12px;color:var(--gray);margin-top:4px">${count} file${count!==1?"s":""}</div>
+        </div>`;
+      }).join("")}
+      ${!allEventNames.length && !unassigned.length ? `
+        <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--gray);font-size:13px">
+          No event assets yet. Upload an asset and assign it to Events → [event] → [year].
+        </div>` : ""}
+      ${unassigned.length ? renderAssetGrid(unassigned) : ""}
+    </div>`;
+
+  } else if (path[0] === "Events" && path.length === 2) {
+    // EVENT FOLDER — show year subfolders
+    const evName = path[1];
+    const years = [...new Set(
+      ALL_ASSETS
+        .filter(a => assetFolder(a).startsWith("Events/"+evName+"/"))
+        .map(a => assetFolder(a).split("/")[2])
+        .filter(Boolean)
+    )].sort((a,b) => b-a); // newest first
+
+    const unassigned = ALL_ASSETS.filter(a => assetFolder(a) === "Events/"+evName);
+
+    bodyHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px">
+      ${years.map(yr => {
+        const count = ALL_ASSETS.filter(a => assetFolder(a) === "Events/"+evName+"/"+yr).length;
+        return `<div onclick="window._assetPath=['Events','${evName.replace(/'/g,"\\'")}','${yr}'];renderAssetLibrary()"
+          class="card" style="padding:20px 14px;text-align:center;cursor:pointer;transition:box-shadow 0.15s"
+          onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow=''">
+          <div style="font-size:44px;margin-bottom:8px">&#128197;</div>
+          <div style="font-weight:700;font-size:14px">${yr}</div>
+          <div style="font-size:12px;color:var(--gray);margin-top:4px">${count} file${count!==1?"s":""}</div>
+        </div>`;
+      }).join("")}
+      ${!years.length && !unassigned.length ? `
+        <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--gray);font-size:13px">
+          No files in this event folder yet.
+        </div>` : ""}
+      ${unassigned.length ? renderAssetGrid(unassigned) : ""}
+    </div>`;
+
+  } else {
+    // LEAF — show files in this path
+    const assets = ALL_ASSETS.filter(a => assetInPath(a, path));
+    if (!assets.length) {
+      bodyHTML = `<div style="text-align:center;padding:48px;color:var(--gray)">
+        <div style="font-size:48px;margin-bottom:12px">&#128193;</div>
+        <div style="font-weight:600;margin-bottom:8px">No files here yet</div>
+        <div style="font-size:13px;margin-bottom:16px">Upload an asset and place it in this folder.</div>
+        ${isContributor() ? `<button class="btn btn-gold" onclick="openAssetUploadModal()">&#128228; Upload Asset</button>` : ""}
+      </div>`;
+    } else {
+      bodyHTML = renderAssetGrid(assets);
+    }
+  }
 
   container.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
-      <div style="font-weight:700;font-size:15px">Asset Library</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:6px;font-size:14px;flex-wrap:wrap">${breadcrumb}</div>
       ${isContributor() ? `<button class="btn btn-gold btn-sm" onclick="openAssetUploadModal()">&#128228; Upload Asset</button>` : ""}
     </div>
-    <!-- Folder filter chips -->
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-      ${FOLDERS.map(f => `<button onclick="window._assetFolderFilter='${f.key}';window._assetCatFilter='all';renderAssetLibrary()"
-        style="padding:4px 12px;border-radius:20px;border:2px solid ${activeFolder===f.key?"var(--navy)":"transparent"};
-        background:${activeFolder===f.key?"var(--navy)":"#f3f4f6"};color:${activeFolder===f.key?"white":"#374151"};
-        font-size:12px;font-weight:600;cursor:pointer">
-        ${f.label} <span style="opacity:0.7">(${folderCounts[f.key]})</span>
-      </button>`).join("")}
-    </div>
-    <!-- Category filter chips -->
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
-      ${[
-        {key:"all",      label:"All Categories"},
-        {key:"brand",    label:"&#127942; Brand"},
-        {key:"event",    label:"&#128197; Event"},
-        {key:"ai_source",label:"&#129302; AI Source"},
-        {key:"general",  label:"&#128193; General"},
-      ].map(c => `<button onclick="window._assetCatFilter='${c.key}';renderAssetLibrary()"
-        style="padding:4px 12px;border-radius:20px;border:2px solid ${activeCat===c.key?"var(--gold)":"transparent"};
-        background:${activeCat===c.key?"var(--gold)":"#f9f9f9"};color:${activeCat===c.key?"var(--navy)":"#374151"};
-        font-size:11px;font-weight:600;cursor:pointer">
-        ${c.label} <span style="opacity:0.7">(${catCounts[c.key]})</span>
-      </button>`).join("")}
-    </div>
-
-    ${!assets.length ? `
-      <div style="text-align:center;padding:48px;color:var(--gray)">
-        <div style="font-size:48px;margin-bottom:12px">&#128451;</div>
-        <div style="font-weight:600;margin-bottom:8px">No assets${activeFolder!=="all"?" in "+activeFolder+" folder":""}</div>
-        <div style="font-size:13px;margin-bottom:16px">Upload logos, graphics, documents, and source materials for AI analysis.</div>
-        ${isContributor() ? `<button class="btn btn-gold" onclick="openAssetUploadModal()">&#128228; Upload First Asset</button>` : ""}
-      </div>` :
-      `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">
-        ${assets.map(a => {
-          const isImg = a.file_type && a.file_type.startsWith("image/");
-          const isPdf = a.file_type && a.file_type.includes("pdf");
-          const icon = isImg ? "&#128444;" : isPdf ? "&#128196;" : "&#128193;";
-          const folderLabel = a.folder || "General";
-          // Multi-category: show all category labels
-          const catLabels = (a.category || "general").split(",").map(c => {
-            const info = ASSET_CATEGORIES[c.trim()] || ASSET_CATEGORIES.general;
-            return info.label;
-          }).join(" · ");
-          return `<div class="card" style="padding:14px;display:flex;flex-direction:column;gap:8px">
-            ${isImg && a.file_url
-              ? `<img src="${esc(a.file_url)}" style="width:100%;height:120px;object-fit:contain;border-radius:6px;background:#f9fafb;border:1px solid var(--border)">`
-              : `<div style="width:100%;height:80px;display:flex;align-items:center;justify-content:center;font-size:40px;background:#f9fafb;border-radius:6px;border:1px solid var(--border)">${icon}</div>`}
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;flex-wrap:wrap">
-              <div style="font-weight:600;font-size:14px;word-break:break-word">${esc(a.name)}</div>
-              <span style="background:#f0f4ff;color:var(--navy);font-size:10px;padding:1px 7px;border-radius:20px;font-weight:600;white-space:nowrap">${esc(folderLabel)}</span>
-            </div>
-            <div style="font-size:11px;color:var(--gray)">${catLabels}${a.event_name?" · "+esc(a.event_name):""}</div>
-            ${a.tags ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
-              ${a.tags.split(",").filter(Boolean).map(t=>`<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:20px;font-size:10px">${esc(t.trim())}</span>`).join("")}
-            </div>` : ""}
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:auto">
-              ${a.file_url ? `<a href="${esc(a.file_url)}" target="_blank" class="btn btn-sm btn-outline" style="font-size:11px">&#11015; Download</a>` : ""}
-              ${isContributor() ? `<button class="btn btn-sm btn-outline" style="font-size:11px" onclick="openEditAssetModal('${esc(a.id)}')">&#9998; Edit</button>` : ""}
-              ${isAdmin() ? `<button class="btn btn-sm" style="color:var(--red);font-size:11px" onclick="deleteAsset('${esc(a.id)}')">&#x2715;</button>` : ""}
-            </div>
-            ${a.file_size ? `<div style="font-size:10px;color:var(--gray)">${(a.file_size/1024).toFixed(1)} KB · ${a.file_type||"file"}</div>` : ""}
-          </div>`;
-        }).join("")}
-      </div>`}
+    ${bodyHTML}
   `;
+}
+
+function renderAssetGrid(assets) {
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">
+    ${assets.map(a => {
+      const isImg = a.file_type && a.file_type.startsWith("image/");
+      const isPdf = a.file_type && a.file_type.includes("pdf");
+      const icon = isImg ? "&#128444;" : isPdf ? "&#128196;" : "&#128193;";
+      const folderLabel = a.folder || "General";
+      return `<div class="card" style="padding:14px;display:flex;flex-direction:column;gap:8px">
+        ${isImg && a.file_url
+          ? `<img src="${esc(a.file_url)}" style="width:100%;height:120px;object-fit:contain;border-radius:6px;background:#f9fafb;border:1px solid var(--border)">`
+          : `<div style="width:100%;height:80px;display:flex;align-items:center;justify-content:center;font-size:40px;background:#f9fafb;border-radius:6px;border:1px solid var(--border)">${icon}</div>`}
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px;flex-wrap:wrap">
+          <div style="font-weight:600;font-size:14px;word-break:break-word;flex:1">${esc(a.name)}</div>
+          <span style="background:#f0f4ff;color:var(--navy);font-size:10px;padding:1px 7px;border-radius:20px;font-weight:600;white-space:nowrap;flex-shrink:0">${esc(folderLabel)}</span>
+        </div>
+        ${a.tags ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${a.tags.split(",").filter(Boolean).map(t=>`<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:20px;font-size:10px">${esc(t.trim())}</span>`).join("")}
+        </div>` : ""}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:auto">
+          ${a.file_url ? `<a href="${esc(a.file_url)}" target="_blank" class="btn btn-sm btn-outline" style="font-size:11px">&#11015; Download</a>` : ""}
+          ${isContributor() ? `<button class="btn btn-sm btn-outline" style="font-size:11px" onclick="openEditAssetModal('${esc(a.id)}')">&#9998; Edit</button>` : ""}
+          ${isAdmin() ? `<button class="btn btn-sm" style="color:var(--red);font-size:11px" onclick="deleteAsset('${esc(a.id)}')">&#x2715;</button>` : ""}
+        </div>
+        ${a.file_size ? `<div style="font-size:10px;color:var(--gray)">${(a.file_size/1024).toFixed(1)} KB · ${a.file_type||"file"}</div>` : ""}
+      </div>`;
+    }).join("")}
+  </div>`;
 }
 
 
