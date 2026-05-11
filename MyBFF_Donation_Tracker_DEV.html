@@ -542,6 +542,17 @@ if ('serviceWorker' in navigator) {
           </div>
           <div id="evDetailDonList"></div>
         </div>
+
+        <!-- Assets sub-section -->
+        <div class="card" style="margin-top:20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+            <div style="font-weight:700;font-size:16px">Assets &amp; Documents</div>
+            <div id="evDetailAssetBtn">
+              <button class="btn btn-gold btn-sm" onclick="openAssetUploadModalForEvent()">&#128228; Upload Asset</button>
+            </div>
+          </div>
+          <div id="evDetailAssetList"></div>
+        </div>
       </div>
     </div>
 
@@ -2075,7 +2086,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.14c-DEV · May 09 2026";
+const BUILD_VERSION = "v5.14d-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3105,6 +3116,7 @@ function showEventDetail(eventName) {
   renderEventDetailCard(ev);
   renderEventDetailTasks();
   renderEventDetailDonations();
+  renderEventDetailAssets();
   // Populate donation category filter
   const catFilter = document.getElementById("evDetailDonCatFilter");
   if (catFilter) {
@@ -3283,6 +3295,83 @@ function renderEventDetailDonations() {
             </div>`).join("")}
         </div>
       </div>`).join("")}`;
+}
+
+function renderEventDetailAssets() {
+  const container = document.getElementById("evDetailAssetList");
+  const uploadBtn = document.getElementById("evDetailAssetBtn");
+  if (!container) return;
+  if (uploadBtn) uploadBtn.style.display = isContributor() ? "" : "none";
+
+  const evName = CURRENT_EVENT_VIEW;
+  const ev = ALL_EVENTS_DATA.find(e => e.name === evName);
+  const evYear = ev?.year ? String(ev.year) : "";
+
+  // Match assets by folder path (Events/EventName/... or Events/EventName)
+  // Also match legacy assets by event_name field
+  const assets = ALL_ASSETS.filter(a => {
+    const folder = a.folder || "General";
+    const byFolder = folder === "Events/" + evName ||
+                     folder.startsWith("Events/" + evName + "/");
+    const byLegacy = (a.event_name || "") === evName;
+    return byFolder || byLegacy;
+  });
+
+  if (!assets.length) {
+    container.innerHTML = `<div style="text-align:center;padding:28px;color:var(--gray);font-size:13px">
+      No assets for this event yet.
+      ${isContributor() ? `Upload flyers, photos, documents, and other files using the button above. They'll automatically appear here when filed under <strong>Events › ${esc(evName)}</strong>.` : ""}
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
+    ${assets.map(a => {
+      const isImg = a.file_type && a.file_type.startsWith("image/");
+      const isPdf = a.file_type && a.file_type.includes("pdf");
+      const icon = isImg ? "&#128444;" : isPdf ? "&#128196;" : "&#128193;";
+      const folderLabel = a.folder || "General";
+      return `<div class="card" style="padding:12px;display:flex;flex-direction:column;gap:8px">
+        ${isImg && a.file_url
+          ? `<img src="${esc(a.file_url)}" style="width:100%;height:100px;object-fit:contain;border-radius:6px;background:#f9fafb;border:1px solid var(--border)">`
+          : `<div style="width:100%;height:60px;display:flex;align-items:center;justify-content:center;font-size:32px;background:#f9fafb;border-radius:6px;border:1px solid var(--border)">${icon}</div>`}
+        <div style="font-weight:600;font-size:13px;word-break:break-word">${esc(a.name)}</div>
+        <div style="font-size:10px;color:var(--gray)">${esc(folderLabel)}</div>
+        ${a.tags ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${a.tags.split(",").filter(Boolean).map(t=>`<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:20px;font-size:10px">${esc(t.trim())}</span>`).join("")}
+        </div>` : ""}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:auto">
+          ${a.file_url ? `<a href="${esc(a.file_url)}" target="_blank" class="btn btn-sm btn-outline" style="font-size:11px">&#11015; Download</a>` : ""}
+          ${isContributor() ? `<button class="btn btn-sm btn-outline" style="font-size:11px" onclick="openEditAssetModal('${esc(a.id)}')">&#9998; Edit</button>` : ""}
+          ${isAdmin() ? `<button class="btn btn-sm" style="color:var(--red);font-size:11px" onclick="deleteAsset('${esc(a.id)}')">&#x2715;</button>` : ""}
+        </div>
+        ${a.file_size ? `<div style="font-size:10px;color:var(--gray)">${(a.file_size/1024).toFixed(1)} KB</div>` : ""}
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+function openAssetUploadModalForEvent() {
+  const evName = CURRENT_EVENT_VIEW;
+  const ev = ALL_EVENTS_DATA.find(e => e.name === evName);
+  openAssetUploadModal();
+  // Pre-fill Events folder, event name, and year after modal opens
+  setTimeout(() => {
+    const topSel = document.getElementById("assetFolderTop");
+    if (topSel) {
+      topSel.value = "Events";
+      handleAssetFolderTopChange();
+      setTimeout(() => {
+        const evSel = document.getElementById("assetFolderEvent");
+        if (evSel) {
+          evSel.value = evName;
+          document.getElementById("assetFolderYearRow").style.display = "";
+          const yrSel = document.getElementById("assetFolderYear");
+          if (yrSel && ev?.year) yrSel.value = String(ev.year);
+        }
+      }, 20);
+    }
+  }, 50);
 }
 
 function openDonationModalForEvent() {
