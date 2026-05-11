@@ -853,7 +853,7 @@ if ('serviceWorker' in navigator) {
           <select class="filter-select" id="mktgChannelFilter" onchange="renderStatusBoard()">
             <option value="">All Channels</option>
             <option>Facebook</option><option>Instagram</option>
-            <option>Email</option><option>Flyer</option><option>Other</option>
+            <option>Email</option><option>Newsletter</option><option>Flyer</option><option>Other</option>
           </select>
         </div>
         <div id="mktgStatusBoard"></div>
@@ -1529,7 +1529,7 @@ if ('serviceWorker' in navigator) {
         <select class="form-input" id="ctChannel">
           <option value="">Select...</option>
           <option>Facebook</option><option>Instagram</option>
-          <option>Email</option><option>Flyer</option><option>Other</option>
+          <option>Email</option><option>Newsletter</option><option>Flyer</option><option>Other</option>
         </select>
       </div>
       <div class="form-group">
@@ -2075,7 +2075,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.14b-DEV · May 09 2026";
+const BUILD_VERSION = "v5.14c-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -6332,11 +6332,11 @@ function renderCreatePanel() {
       <div style="font-weight:700;font-size:16px;margin-bottom:4px">New Content</div>
       <div style="font-size:13px;color:var(--gray);margin-bottom:20px">Select a content type to see the right creation form.</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:24px" id="ctTypeGrid">
-        ${["Facebook","Instagram","Email","Flyer","Other"].map(t => `
+        ${["Facebook","Instagram","Email","Newsletter","Flyer","Other"].map(t => `
           <button onclick="selectContentType('${t}')" class="btn btn-outline"
             style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"
             id="ctTypeBtn-${t}">
-            <span style="font-size:24px">${{"Facebook":"👍","Instagram":"📸","Email":"✉️","Flyer":"📄","Other":"📌"}[t]}</span>
+            <span style="font-size:24px">${{"Facebook":"👍","Instagram":"📸","Email":"✉️","Newsletter":"📰","Flyer":"📄","Other":"📌"}[t]}</span>
             ${t}
           </button>`).join("")}
       </div>
@@ -6346,7 +6346,7 @@ function renderCreatePanel() {
 
 function selectContentType(type) {
   // Highlight selected type
-  ["Facebook","Instagram","Email","Flyer","Other"].forEach(t => {
+  ["Facebook","Instagram","Email","Newsletter","Flyer","Other"].forEach(t => {
     const btn = document.getElementById("ctTypeBtn-" + t);
     if (btn) btn.style.background = t === type ? "var(--gold)" : "";
     if (btn) btn.style.color = t === type ? "white" : "";
@@ -6449,6 +6449,50 @@ function buildContentTypeForm(type) {
       <div class="form-group">
         <label class="form-label">Estimated Send Count</label>
         <input type="number" class="form-input" id="ctNewSendCount" placeholder="e.g. 450">
+      </div>`,
+    Newsletter: `
+      <div class="form-group">
+        <label class="form-label">Issue / Edition <span class="req">*</span></label>
+        <input type="text" class="form-input" id="ctNewSubject" placeholder="e.g. May 2026 — Making Today Count">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Volume / Issue # <span style="font-size:11px;color:var(--gray)">optional</span></label>
+        <input type="text" class="form-input" id="ctNewPreview" placeholder="e.g. Vol. 3, Issue 5">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Lead Story / Theme</label>
+        <input type="text" class="form-input" id="ctNewHeadline" placeholder="e.g. Cornhole Tournament Recap, Volunteer Spotlight">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Sections / Content Outline</label>
+        <textarea class="form-input form-textarea" id="ctNewText" rows="5" placeholder="List the sections or key stories for this issue&#10;e.g.&#10;- Lead story: 2026 Walk/Run event recap&#10;- Member spotlight: [name]&#10;- Upcoming events&#10;- Donation thank-yous"></textarea>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Full Body Draft <span style="font-size:11px;color:var(--gray)">paste here when ready for review</span></label>
+        <textarea class="form-input form-textarea" id="ctNewBody" rows="6" placeholder="Paste the full newsletter draft here for review..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Distribution Method</label>
+        <select class="form-input" id="ctNewAudience">
+          <option value="">— Select —</option>
+          <option>Email (Mailchimp)</option>
+          <option>Email (Other)</option>
+          <option>Printed &amp; Mailed</option>
+          <option>Both Email and Print</option>
+          <option>Posted Online Only</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Estimated Recipients</label>
+        <input type="number" class="form-input" id="ctNewSendCount" placeholder="e.g. 450">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Upload File <span style="font-size:11px;color:var(--gray)">finished PDF or Word doc</span></label>
+        <input type="file" class="form-input" id="ctNewPhoto" accept=".pdf,.docx,.doc" style="padding:6px">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">File Link <span style="font-size:11px;color:var(--gray)">Google Drive, Canva, or public URL</span></label>
+        <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
       </div>`,
     Flyer: `
       <div class="form-group" style="grid-column:1/-1">
