@@ -417,17 +417,26 @@ if ('serviceWorker' in navigator) {
   <nav id="mainNav">
     <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
     <button class="nav-tab" onclick="showPage('events')">Events</button>
-    <button class="nav-tab" onclick="showPage('donations')">Donations</button>
-    <button class="nav-tab" onclick="showPage('grants')">Grants</button>
+    <button class="nav-tab" onclick="showPage('donations')">Donations <span id="donNavBadge" style="display:none;background:#dc2626;color:white;border-radius:9999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:2px"></span></button>
+    <button class="nav-tab" onclick="showPage('grants')">Grants <span id="grantNavBadge" style="display:none;background:#dc2626;color:white;border-radius:9999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:2px"></span></button>
     <button class="nav-tab marketing-tab" onclick="showPage('marketing')" style="display:none">Marketing <span id="mktgBadge" style="display:none;background:#dc2626;color:white;border-radius:9999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px"></span></button>
     <button class="nav-tab admin-only" onclick="showPage('admin')" style="display:none">Admin</button>
-    <button class="nav-tab" onclick="showPage('links')" id="navLinksTab">&#128279; Links</button>
+    <button class="nav-tab" onclick="showPage('links')" id="navLinksTab">&#127758; MyBFF Sites</button>
   </nav>
   <main>
 
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
-      <div class="section-title" style="margin-bottom:24px">Dashboard</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+        <div class="section-title" style="margin:0">Dashboard</div>
+        <div id="actionSummaryBar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--gray);font-weight:600;margin-right:4px">Your action items:</span>
+          <button id="asBtnTasks"     onclick="showPageNav('events')"    style="display:none;align-items:center;gap:5px;background:#fef3c7;color:#92400e;border:1.5px solid #f59e0b;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#9201; Tasks <span id="asCountTasks"    style="background:#f59e0b;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
+          <button id="asBtnDonations" onclick="showPageNav('donations')" style="display:none;align-items:center;gap:5px;background:#eff6ff;color:#1e40af;border:1.5px solid #3b82f6;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#127873; Donations <span id="asCountDonations" style="background:#3b82f6;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
+          <button id="asBtnGrants"    onclick="showPageNav('grants')"    style="display:none;align-items:center;gap:5px;background:#f0fdf4;color:#166534;border:1.5px solid #22c55e;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#128204; Grants <span id="asCountGrants"    style="background:#22c55e;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
+          <button id="asBtnMarketing" onclick="showPageNav('marketing')" style="display:none;align-items:center;gap:5px;background:#faf5ff;color:#6b21a8;border:1.5px solid #a855f7;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#128227; Marketing <span id="asCountMarketing" style="background:#a855f7;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
+        </div>
+      </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px" id="dashCards">
 
         <!-- Events Card -->
@@ -455,7 +464,11 @@ if ('serviceWorker' in navigator) {
             <span style="font-size:12px;color:var(--gold);font-weight:600">View All →</span>
           </div>
           <div id="dashMarketingCard">
-            <div style="color:var(--gray);font-size:13px">Marketing tools coming in Phase 3.</div>
+            <div style="font-size:13px;color:var(--gray);line-height:1.8">
+              <div style="display:flex;justify-content:space-between"><span>In Review</span><strong id="dashMktgReview">—</strong></div>
+              <div style="display:flex;justify-content:space-between"><span>Drafts</span><strong id="dashMktgDraft">—</strong></div>
+              <div style="display:flex;justify-content:space-between"><span>Pending My Review</span><strong id="dashMktgMine" style="color:var(--gold)">—</strong></div>
+            </div>
           </div>
         </div>
 
@@ -588,6 +601,14 @@ if ('serviceWorker' in navigator) {
 
       <!-- SUB: Donations list -->
       <div class="sub-page active" id="sub-donations">
+        <!-- Follow-up banner -->
+        <div id="donFollowUpBanner" style="display:none;margin-bottom:16px;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:10px;padding:14px 16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+            <div style="font-weight:700;font-size:14px;color:#92400e">&#9201; Donations Needing Follow-Up</div>
+            <button onclick="document.getElementById('donFollowUpBanner').style.display='none'" style="background:none;border:none;color:var(--gray);cursor:pointer;font-size:16px">&#10005;</button>
+          </div>
+          <div id="donFollowUpList"></div>
+        </div>
         <div class="card">
           <div class="filters">
             <input class="filter-input" id="donSearch" placeholder="&#128269; Search vendor, item, notes..." oninput="renderDonations()">
@@ -740,6 +761,14 @@ if ('serviceWorker' in navigator) {
       <div id="grantDashboard" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:24px"></div>
       <!-- Status filter chips -->
       <div id="grantStatusChips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"></div>
+      <!-- Follow-up banner -->
+      <div id="grantFollowUpBanner" style="display:none;margin-bottom:16px;background:#f0fdf4;border:1.5px solid #22c55e;border-radius:10px;padding:14px 16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <div style="font-weight:700;font-size:14px;color:#166534">&#9201; Grants Awaiting Response</div>
+          <button onclick="document.getElementById('grantFollowUpBanner').style.display='none'" style="background:none;border:none;color:var(--gray);cursor:pointer;font-size:16px">&#10005;</button>
+        </div>
+        <div id="grantFollowUpList"></div>
+      </div>
       <!-- Grant list -->
       <div id="grantList"></div>
     </div>
@@ -2144,7 +2173,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.14h-DEV · May 09 2026";
+const BUILD_VERSION = "v5.14i-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -2354,6 +2383,7 @@ async function loadAll() {
   await Promise.all([loadVendors(), loadEvents(), loadPickups(), loadUsers(), loadEventTypes(), loadDonationCategories()]);
   await Promise.all([loadTasks(), loadTaskTemplates(), loadTaskNotes(), loadContent(), loadContentComments(), loadContentReviewers(), loadAIConfig(), loadAILibrary(), loadAIHistory(), loadGrants(), loadGrantRequests(), loadAssets()]);
   checkCampaignExpiry();
+  updateActionSummary();
   startAutoRefresh();
 }
 
@@ -3135,6 +3165,8 @@ function renderDashboard() {
   // ── Follow-Ups card ──────────────────────────────────────
   renderDashboardFollowUps();
   renderDashboardAdminCard();
+  renderDashboardMarketingCard();
+  updateActionSummary();
 }
 
 function renderDashboardFollowUps() {
@@ -3228,6 +3260,132 @@ function renderDashboardAdminCard() {
   if (uc) uc.textContent = APP_USERS.length;
   if (ec) ec.textContent = ALL_EVENTS.length;
   if (pc) pc.textContent = PICKUP_PEOPLE.length;
+}
+
+function renderDashboardMarketingCard() {
+  const myName = currentUser?.displayName || "";
+  const inReview = ALL_CONTENT.filter(c => c.status === "In Review").length;
+  const drafts   = ALL_CONTENT.filter(c => c.status === "Draft").length;
+  const mine     = ALL_CONTENT_REVIEWERS.filter(r => r.reviewer_name === myName && r.action === "pending").length;
+  const rv = document.getElementById("dashMktgReview");
+  const dr = document.getElementById("dashMktgDraft");
+  const mn = document.getElementById("dashMktgMine");
+  if (rv) rv.textContent = inReview;
+  if (dr) dr.textContent = drafts;
+  if (mn) mn.textContent = mine;
+}
+
+function updateActionSummary() {
+  const myName = currentUser?.displayName || "";
+  const today  = new Date();
+  const DAYS   = 30;
+
+  // Tasks assigned to me that are open
+  const myTasks = ALL_TASKS.filter(t =>
+    t.assigned_to === myName && !["Done","N/A"].includes(t.status)
+  ).length;
+
+  // Donations pending follow-up
+  const donFU = ALL_DONATIONS.filter(d => {
+    if (!["Pending","No"].includes(d.granted)) return false;
+    const saved = d.saved_at ? new Date(d.saved_at) : null;
+    return saved && (today - saved) / 86400000 >= DAYS;
+  }).length;
+
+  // Grant requests awaiting response
+  const grantFU = ALL_GRANT_REQUESTS.filter(r => {
+    if (!["Submitted","Under Review","Applied"].includes(r.status)) return false;
+    const created = r.created_at ? new Date(r.created_at) : null;
+    return created && (today - created) / 86400000 >= DAYS;
+  }).length;
+
+  // Marketing items pending my review
+  const mktgFU = ALL_CONTENT_REVIEWERS.filter(r =>
+    r.reviewer_name === myName && r.action === "pending"
+  ).length;
+
+  // Update action bar buttons
+  const setBtn = (btnId, countId, count) => {
+    const btn = document.getElementById(btnId);
+    const cnt = document.getElementById(countId);
+    if (!btn) return;
+    btn.style.display  = count > 0 ? "inline-flex" : "none";
+    if (cnt) cnt.textContent = count;
+  };
+  setBtn("asBtnTasks",     "asCountTasks",     myTasks);
+  setBtn("asBtnDonations", "asCountDonations", donFU);
+  setBtn("asBtnGrants",    "asCountGrants",    grantFU);
+  setBtn("asBtnMarketing", "asCountMarketing", mktgFU);
+
+  // Show/hide the whole bar
+  const bar = document.getElementById("actionSummaryBar");
+  const total = myTasks + donFU + grantFU + mktgFU;
+  if (bar) bar.style.display = total > 0 ? "flex" : "none";
+
+  // Update nav badges
+  const donBadge   = document.getElementById("donNavBadge");
+  const grantBadge = document.getElementById("grantNavBadge");
+  if (donBadge)   { donBadge.textContent   = donFU;   donBadge.style.display   = donFU   > 0 ? "" : "none"; }
+  if (grantBadge) { grantBadge.textContent = grantFU; grantBadge.style.display = grantFU > 0 ? "" : "none"; }
+
+  // Render in-tab follow-up banners
+  renderDonFollowUpBanner(donFU);
+  renderGrantFollowUpBanner(grantFU);
+}
+
+function renderDonFollowUpBanner(count) {
+  const banner = document.getElementById("donFollowUpBanner");
+  const list   = document.getElementById("donFollowUpList");
+  if (!banner || !list) return;
+  if (!count) { banner.style.display = "none"; return; }
+
+  const today = new Date();
+  const items = ALL_DONATIONS.filter(d => {
+    if (!["Pending","No"].includes(d.granted)) return false;
+    const saved = d.saved_at ? new Date(d.saved_at) : null;
+    return saved && (today - saved) / 86400000 >= 30;
+  }).sort((a,b) => new Date(a.saved_at) - new Date(b.saved_at)).slice(0, 8);
+
+  list.innerHTML = items.map(d => {
+    const days = Math.floor((today - new Date(d.saved_at)) / 86400000);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #fde68a;flex-wrap:wrap">
+      <div style="flex:1;min-width:150px">
+        <span style="font-weight:600;font-size:13px">${esc(d.organization)}</span>
+        <span style="font-size:11px;color:var(--gray);margin-left:8px">${d.event_requested||""}</span>
+      </div>
+      <span style="font-size:11px;color:#dc2626;font-weight:600;white-space:nowrap">${days} days — no response</span>
+    </div>`;
+  }).join("");
+
+  banner.style.display = "";
+}
+
+function renderGrantFollowUpBanner(count) {
+  const banner = document.getElementById("grantFollowUpBanner");
+  const list   = document.getElementById("grantFollowUpList");
+  if (!banner || !list) return;
+  if (!count) { banner.style.display = "none"; return; }
+
+  const today = new Date();
+  const items = ALL_GRANT_REQUESTS.filter(r => {
+    if (!["Submitted","Under Review","Applied"].includes(r.status)) return false;
+    const created = r.created_at ? new Date(r.created_at) : null;
+    return created && (today - created) / 86400000 >= 30;
+  }).sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).slice(0, 8);
+
+  list.innerHTML = items.map(r => {
+    const grant = ALL_GRANTS.find(g => g.id === r.grant_id);
+    const days  = Math.floor((today - new Date(r.created_at)) / 86400000);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #bbf7d0;flex-wrap:wrap">
+      <div style="flex:1;min-width:150px">
+        <span style="font-weight:600;font-size:13px">${esc(grant?.name||"Unknown Grantor")}</span>
+        <span style="font-size:11px;color:var(--gray);margin-left:8px">${r.status} · ${r.year||""}</span>
+      </div>
+      <span style="font-size:11px;color:#dc2626;font-weight:600;white-space:nowrap">${days} days — awaiting response</span>
+    </div>`;
+  }).join("");
+
+  banner.style.display = "";
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3831,6 +3989,7 @@ async function deleteEvent(name) {
 // DONATIONS PAGE
 // ═══════════════════════════════════════════════════════════
 function renderDonations() {
+  updateActionSummary();
   let data = filterDonations();
   document.getElementById("donCount").textContent = `Showing ${data.length} of ${ALL_DONATIONS.length} records`;
   const tbody = document.getElementById("donTable");
@@ -4997,6 +5156,7 @@ function renderGrantsPage() {
   renderGrantList();
   const addBtn = document.getElementById("grantAddBtn");
   if (addBtn) addBtn.style.display = isContributor() ? "" : "none";
+  updateActionSummary();
   // Restore grant search panel if results exist from this session
   if (window._grantSearchResults && window._grantSearchResults.length) {
     const panel = document.getElementById("newThisWeekPanel");
