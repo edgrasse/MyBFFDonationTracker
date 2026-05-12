@@ -421,6 +421,7 @@ if ('serviceWorker' in navigator) {
     <button class="nav-tab" onclick="showPage('grants')">Grants</button>
     <button class="nav-tab marketing-tab" onclick="showPage('marketing')" style="display:none">Marketing <span id="mktgBadge" style="display:none;background:#dc2626;color:white;border-radius:9999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px"></span></button>
     <button class="nav-tab admin-only" onclick="showPage('admin')" style="display:none">Admin</button>
+    <button class="nav-tab" onclick="showPage('links')" id="navLinksTab">&#128279; Links</button>
   </nav>
   <main>
 
@@ -471,6 +472,15 @@ if ('serviceWorker' in navigator) {
               Pickup People: <strong id="dashPickupCount">—</strong>
             </div>
           </div>
+        </div>
+
+        <!-- Follow-Ups Card — full width -->
+        <div class="card" style="border-top:4px solid #f59e0b;grid-column:1/-1" id="dashFollowUpCardWrap">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div style="font-weight:700;font-size:16px">&#9201; Follow-Ups Needed</div>
+            <span style="font-size:12px;color:var(--gray)" id="dashFollowUpSubtitle"></span>
+          </div>
+          <div id="dashFollowUpCard"><div class="loading"><div class="spinner"></div></div></div>
         </div>
 
       </div>
@@ -976,6 +986,23 @@ if ('serviceWorker' in navigator) {
       </div>
     </div>
 </div>
+
+    <!-- QUICK LINKS PAGE -->
+    <div class="page" id="page-links">
+      <div class="page-header">
+        <div class="section-title" style="margin:0">&#128279; Quick Links</div>
+        <div style="font-size:13px;color:var(--gray)">Click any tile to open in a new browser tab</div>
+      </div>
+      <div id="quickLinksGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-top:8px"></div>
+      <div style="margin-top:32px;padding:16px;background:#f9fafb;border-radius:8px;border:1px solid var(--border)">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px">About Quick Links</div>
+        <div style="font-size:12px;color:var(--gray);line-height:1.7">
+          These links open in a full new browser tab with your existing login — no data is shared with MyBFF Hub.
+          Quick Links are a centralized launch pad so you don't need to bookmark everything separately.
+          Contact your admin to add or remove links.
+        </div>
+      </div>
+    </div>
 
 <!-- DONATION MODAL -->
 <div class="modal-overlay" id="donationModal">
@@ -2023,47 +2050,74 @@ if ('serviceWorker' in navigator) {
       <!-- Response fields — shown when Awarded/Declined -->
       <div id="grantReqResponseBlock" style="grid-column:1/-1;display:none">
         <hr style="border:none;border-top:1px solid var(--border);margin:8px 0 16px">
-        <div style="font-weight:600;font-size:14px;margin-bottom:12px;color:var(--navy)">Award Details</div>
-        <div class="form-grid" style="padding:0">
-          <div class="form-group">
-            <label class="form-label">Amount Awarded ($)</label>
-            <input type="number" class="form-input" id="grantReqAwarded" placeholder="0.00" min="0" step="0.01">
+
+        <!-- Award Details — shown only for Awarded / Closed / Up for Renewal -->
+        <div id="grantReqAwardBlock">
+          <div style="font-weight:600;font-size:14px;margin-bottom:12px;color:var(--navy)">Award Details</div>
+          <div class="form-grid" style="padding:0">
+            <div class="form-group">
+              <label class="form-label">Amount Awarded ($)</label>
+              <input type="number" class="form-input" id="grantReqAwarded" placeholder="0.00" min="0" step="0.01">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Award Date</label>
+              <input type="date" class="form-input" id="grantReqAwardDate">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Grant Period Start</label>
+              <input type="date" class="form-input" id="grantReqPeriodStart">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Grant Period End</label>
+              <input type="date" class="form-input" id="grantReqPeriodEnd">
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:10px">
+              <input type="checkbox" id="grantReqRestricted" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleGrantRestrictionField()">
+              <label for="grantReqRestricted" style="font-size:14px;cursor:pointer">Funds are restricted</label>
+            </div>
+            <div class="form-group" id="grantReqRestrictionRow" style="display:none">
+              <label class="form-label">Restriction Description</label>
+              <input type="text" class="form-input" id="grantReqRestriction" placeholder="e.g. Must be used for program expenses">
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:10px">
+              <input type="checkbox" id="grantReqReportReq" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleGrantReportField()">
+              <label for="grantReqReportReq" style="font-size:14px;cursor:pointer">Reporting required</label>
+            </div>
+            <div class="form-group" id="grantReqReportRow" style="display:none">
+              <label class="form-label">Report Due Date</label>
+              <input type="date" class="form-input" id="grantReqReportDate">
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:10px">
+              <input type="checkbox" id="grantReqRenewable" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleGrantRenewalField()">
+              <label for="grantReqRenewable" style="font-size:14px;cursor:pointer">Renewal eligible</label>
+            </div>
+            <div class="form-group" id="grantReqRenewalRow" style="display:none">
+              <label class="form-label">Next Eligible Date</label>
+              <input type="date" class="form-input" id="grantReqRenewalDate">
+            </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Award Date</label>
-            <input type="date" class="form-input" id="grantReqAwardDate">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Grant Period Start</label>
-            <input type="date" class="form-input" id="grantReqPeriodStart">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Grant Period End</label>
-            <input type="date" class="form-input" id="grantReqPeriodEnd">
-          </div>
-          <div class="form-group" style="display:flex;align-items:center;gap:10px">
-            <input type="checkbox" id="grantReqRestricted" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleGrantRestrictionField()">
-            <label for="grantReqRestricted" style="font-size:14px;cursor:pointer">Funds are restricted</label>
-          </div>
-          <div class="form-group" id="grantReqRestrictionRow" style="display:none">
-            <label class="form-label">Restriction Description</label>
-            <input type="text" class="form-input" id="grantReqRestriction" placeholder="e.g. Must be used for animal food and supplies">
-          </div>
-          <div class="form-group" style="display:flex;align-items:center;gap:10px">
-            <input type="checkbox" id="grantReqReportReq" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleGrantReportField()">
-            <label for="grantReqReportReq" style="font-size:14px;cursor:pointer">Reporting required</label>
-          </div>
-          <div class="form-group" id="grantReqReportRow" style="display:none">
-            <label class="form-label">Report Due Date</label>
-            <input type="date" class="form-input" id="grantReqReportDate">
-          </div>
-          <div class="form-group" style="display:flex;align-items:center;gap:10px">
-            <input type="checkbox" id="grantReqRenewable" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleGrantRenewalField()">
-            <label for="grantReqRenewable" style="font-size:14px;cursor:pointer">Renewal eligible</label>
-          </div>
-          <div class="form-group" id="grantReqRenewalRow" style="display:none">
-            <label class="form-label">Next Eligible Date</label>
-            <input type="date" class="form-input" id="grantReqRenewalDate">
+        </div>
+
+        <!-- Decline Details — shown only for Declined -->
+        <div id="grantReqDeclineBlock" style="display:none">
+          <div style="font-weight:600;font-size:14px;margin-bottom:12px;color:#991b1b">&#10060; Declined</div>
+          <div class="form-grid" style="padding:0">
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">Decline Reason <span style="font-size:11px;color:var(--gray);font-weight:400">optional — note any reason given by the grantor</span></label>
+              <textarea class="form-input form-textarea" id="grantReqDeclineReason" rows="3" placeholder="e.g. Outside their current funding priorities. Reapply next cycle."></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Date Declined</label>
+              <input type="date" class="form-input" id="grantReqDeclineDate">
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:10px">
+              <input type="checkbox" id="grantReqMayReapply" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleGrantRenewalField()">
+              <label for="grantReqMayReapply" style="font-size:14px;cursor:pointer">May reapply in future</label>
+            </div>
+            <div class="form-group" id="grantReqRenewalRow" style="display:none">
+              <label class="form-label">Earliest Reapply Date</label>
+              <input type="date" class="form-input" id="grantReqRenewalDate">
+            </div>
           </div>
         </div>
       </div>
@@ -2090,7 +2144,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.14e-DEV · May 09 2026";
+const BUILD_VERSION = "v5.14g-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -2399,6 +2453,7 @@ async function loadEventTypes() {
     ALL_EVENT_TYPES = (rows || []).filter(r => r.name);
   } catch(e) { console.warn("loadEventTypes:", e.message); ALL_EVENT_TYPES = []; }
   populateEventTypeDropdowns();
+  populateEventDropdowns(); // Re-run now that event types are loaded
 }
 
 async function loadDonationCategories() {
@@ -3077,17 +3132,103 @@ function renderDashboard() {
         </div>`).join("")}
     </div>`;
 
-  // ── Admin card ───────────────────────────────────────────
-  if (isAdmin()) {
-    const uc = document.getElementById("dashUserCount");
-    const ec = document.getElementById("dashEventCount");
-    const pc = document.getElementById("dashPickupCount");
-    if (uc) uc.textContent = APP_USERS.length;
-    if (ec) ec.textContent = ALL_EVENTS.length;
-    if (pc) pc.textContent = PICKUP_PEOPLE.length;
-  }
+  // ── Follow-Ups card ──────────────────────────────────────
+  renderDashboardFollowUps();
+  renderDashboardAdminCard();
 }
 
+function renderDashboardFollowUps() {
+  const card = document.getElementById("dashFollowUpCard");
+  const subtitle = document.getElementById("dashFollowUpSubtitle");
+  const wrap = document.getElementById("dashFollowUpCardWrap");
+  if (!card) return;
+
+  const today = new Date();
+  const FOLLOWUP_DAYS = 30; // flag if no response after this many days
+
+  // Donations: Pending or No (contacted but no response), submitted > FOLLOWUP_DAYS ago
+  const donFollowUps = ALL_DONATIONS.filter(d => {
+    if (!["Pending","No"].includes(d.granted)) return false;
+    const saved = d.saved_at ? new Date(d.saved_at) : null;
+    if (!saved) return false;
+    const daysSince = (today - saved) / 86400000;
+    return daysSince >= FOLLOWUP_DAYS;
+  }).sort((a,b) => new Date(a.saved_at) - new Date(b.saved_at));
+
+  // Grant requests: Submitted or Under Review, deadline not yet passed, submitted > FOLLOWUP_DAYS ago
+  const grantFollowUps = ALL_GRANT_REQUESTS.filter(r => {
+    if (!["Submitted","Under Review","Applied"].includes(r.status)) return false;
+    const created = r.created_at ? new Date(r.created_at) : null;
+    if (!created) return false;
+    const daysSince = (today - created) / 86400000;
+    return daysSince >= FOLLOWUP_DAYS;
+  }).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+
+  const total = donFollowUps.length + grantFollowUps.length;
+
+  if (!total) {
+    if (wrap) wrap.style.display = "none";
+    return;
+  }
+
+  if (wrap) wrap.style.display = "";
+  if (subtitle) subtitle.textContent = `${total} item${total!==1?"s":""} awaiting response`;
+
+  const donRows = donFollowUps.slice(0,5).map(d => {
+    const days = Math.floor((today - new Date(d.saved_at)) / 86400000);
+    return `<div onclick="showPageNav('donations')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background=''">
+      <span style="background:#fef3c7;color:#92400e;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;white-space:nowrap">DONATION</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.organization)}</div>
+        <div style="font-size:11px;color:var(--gray)">${d.event_requested||"No event"} · ${d.type||""}</div>
+      </div>
+      <div style="text-align:right;white-space:nowrap">
+        <div style="font-size:11px;color:#dc2626;font-weight:600">${days} days</div>
+        <div style="font-size:10px;color:var(--gray)">no response</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const grantRows = grantFollowUps.slice(0,5).map(r => {
+    const grant = ALL_GRANTS.find(g => g.id === r.grant_id);
+    const days = Math.floor((today - new Date(r.created_at)) / 86400000);
+    return `<div onclick="showPageNav('grants')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background=''">
+      <span style="background:#dbeafe;color:#1e40af;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;white-space:nowrap">GRANT</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(grant?.name||"Unknown Grantor")}</div>
+        <div style="font-size:11px;color:var(--gray)">${r.status} · ${r.year||""}</div>
+      </div>
+      <div style="text-align:right;white-space:nowrap">
+        <div style="font-size:11px;color:#dc2626;font-weight:600">${days} days</div>
+        <div style="font-size:10px;color:var(--gray)">since submitted</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  card.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px">
+      ${donFollowUps.length ? `<div>
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:700;margin-bottom:8px">Donations — No Response (${FOLLOWUP_DAYS}+ days)</div>
+        ${donRows}
+        ${donFollowUps.length > 5 ? `<div style="font-size:12px;color:var(--gray);margin-top:6px;cursor:pointer" onclick="showPageNav('donations')">+${donFollowUps.length-5} more → View Donations</div>` : ""}
+      </div>` : ""}
+      ${grantFollowUps.length ? `<div>
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:700;margin-bottom:8px">Grants — Awaiting Response (${FOLLOWUP_DAYS}+ days)</div>
+        ${grantRows}
+        ${grantFollowUps.length > 5 ? `<div style="font-size:12px;color:var(--gray);margin-top:6px;cursor:pointer" onclick="showPageNav('grants')">+${grantFollowUps.length-5} more → View Grants</div>` : ""}
+      </div>` : ""}
+    </div>`;
+}
+
+function renderDashboardAdminCard() {
+  if (!isAdmin()) return;
+  const uc = document.getElementById("dashUserCount");
+  const ec = document.getElementById("dashEventCount");
+  const pc = document.getElementById("dashPickupCount");
+  if (uc) uc.textContent = APP_USERS.length;
+  if (ec) ec.textContent = ALL_EVENTS.length;
+  if (pc) pc.textContent = PICKUP_PEOPLE.length;
+}
 
 // ═══════════════════════════════════════════════════════════
 // EVENTS PAGE
@@ -4692,6 +4833,7 @@ function showPage(name) {
   else if (name === "events") { CURRENT_EVENT_VIEW = null; document.getElementById("evListView").style.display = ""; document.getElementById("evDetailView").style.display = "none"; renderEventsPage(); }
   else if (name === "reports") renderReport();
   else if (name === "admin") { renderAdminUsers(); renderAdminEvents(); renderAdminPickups(); renderTemplates(); renderEventTypes(); renderDonCats(); }
+  else if (name === "links") renderQuickLinks();
   else if (name === "marketing") {
     const tabEl = document.getElementById("mktgTabStatus");
     if (tabEl) tabEl.textContent = isEditor() ? "Status Board" : "Needs Review";
@@ -5135,17 +5277,38 @@ function openGrantRequestModalEdit(reqId, grantId) {
   document.getElementById("grantReqReportReq").checked = !!(r.report_required);
   document.getElementById("grantReqReportDate").value = r.report_due || "";
   document.getElementById("grantReqReportRow").style.display = r.report_required ? "" : "none";
-  document.getElementById("grantReqRenewable").checked = !!(r.is_renewable);
+  const isDeclined = r.status === "Declined";
+  document.getElementById("grantReqRenewable").checked = !!(r.is_renewable) && !isDeclined;
+  const mayReapplyEl = document.getElementById("grantReqMayReapply");
+  if (mayReapplyEl) mayReapplyEl.checked = !!(r.is_renewable) && isDeclined;
   document.getElementById("grantReqRenewalDate").value = r.renewal_date || "";
   document.getElementById("grantReqRenewalRow").style.display = r.is_renewable ? "" : "none";
+  // Decline fields
+  const declineReasonEl = document.getElementById("grantReqDeclineReason");
+  const declineDateEl   = document.getElementById("grantReqDeclineDate");
+  if (declineReasonEl) declineReasonEl.value = r.decline_reason || "";
+  if (declineDateEl)   declineDateEl.value   = r.decline_date   || "";
   toggleGrantResponseFields();
   openModal("grantRequestModal");
 }
 
 function toggleGrantResponseFields() {
   const status = document.getElementById("grantReqStatus")?.value;
-  const block = document.getElementById("grantReqResponseBlock");
-  if (block) block.style.display = ["Awarded","Declined","Closed","Up for Renewal"].includes(status) ? "" : "none";
+  const block        = document.getElementById("grantReqResponseBlock");
+  const awardBlock   = document.getElementById("grantReqAwardBlock");
+  const declineBlock = document.getElementById("grantReqDeclineBlock");
+  const showResponse = ["Awarded","Declined","Closed","Up for Renewal"].includes(status);
+  if (block)        block.style.display        = showResponse ? "" : "none";
+  if (awardBlock)   awardBlock.style.display   = status === "Declined" ? "none" : "";
+  if (declineBlock) declineBlock.style.display = status === "Declined" ? "" : "none";
+}
+
+function toggleGrantRenewalField() {
+  const status = document.getElementById("grantReqStatus")?.value;
+  const checkId = status === "Declined" ? "grantReqMayReapply" : "grantReqRenewable";
+  const checked = document.getElementById(checkId)?.checked;
+  const row = document.getElementById("grantReqRenewalRow");
+  if (row) row.style.display = checked ? "" : "none";
 }
 function toggleGrantEventField() {
   const checked = document.getElementById("grantReqEventTied")?.checked;
@@ -5192,8 +5355,15 @@ async function saveGrantRequest() {
     restriction_desc: document.getElementById("grantReqRestricted").checked ? document.getElementById("grantReqRestriction").value.trim() : null,
     report_required: document.getElementById("grantReqReportReq").checked,
     report_due:      document.getElementById("grantReqReportReq").checked ? document.getElementById("grantReqReportDate").value : null,
-    is_renewable:    document.getElementById("grantReqRenewable").checked,
-    renewal_date:    document.getElementById("grantReqRenewable").checked ? document.getElementById("grantReqRenewalDate").value : null,
+    is_renewable:    document.getElementById("grantReqStatus").value === "Declined"
+                       ? document.getElementById("grantReqMayReapply")?.checked || false
+                       : document.getElementById("grantReqRenewable").checked,
+    renewal_date:    (document.getElementById("grantReqStatus").value === "Declined"
+                       ? document.getElementById("grantReqMayReapply")?.checked
+                       : document.getElementById("grantReqRenewable").checked)
+                       ? document.getElementById("grantReqRenewalDate").value : null,
+    decline_reason:  document.getElementById("grantReqStatus").value === "Declined" ? (document.getElementById("grantReqDeclineReason")?.value.trim() || null) : null,
+    decline_date:    document.getElementById("grantReqStatus").value === "Declined" ? (document.getElementById("grantReqDeclineDate")?.value || null) : null,
   };
   try {
     if (editingId) {
@@ -5879,6 +6049,92 @@ async function importSheetGrants() {
   showToast(msg);
   renderGrantsPage();
   if (imported > 0) setTimeout(() => closeModal("sheetImportModal"), 1800);
+}
+
+// ═══════════════════════════════════════════════════════════
+// QUICK LINKS
+// ═══════════════════════════════════════════════════════════
+
+const QUICK_LINKS = [
+  {
+    name: "Aplos",
+    url: "https://www.aplos.com",
+    icon: "&#128200;",
+    color: "#0f766e",
+    bg: "#f0fdfa",
+    desc: "Accounting & fund management"
+  },
+  {
+    name: "Gmail",
+    url: "https://mail.google.com",
+    icon: "&#9993;",
+    color: "#dc2626",
+    bg: "#fef2f2",
+    desc: "Foundation email"
+  },
+  {
+    name: "Google Drive",
+    url: "https://drive.google.com",
+    icon: "&#128196;",
+    color: "#f59e0b",
+    bg: "#fffbeb",
+    desc: "Files & documents"
+  },
+  {
+    name: "Facebook Page",
+    url: "https://www.facebook.com/mybestfriendsfoundation",
+    icon: "&#128077;",
+    color: "#1d4ed8",
+    bg: "#eff6ff",
+    desc: "MyBFF Facebook page"
+  },
+  {
+    name: "Instagram",
+    url: "https://www.instagram.com/mybestfriendsfoundation",
+    icon: "&#128247;",
+    color: "#7c3aed",
+    bg: "#f5f3ff",
+    desc: "MyBFF Instagram"
+  },
+  {
+    name: "Canva",
+    url: "https://www.canva.com",
+    icon: "&#127912;",
+    color: "#06b6d4",
+    bg: "#ecfeff",
+    desc: "Design & graphics"
+  },
+  {
+    name: "Mailchimp",
+    url: "https://mailchimp.com",
+    icon: "&#128140;",
+    color: "#f59e0b",
+    bg: "#fffbeb",
+    desc: "Email campaigns & newsletters"
+  },
+  {
+    name: "IRS Tax Exempt",
+    url: "https://apps.irs.gov/app/eos/",
+    icon: "&#127981;",
+    color: "#374151",
+    bg: "#f9fafb",
+    desc: "Verify 501(c)(3) status"
+  },
+];
+
+function renderQuickLinks() {
+  const grid = document.getElementById("quickLinksGrid");
+  if (!grid) return;
+  grid.innerHTML = QUICK_LINKS.map(link => `
+    <a href="${link.url}" target="_blank" rel="noopener noreferrer"
+      style="text-decoration:none;display:block;background:${link.bg};border:2px solid transparent;border-radius:12px;padding:20px 16px;transition:all 0.15s;cursor:pointer"
+      onmouseover="this.style.borderColor='${link.color}';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,0.1)'"
+      onmouseout="this.style.borderColor='transparent';this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:36px;margin-bottom:10px;line-height:1">${link.icon}</div>
+      <div style="font-weight:700;font-size:15px;color:${link.color};margin-bottom:4px">${link.name}</div>
+      <div style="font-size:12px;color:#6b7280;line-height:1.4">${link.desc}</div>
+      <div style="margin-top:10px;font-size:11px;color:${link.color};font-weight:600;opacity:0.8">Open &#8599;</div>
+    </a>`).join("");
 }
 
 // ── Asset Picker (Insert from Asset Library in content creation) ─
