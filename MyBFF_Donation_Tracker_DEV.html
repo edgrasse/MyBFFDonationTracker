@@ -1160,6 +1160,16 @@ if ('serviceWorker' in navigator) {
         <label class="form-label">Reference Link / URL</label>
         <input type="text" class="form-input" id="donRefLink" placeholder="https://...  or donation form name">
       </div>
+      <div class="form-group full" style="background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px;padding:12px 14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <input type="checkbox" id="donFollowUp" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleDonFollowUpDate()">
+          <label for="donFollowUp" style="font-size:14px;font-weight:600;cursor:pointer">&#9201; Flag for Follow-Up</label>
+        </div>
+        <div id="donFollowUpDateRow" style="display:none">
+          <label class="form-label" style="font-size:12px">Follow-Up Date <span style="font-size:11px;color:var(--gray);font-weight:400">— leave blank for no specific date</span></label>
+          <input type="date" class="form-input" id="donFollowUpDate" style="max-width:200px">
+        </div>
+      </div>
     </div>
     <div class="form-actions">
       <button class="btn btn-outline" onclick="closeModal('donationModal')">Cancel</button>
@@ -2154,6 +2164,16 @@ if ('serviceWorker' in navigator) {
         <label class="form-label">Notes</label>
         <textarea class="form-input form-textarea" id="grantReqNotes" rows="3" placeholder="Any additional notes about this request..."></textarea>
       </div>
+      <div class="form-group" style="grid-column:1/-1;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px;padding:12px 14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <input type="checkbox" id="grantReqFollowUp" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleGrantFollowUpDate()">
+          <label for="grantReqFollowUp" style="font-size:14px;font-weight:600;cursor:pointer">&#9201; Flag for Follow-Up</label>
+        </div>
+        <div id="grantReqFollowUpDateRow" style="display:none">
+          <label class="form-label" style="font-size:12px">Follow-Up Date <span style="font-size:11px;color:var(--gray);font-weight:400">— leave blank for no specific date</span></label>
+          <input type="date" class="form-input" id="grantReqFollowUpDate" style="max-width:200px">
+        </div>
+      </div>
     </div>
     <div class="form-actions">
       <button class="btn btn-outline" onclick="closeModal('grantRequestModal')">Cancel</button>
@@ -2173,7 +2193,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.14i-DEV · May 09 2026";
+const BUILD_VERSION = "v5.14j-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3178,23 +3198,23 @@ function renderDashboardFollowUps() {
   const today = new Date();
   const FOLLOWUP_DAYS = 30; // flag if no response after this many days
 
-  // Donations: Pending or No (contacted but no response), submitted > FOLLOWUP_DAYS ago
-  const donFollowUps = ALL_DONATIONS.filter(d => {
-    if (!["Pending","No"].includes(d.granted)) return false;
-    const saved = d.saved_at ? new Date(d.saved_at) : null;
-    if (!saved) return false;
-    const daysSince = (today - saved) / 86400000;
-    return daysSince >= FOLLOWUP_DAYS;
-  }).sort((a,b) => new Date(a.saved_at) - new Date(b.saved_at));
+  // Donations explicitly flagged for follow-up
+  const donFollowUps = ALL_DONATIONS.filter(d => d.follow_up)
+    .sort((a,b) => {
+      if (!a.follow_up_date && !b.follow_up_date) return 0;
+      if (!a.follow_up_date) return 1;
+      if (!b.follow_up_date) return -1;
+      return new Date(a.follow_up_date) - new Date(b.follow_up_date);
+    });
 
-  // Grant requests: Submitted or Under Review, deadline not yet passed, submitted > FOLLOWUP_DAYS ago
-  const grantFollowUps = ALL_GRANT_REQUESTS.filter(r => {
-    if (!["Submitted","Under Review","Applied"].includes(r.status)) return false;
-    const created = r.created_at ? new Date(r.created_at) : null;
-    if (!created) return false;
-    const daysSince = (today - created) / 86400000;
-    return daysSince >= FOLLOWUP_DAYS;
-  }).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+  // Grant requests explicitly flagged for follow-up
+  const grantFollowUps = ALL_GRANT_REQUESTS.filter(r => r.follow_up)
+    .sort((a,b) => {
+      if (!a.follow_up_date && !b.follow_up_date) return 0;
+      if (!a.follow_up_date) return 1;
+      if (!b.follow_up_date) return -1;
+      return new Date(a.follow_up_date) - new Date(b.follow_up_date);
+    });
 
   const total = donFollowUps.length + grantFollowUps.length;
 
@@ -3207,32 +3227,32 @@ function renderDashboardFollowUps() {
   if (subtitle) subtitle.textContent = `${total} item${total!==1?"s":""} awaiting response`;
 
   const donRows = donFollowUps.slice(0,5).map(d => {
-    const days = Math.floor((today - new Date(d.saved_at)) / 86400000);
-    return `<div onclick="showPageNav('donations')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background=''">
+    const isPast = d.follow_up_date && new Date(d.follow_up_date) < today;
+    const dateLabel = d.follow_up_date ? `${isPast?"Overdue: ":"Due: "}${fmtDate(d.follow_up_date)}` : "No date set";
+    return `<div onclick="openDonationForEdit('${esc(d.id)}')" style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px" onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background=''">
       <span style="background:#fef3c7;color:#92400e;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;white-space:nowrap">DONATION</span>
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.organization)}</div>
         <div style="font-size:11px;color:var(--gray)">${d.event_requested||"No event"} · ${d.type||""}</div>
       </div>
       <div style="text-align:right;white-space:nowrap">
-        <div style="font-size:11px;color:#dc2626;font-weight:600">${days} days</div>
-        <div style="font-size:10px;color:var(--gray)">no response</div>
+        <div style="font-size:11px;color:${isPast?"#dc2626":"#92400e"};font-weight:600">${dateLabel}</div>
       </div>
     </div>`;
   }).join("");
 
   const grantRows = grantFollowUps.slice(0,5).map(r => {
     const grant = ALL_GRANTS.find(g => g.id === r.grant_id);
-    const days = Math.floor((today - new Date(r.created_at)) / 86400000);
-    return `<div onclick="showPageNav('grants')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background=''">
+    const isPast = r.follow_up_date && new Date(r.follow_up_date) < today;
+    const dateLabel = r.follow_up_date ? `${isPast?"Overdue: ":"Due: "}${fmtDate(r.follow_up_date)}` : "No date set";
+    return `<div onclick="openGrantRequestModalEdit('${esc(r.id)}','${esc(r.grant_id)}')" style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background=''">
       <span style="background:#dbeafe;color:#1e40af;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;white-space:nowrap">GRANT</span>
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(grant?.name||"Unknown Grantor")}</div>
         <div style="font-size:11px;color:var(--gray)">${r.status} · ${r.year||""}</div>
       </div>
       <div style="text-align:right;white-space:nowrap">
-        <div style="font-size:11px;color:#dc2626;font-weight:600">${days} days</div>
-        <div style="font-size:10px;color:var(--gray)">since submitted</div>
+        <div style="font-size:11px;color:${isPast?"#dc2626":"#1e40af"};font-weight:600">${dateLabel}</div>
       </div>
     </div>`;
   }).join("");
@@ -3278,26 +3298,17 @@ function renderDashboardMarketingCard() {
 function updateActionSummary() {
   const myName = currentUser?.displayName || "";
   const today  = new Date();
-  const DAYS   = 30;
 
   // Tasks assigned to me that are open
   const myTasks = ALL_TASKS.filter(t =>
     t.assigned_to === myName && !["Done","N/A"].includes(t.status)
   ).length;
 
-  // Donations pending follow-up
-  const donFU = ALL_DONATIONS.filter(d => {
-    if (!["Pending","No"].includes(d.granted)) return false;
-    const saved = d.saved_at ? new Date(d.saved_at) : null;
-    return saved && (today - saved) / 86400000 >= DAYS;
-  }).length;
+  // Donations explicitly flagged for follow-up
+  const donFU = ALL_DONATIONS.filter(d => d.follow_up).length;
 
-  // Grant requests awaiting response
-  const grantFU = ALL_GRANT_REQUESTS.filter(r => {
-    if (!["Submitted","Under Review","Applied"].includes(r.status)) return false;
-    const created = r.created_at ? new Date(r.created_at) : null;
-    return created && (today - created) / 86400000 >= DAYS;
-  }).length;
+  // Grant requests explicitly flagged for follow-up
+  const grantFU = ALL_GRANT_REQUESTS.filter(r => r.follow_up).length;
 
   // Marketing items pending my review
   const mktgFU = ALL_CONTENT_REVIEWERS.filter(r =>
@@ -3309,7 +3320,7 @@ function updateActionSummary() {
     const btn = document.getElementById(btnId);
     const cnt = document.getElementById(countId);
     if (!btn) return;
-    btn.style.display  = count > 0 ? "inline-flex" : "none";
+    btn.style.display = count > 0 ? "inline-flex" : "none";
     if (cnt) cnt.textContent = count;
   };
   setBtn("asBtnTasks",     "asCountTasks",     myTasks);
@@ -3328,9 +3339,9 @@ function updateActionSummary() {
   if (donBadge)   { donBadge.textContent   = donFU;   donBadge.style.display   = donFU   > 0 ? "" : "none"; }
   if (grantBadge) { grantBadge.textContent = grantFU; grantBadge.style.display = grantFU > 0 ? "" : "none"; }
 
-  // Render in-tab follow-up banners
-  renderDonFollowUpBanner(donFU);
-  renderGrantFollowUpBanner(grantFU);
+  // Render in-tab follow-up banners (respecting dismiss flag)
+  if (!window._donBannerDismissed)   renderDonFollowUpBanner(donFU);
+  if (!window._grantBannerDismissed) renderGrantFollowUpBanner(grantFU);
 }
 
 function renderDonFollowUpBanner(count) {
@@ -3340,22 +3351,37 @@ function renderDonFollowUpBanner(count) {
   if (!count) { banner.style.display = "none"; return; }
 
   const today = new Date();
-  const items = ALL_DONATIONS.filter(d => {
-    if (!["Pending","No"].includes(d.granted)) return false;
-    const saved = d.saved_at ? new Date(d.saved_at) : null;
-    return saved && (today - saved) / 86400000 >= 30;
-  }).sort((a,b) => new Date(a.saved_at) - new Date(b.saved_at)).slice(0, 8);
+  const items = ALL_DONATIONS.filter(d => d.follow_up)
+    .sort((a,b) => {
+      // Sort by follow-up date ascending (no date = end of list)
+      if (!a.follow_up_date && !b.follow_up_date) return 0;
+      if (!a.follow_up_date) return 1;
+      if (!b.follow_up_date) return -1;
+      return new Date(a.follow_up_date) - new Date(b.follow_up_date);
+    }).slice(0, 10);
 
   list.innerHTML = items.map(d => {
-    const days = Math.floor((today - new Date(d.saved_at)) / 86400000);
-    return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #fde68a;flex-wrap:wrap">
+    const isPast = d.follow_up_date && new Date(d.follow_up_date) < today;
+    const dateLabel = d.follow_up_date
+      ? `<span style="font-size:11px;font-weight:600;color:${isPast?"#dc2626":"#92400e"};white-space:nowrap">${isPast?"Overdue: ":"Due: "}${fmtDate(d.follow_up_date)}</span>`
+      : `<span style="font-size:11px;color:var(--gray);white-space:nowrap">No date set</span>`;
+    return `<div onclick="openDonationForEdit('${esc(d.id)}')"
+      style="display:flex;align-items:center;gap:10px;padding:7px 8px;border-bottom:1px solid #fde68a;flex-wrap:wrap;cursor:pointer;border-radius:6px;transition:background 0.1s"
+      onmouseover="this.style.background='#fef9c3'" onmouseout="this.style.background=''">
       <div style="flex:1;min-width:150px">
         <span style="font-weight:600;font-size:13px">${esc(d.organization)}</span>
-        <span style="font-size:11px;color:var(--gray);margin-left:8px">${d.event_requested||""}</span>
+        ${d.event_requested ? `<span style="font-size:11px;color:var(--gray);margin-left:8px">${esc(d.event_requested)}</span>` : ""}
       </div>
-      <span style="font-size:11px;color:#dc2626;font-weight:600;white-space:nowrap">${days} days — no response</span>
+      ${dateLabel}
+      <span style="font-size:11px;color:var(--navy);font-weight:600">Click to edit →</span>
     </div>`;
   }).join("");
+
+  // Wire dismiss button
+  const dismissBtn = banner.querySelector("button[onclick*='donFollowUpBanner']");
+  if (dismissBtn) {
+    dismissBtn.onclick = () => { window._donBannerDismissed = true; banner.style.display = "none"; };
+  }
 
   banner.style.display = "";
 }
@@ -3367,23 +3393,37 @@ function renderGrantFollowUpBanner(count) {
   if (!count) { banner.style.display = "none"; return; }
 
   const today = new Date();
-  const items = ALL_GRANT_REQUESTS.filter(r => {
-    if (!["Submitted","Under Review","Applied"].includes(r.status)) return false;
-    const created = r.created_at ? new Date(r.created_at) : null;
-    return created && (today - created) / 86400000 >= 30;
-  }).sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).slice(0, 8);
+  const items = ALL_GRANT_REQUESTS.filter(r => r.follow_up)
+    .sort((a,b) => {
+      if (!a.follow_up_date && !b.follow_up_date) return 0;
+      if (!a.follow_up_date) return 1;
+      if (!b.follow_up_date) return -1;
+      return new Date(a.follow_up_date) - new Date(b.follow_up_date);
+    }).slice(0, 10);
 
   list.innerHTML = items.map(r => {
     const grant = ALL_GRANTS.find(g => g.id === r.grant_id);
-    const days  = Math.floor((today - new Date(r.created_at)) / 86400000);
-    return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #bbf7d0;flex-wrap:wrap">
+    const isPast = r.follow_up_date && new Date(r.follow_up_date) < today;
+    const dateLabel = r.follow_up_date
+      ? `<span style="font-size:11px;font-weight:600;color:${isPast?"#dc2626":"#166534"};white-space:nowrap">${isPast?"Overdue: ":"Due: "}${fmtDate(r.follow_up_date)}</span>`
+      : `<span style="font-size:11px;color:var(--gray);white-space:nowrap">No date set</span>`;
+    return `<div onclick="openGrantRequestModalEdit('${esc(r.id)}','${esc(r.grant_id)}')"
+      style="display:flex;align-items:center;gap:10px;padding:7px 8px;border-bottom:1px solid #bbf7d0;flex-wrap:wrap;cursor:pointer;border-radius:6px;transition:background 0.1s"
+      onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background=''">
       <div style="flex:1;min-width:150px">
         <span style="font-weight:600;font-size:13px">${esc(grant?.name||"Unknown Grantor")}</span>
         <span style="font-size:11px;color:var(--gray);margin-left:8px">${r.status} · ${r.year||""}</span>
       </div>
-      <span style="font-size:11px;color:#dc2626;font-weight:600;white-space:nowrap">${days} days — awaiting response</span>
+      ${dateLabel}
+      <span style="font-size:11px;color:var(--navy);font-weight:600">Click to edit →</span>
     </div>`;
   }).join("");
+
+  // Wire dismiss button
+  const dismissBtn = banner.querySelector("button[onclick*='grantFollowUpBanner']");
+  if (dismissBtn) {
+    dismissBtn.onclick = () => { window._grantBannerDismissed = true; banner.style.display = "none"; };
+  }
 
   banner.style.display = "";
 }
@@ -4159,6 +4199,9 @@ function editDonation(id) {
   document.getElementById("donPickupAssign").value = d.pickup_assigned_to || "";
   document.getElementById("donNotes").value = d.notes || "";
   document.getElementById("donRefLink").value = d.reference_link || "";
+  document.getElementById("donFollowUp").checked = !!d.follow_up;
+  document.getElementById("donFollowUpDate").value = d.follow_up_date || "";
+  document.getElementById("donFollowUpDateRow").style.display = d.follow_up ? "" : "none";
   toggleGrantedFields();
   togglePickupAssign();
   openModal("donationModal");
@@ -4168,6 +4211,9 @@ function clearDonationForm() {
   ["donOrg","donDate","donLeadTime","donItem","donValue","donPickupAssign","donNotes","donRefLink","donCategoryOther"].forEach(id => { const el = document.getElementById(id); if(el) el.value = ""; });
   ["donType2","donHow","donGranted2","donPickupMethod","donEventReq","donEventInstance","donUsedFor","donCategory"].forEach(id => { const el = document.getElementById(id); if(el) el.value = ""; });
   document.getElementById("donYearField").value = new Date().getFullYear();
+  document.getElementById("donFollowUp").checked = false;
+  document.getElementById("donFollowUpDate").value = "";
+  document.getElementById("donFollowUpDateRow").style.display = "none";
   document.getElementById("grantedFields").style.display = "none";
   document.getElementById("pickupAssignWrap").style.display = "none";
   const catOther = document.getElementById("donCategoryOtherRow");
@@ -4221,6 +4267,8 @@ async function saveDonation() {
     pickup_assigned_to: document.getElementById("donPickupAssign").value,
     notes: document.getElementById("donNotes").value,
     reference_link: document.getElementById("donRefLink").value,
+    follow_up: document.getElementById("donFollowUp").checked,
+    follow_up_date: document.getElementById("donFollowUp").checked ? (document.getElementById("donFollowUpDate").value || null) : null,
     edited_by: currentUser.displayName,
     edited_at: now
   };
@@ -5399,6 +5447,9 @@ function openGrantRequestModal(grantId) {
   ["grantReqRestrictionRow","grantReqReportRow","grantReqRenewalRow"].forEach(id => {
     const el = document.getElementById(id); if(el) el.style.display = "none";
   });
+  document.getElementById("grantReqFollowUp").checked = false;
+  document.getElementById("grantReqFollowUpDate").value = "";
+  document.getElementById("grantReqFollowUpDateRow").style.display = "none";
   toggleGrantResponseFields();
   openModal("grantRequestModal");
 }
@@ -5448,6 +5499,10 @@ function openGrantRequestModalEdit(reqId, grantId) {
   const declineDateEl   = document.getElementById("grantReqDeclineDate");
   if (declineReasonEl) declineReasonEl.value = r.decline_reason || "";
   if (declineDateEl)   declineDateEl.value   = r.decline_date   || "";
+  // Follow-up fields
+  document.getElementById("grantReqFollowUp").checked = !!r.follow_up;
+  document.getElementById("grantReqFollowUpDate").value = r.follow_up_date || "";
+  document.getElementById("grantReqFollowUpDateRow").style.display = r.follow_up ? "" : "none";
   toggleGrantResponseFields();
   openModal("grantRequestModal");
 }
@@ -5461,6 +5516,23 @@ function toggleGrantResponseFields() {
   if (block)        block.style.display        = showResponse ? "" : "none";
   if (awardBlock)   awardBlock.style.display   = status === "Declined" ? "none" : "";
   if (declineBlock) declineBlock.style.display = status === "Declined" ? "" : "none";
+}
+
+function toggleDonFollowUpDate() {
+  const checked = document.getElementById("donFollowUp").checked;
+  document.getElementById("donFollowUpDateRow").style.display = checked ? "" : "none";
+}
+
+function toggleGrantFollowUpDate() {
+  const checked = document.getElementById("grantReqFollowUp").checked;
+  document.getElementById("grantReqFollowUpDateRow").style.display = checked ? "" : "none";
+}
+
+function openDonationForEdit(donId) {
+  const d = ALL_DONATIONS.find(x => x.id === donId);
+  if (!d) return;
+  showPage("donations");
+  setTimeout(() => openDonationModal(d), 100);
 }
 
 function toggleGrantRenewalField() {
@@ -5483,11 +5555,6 @@ function toggleGrantRestrictionField() {
 function toggleGrantReportField() {
   const checked = document.getElementById("grantReqReportReq")?.checked;
   const row = document.getElementById("grantReqReportRow");
-  if (row) row.style.display = checked ? "" : "none";
-}
-function toggleGrantRenewalField() {
-  const checked = document.getElementById("grantReqRenewable")?.checked;
-  const row = document.getElementById("grantReqRenewalRow");
   if (row) row.style.display = checked ? "" : "none";
 }
 
@@ -5524,6 +5591,8 @@ async function saveGrantRequest() {
                        ? document.getElementById("grantReqRenewalDate").value : null,
     decline_reason:  document.getElementById("grantReqStatus").value === "Declined" ? (document.getElementById("grantReqDeclineReason")?.value.trim() || null) : null,
     decline_date:    document.getElementById("grantReqStatus").value === "Declined" ? (document.getElementById("grantReqDeclineDate")?.value || null) : null,
+    follow_up:       document.getElementById("grantReqFollowUp").checked,
+    follow_up_date:  document.getElementById("grantReqFollowUp").checked ? (document.getElementById("grantReqFollowUpDate").value || null) : null,
   };
   try {
     if (editingId) {
