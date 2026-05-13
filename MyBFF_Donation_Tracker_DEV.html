@@ -2197,7 +2197,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.14k-DEV · May 09 2026";
+const BUILD_VERSION = "v5.14l-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3308,11 +3308,15 @@ function updateActionSummary() {
     t.assigned_to === myName && !["Done","N/A"].includes(t.status)
   ).length;
 
-  // Donations explicitly flagged for follow-up
-  const donFU = ALL_DONATIONS.filter(d => d.follow_up).length;
+  // Donations flagged for follow-up assigned to current user
+  const donFU = ALL_DONATIONS.filter(d =>
+    d.follow_up && (!d.follow_up_assignee || d.follow_up_assignee === myName)
+  ).length;
 
-  // Grant requests explicitly flagged for follow-up
-  const grantFU = ALL_GRANT_REQUESTS.filter(r => r.follow_up).length;
+  // Grant requests flagged for follow-up assigned to current user
+  const grantFU = ALL_GRANT_REQUESTS.filter(r =>
+    r.follow_up && (!r.follow_up_assignee || r.follow_up_assignee === myName)
+  ).length;
 
   // Marketing items pending my review
   const mktgFU = ALL_CONTENT_REVIEWERS.filter(r =>
