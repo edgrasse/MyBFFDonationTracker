@@ -1159,7 +1159,7 @@ if ('serviceWorker' in navigator) {
           <input type="checkbox" id="donFollowUp" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleDonFollowUpDate()">
           <label for="donFollowUp" style="font-size:14px;font-weight:600;cursor:pointer">&#9201; Flag for Follow-Up</label>
         </div>
-        <div id="donFollowUpDateRow" style="display:none;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div id="donFollowUpDateRow" style="display:none;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group" style="margin:0">
             <label class="form-label" style="font-size:12px">Assigned To</label>
             <select class="form-input" id="donFollowUpAssignee" style="font-size:13px"></select>
@@ -2197,7 +2197,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.14l-DEV · May 09 2026";
+const BUILD_VERSION = "v5.14m-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -2450,7 +2450,11 @@ function rowToDonation(r) {
     edited_by: f("edited_by","LastEditedBy"),
     edited_at: f("edited_at","LastEditedAt"),
     event_instance_id: r.event_instance_id || "",
-    donation_category: r.donation_category || ""
+    donation_category: r.donation_category || "",
+    follow_up: r.follow_up === true || r.follow_up === "true" || false,
+    follow_up_date: r.follow_up_date || null,
+    follow_up_assignee: r.follow_up_assignee || null,
+    follow_up_note: r.follow_up_note || null,
   };
 }
 
