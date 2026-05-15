@@ -1026,7 +1026,9 @@ if ('serviceWorker' in navigator) {
       </div>
       <div style="margin-top:24px;padding:14px 16px;background:#f9fafb;border-radius:8px;border:1px solid var(--border)">
         <div style="font-weight:600;font-size:13px;margin-bottom:6px">About MyBFF Sites</div>
-        <div style="font-size:12px;color:var(--gray);line-height:1.7">Shared links open in a full new browser tab. Personal links are saved to your browser only — they are not shared with other users and do not sync across devices.</div>
+        <div style="font-size:12px;color:var(--gray);line-height:1.7">
+          All links open in a full new browser tab. <strong>Google links</strong> (Gmail, Drive, Calendar) open to whichever Google account is currently active in your browser — make sure you're logged into the MyBFF Google account first if you need foundation access. Personal links are saved to your browser only and are not shared with other users.
+        </div>
       </div>
     </div>
 
@@ -2252,7 +2254,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.14q-DEV · May 09 2026";
+const BUILD_VERSION = "v5.14r-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -6497,7 +6499,7 @@ const QUICK_LINKS = [
     icon: "&#9993;",
     color: "#dc2626",
     bg: "#fef2f2",
-    desc: "Foundation email"
+    desc: "Opens to your active Google account"
   },
   {
     name: "Google Drive",
@@ -6505,7 +6507,23 @@ const QUICK_LINKS = [
     icon: "&#128196;",
     color: "#f59e0b",
     bg: "#fffbeb",
-    desc: "Files & documents"
+    desc: "Opens to your active Google account"
+  },
+  {
+    name: "Google Calendar",
+    url: "https://calendar.google.com",
+    icon: "&#128197;",
+    color: "#0f766e",
+    bg: "#f0fdf4",
+    desc: "Opens to your active Google account"
+  },
+  {
+    name: "Race Entry",
+    url: "https://www.raceentry.com",
+    icon: "&#127939;",
+    color: "#dc2626",
+    bg: "#fef2f2",
+    desc: "Event registration platform"
   },
   {
     name: "Facebook Page",
