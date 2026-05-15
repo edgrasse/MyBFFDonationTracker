@@ -1010,19 +1010,54 @@ if ('serviceWorker' in navigator) {
     </div>
 </div>
 
-    <!-- QUICK LINKS PAGE -->
-    <div class="page" id="page-links">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px">
-        <div style="font-weight:700;font-size:22px">&#128279; Quick Links</div>
+    <!-- MYBFF SITES PAGE -->
+    <div class="page" id="page-links" style="padding-top:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px;padding-top:28px">
+        <div style="font-weight:700;font-size:22px">&#127758; MyBFF Sites</div>
         <div style="font-size:13px;color:var(--gray)">Click any tile to open in a new browser tab</div>
       </div>
       <div id="quickLinksGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px"></div>
-      <div style="margin-top:28px;padding:14px 16px;background:#f9fafb;border-radius:8px;border:1px solid var(--border)">
-        <div style="font-weight:600;font-size:13px;margin-bottom:6px">About Quick Links</div>
+
+      <!-- User custom links -->
+      <div style="margin-top:28px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-weight:600;font-size:14px">&#128247; My Personal Links</div>
+          <button class="btn btn-outline btn-sm" onclick="openAddCustomLink()">+ Add Link</button>
+        </div>
+        <div id="customLinksGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px"></div>
+        <div id="customLinksEmpty" style="display:none;font-size:13px;color:var(--gray);padding:12px 0">No personal links added yet. Click + Add Link to add your own.</div>
+      </div>
+
+      <div style="margin-top:24px;padding:14px 16px;background:#f9fafb;border-radius:8px;border:1px solid var(--border)">
+        <div style="font-weight:600;font-size:13px;margin-bottom:6px">About MyBFF Sites</div>
         <div style="font-size:12px;color:var(--gray);line-height:1.7">
-          These links open in a full new browser tab with your existing login — no data is shared with MyBFF Hub.
-          Quick Links are a centralized launch pad so you don't need to bookmark everything separately.
-          Contact your admin to add or remove links.
+          Shared links open in a full new browser tab. Personal links are saved to your browser only — they are not shared with other users and do not sync across devices.
+        </div>
+      </div>
+    </div>
+
+    <!-- ADD CUSTOM LINK MODAL -->
+    <div class="modal-overlay" id="customLinkModal" style="display:none" onclick="if(event.target===this)closeModal('customLinkModal')">
+      <div class="modal" style="max-width:440px">
+        <div class="modal-header">
+          <div class="modal-title" id="customLinkModalTitle">Add Personal Link</div>
+          <button class="modal-close" onclick="closeModal('customLinkModal')">&#x2715;</button>
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Name <span class="req">*</span></label>
+          <input type="text" class="form-input" id="customLinkName" placeholder="e.g. Our Website, Dropbox, Zoom">
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">URL <span class="req">*</span></label>
+          <input type="text" class="form-input" id="customLinkUrl" placeholder="https://...">
+        </div>
+        <div class="form-group" style="margin-bottom:20px">
+          <label class="form-label">Description <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+          <input type="text" class="form-input" id="customLinkDesc" placeholder="Short description">
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button class="btn btn-outline" onclick="closeModal('customLinkModal')">Cancel</button>
+          <button class="btn btn-gold" onclick="saveCustomLink()">Save Link</button>
         </div>
       </div>
     </div>
@@ -2221,7 +2256,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.14o-DEV · May 09 2026";
+const BUILD_VERSION = "v5.14p-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -5142,7 +5177,7 @@ function showPage(name) {
   else if (name === "events") { CURRENT_EVENT_VIEW = null; document.getElementById("evListView").style.display = ""; document.getElementById("evDetailView").style.display = "none"; renderEventsPage(); }
   else if (name === "reports") renderReport();
   else if (name === "admin") { renderAdminUsers(); renderAdminEvents(); renderAdminPickups(); renderTemplates(); renderEventTypes(); renderDonCats(); }
-  else if (name === "links") renderQuickLinks();
+  else if (name === "links") { renderQuickLinks(); renderCustomLinks(); }
   else if (name === "marketing") {
     const tabEl = document.getElementById("mktgTabStatus");
     if (tabEl) tabEl.textContent = isEditor() ? "Status Board" : "Needs Review";
@@ -6509,6 +6544,88 @@ const QUICK_LINKS = [
     desc: "Email campaigns & newsletters"
   },
 ];
+
+const CUSTOM_LINKS_KEY = "mybff_custom_links";
+
+function loadCustomLinks() {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_LINKS_KEY) || "[]"); }
+  catch { return []; }
+}
+
+function saveCustomLinksToStorage(links) {
+  localStorage.setItem(CUSTOM_LINKS_KEY, JSON.stringify(links));
+}
+
+let _editingCustomLinkIdx = null;
+
+function openAddCustomLink(idx = null) {
+  _editingCustomLinkIdx = idx;
+  const links = loadCustomLinks();
+  const link = idx !== null ? links[idx] : null;
+  document.getElementById("customLinkModalTitle").textContent = idx !== null ? "Edit Link" : "Add Personal Link";
+  document.getElementById("customLinkName").value = link?.name || "";
+  document.getElementById("customLinkUrl").value = link?.url || "";
+  document.getElementById("customLinkDesc").value = link?.desc || "";
+  openModal("customLinkModal");
+}
+
+function saveCustomLink() {
+  const name = document.getElementById("customLinkName").value.trim();
+  let url  = document.getElementById("customLinkUrl").value.trim();
+  const desc = document.getElementById("customLinkDesc").value.trim();
+  if (!name) { showToast("Name is required.", "error"); return; }
+  if (!url)  { showToast("URL is required.", "error"); return; }
+  if (!url.startsWith("http")) url = "https://" + url;
+
+  const links = loadCustomLinks();
+  if (_editingCustomLinkIdx !== null) {
+    links[_editingCustomLinkIdx] = { name, url, desc };
+  } else {
+    links.push({ name, url, desc });
+  }
+  saveCustomLinksToStorage(links);
+  closeModal("customLinkModal");
+  renderCustomLinks();
+  showToast("Link saved.");
+}
+
+function deleteCustomLink(idx) {
+  const links = loadCustomLinks();
+  links.splice(idx, 1);
+  saveCustomLinksToStorage(links);
+  renderCustomLinks();
+  showToast("Link removed.");
+}
+
+function renderCustomLinks() {
+  const grid = document.getElementById("customLinksGrid");
+  const empty = document.getElementById("customLinksEmpty");
+  if (!grid) return;
+
+  const links = loadCustomLinks();
+  if (!links.length) {
+    grid.innerHTML = "";
+    if (empty) empty.style.display = "";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+
+  grid.innerHTML = links.map((link, i) => `
+    <div style="background:#f0f4ff;border:2px solid transparent;border-radius:12px;padding:16px;position:relative;transition:all 0.15s"
+      onmouseover="this.style.borderColor='var(--navy)';this.style.boxShadow='0 4px 14px rgba(0,0,0,0.1)'"
+      onmouseout="this.style.borderColor='transparent';this.style.boxShadow=''">
+      <a href="${esc(link.url)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:block">
+        <div style="font-size:32px;margin-bottom:8px">&#127760;</div>
+        <div style="font-weight:700;font-size:14px;color:var(--navy);margin-bottom:3px">${esc(link.name)}</div>
+        ${link.desc ? `<div style="font-size:12px;color:#6b7280">${esc(link.desc)}</div>` : ""}
+        <div style="margin-top:8px;font-size:11px;color:var(--navy);font-weight:600;opacity:0.8">Open &#8599;</div>
+      </a>
+      <div style="position:absolute;top:8px;right:8px;display:flex;gap:4px">
+        <button onclick="event.stopPropagation();openAddCustomLink(${i})" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--gray);padding:2px 4px" title="Edit">&#9998;</button>
+        <button onclick="event.stopPropagation();deleteCustomLink(${i})" style="background:none;border:none;cursor:pointer;font-size:13px;color:#dc2626;padding:2px 4px" title="Remove">&#x2715;</button>
+      </div>
+    </div>`).join("");
+}
 
 function renderQuickLinks() {
   const grid = document.getElementById("quickLinksGrid");
