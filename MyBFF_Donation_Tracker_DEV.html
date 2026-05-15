@@ -1008,17 +1008,14 @@ if ('serviceWorker' in navigator) {
         </div>
       </div>
     </div>
-</div>
 
     <!-- MYBFF SITES PAGE -->
-    <div class="page" id="page-links" style="padding-top:0">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px;padding-top:28px">
-        <div style="font-weight:700;font-size:22px">&#127758; MyBFF Sites</div>
+    <div class="page" id="page-links">
+      <div class="page-header">
+        <div class="section-title" style="margin:0">&#127758; MyBFF Sites</div>
         <div style="font-size:13px;color:var(--gray)">Click any tile to open in a new browser tab</div>
       </div>
       <div id="quickLinksGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px"></div>
-
-      <!-- User custom links -->
       <div style="margin-top:28px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <div style="font-weight:600;font-size:14px">&#128247; My Personal Links</div>
@@ -1027,12 +1024,9 @@ if ('serviceWorker' in navigator) {
         <div id="customLinksGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px"></div>
         <div id="customLinksEmpty" style="display:none;font-size:13px;color:var(--gray);padding:12px 0">No personal links added yet. Click + Add Link to add your own.</div>
       </div>
-
       <div style="margin-top:24px;padding:14px 16px;background:#f9fafb;border-radius:8px;border:1px solid var(--border)">
         <div style="font-weight:600;font-size:13px;margin-bottom:6px">About MyBFF Sites</div>
-        <div style="font-size:12px;color:var(--gray);line-height:1.7">
-          Shared links open in a full new browser tab. Personal links are saved to your browser only — they are not shared with other users and do not sync across devices.
-        </div>
+        <div style="font-size:12px;color:var(--gray);line-height:1.7">Shared links open in a full new browser tab. Personal links are saved to your browser only — they are not shared with other users and do not sync across devices.</div>
       </div>
     </div>
 
@@ -1061,6 +1055,8 @@ if ('serviceWorker' in navigator) {
         </div>
       </div>
     </div>
+
+</div>
 
 <!-- DONATION MODAL -->
 <div class="modal-overlay" id="donationModal">
@@ -2256,7 +2252,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.14p-DEV · May 09 2026";
+const BUILD_VERSION = "v5.14q-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
