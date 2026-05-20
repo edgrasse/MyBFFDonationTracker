@@ -1834,7 +1834,11 @@ if ('serviceWorker' in navigator) {
       <div class="form-group" id="assetFolderYearRow" style="display:none">
         <label class="form-label">Year</label>
         <select class="form-input" id="assetFolderYear">
-          ${[2026,2025,2024,2023,2022].map(y=>`<option value="${y}">${y}</option>`).join("")}
+          <option value="2026">2026</option>
+          <option value="2025">2025</option>
+          <option value="2024">2024</option>
+          <option value="2023">2023</option>
+          <option value="2022">2022</option>
         </select>
       </div>
       <div class="form-group">
@@ -2254,7 +2258,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.14r-DEV · May 09 2026";
+const BUILD_VERSION = "v5.14s-DEV · May 09 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
