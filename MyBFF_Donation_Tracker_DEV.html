@@ -2258,7 +2258,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.15c-DEV · Jun 05 2026";
+const BUILD_VERSION = "v5.15d-DEV · Jun 05 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -6904,6 +6904,16 @@ function renderStatusBoard() {
     { key:"posted",   label:"🟣 Posted",                 items: allItems.filter(c => c.status === "Posted") },
   ];
 
+  const draftItems = allItems.filter(c => c.status === "Draft");
+  const bulkBar = draftItems.length > 0 ? `
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer">
+        <input type="checkbox" id="sbSelectAll" onchange="toggleSelectAllDrafts(this.checked)" style="width:15px;height:15px;accent-color:var(--gold)">
+        Select All Drafts (${draftItems.length})
+      </label>
+      <button class="btn btn-gold btn-sm" onclick="bulkSubmitForReview()" style="margin-left:auto">Submit Selected for Review</button>
+    </div>` : "";
+
   // Filtering hint
   const filterHint = _activeSectionFilter
     ? `<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:8px 12px;background:#f0f4ff;border-radius:8px;font-size:13px">
@@ -6915,7 +6925,7 @@ function renderStatusBoard() {
     ? sections.filter(s => s.key === _activeSectionFilter)
     : sections;
 
-  container.innerHTML = filterHint + (visibleSections.map(sec => {
+  container.innerHTML = filterHint + bulkBar + (visibleSections.map(sec => {
     if (!sec.items.length && sec.key !== "attention" && !_activeSectionFilter) return "";
     const isActive = _activeSectionFilter === sec.key;
     const headerBg = isActive ? "var(--navy)" : "var(--gray-light)";
@@ -6973,39 +6983,117 @@ function contentCard(c, extraBadges = "") {
       ? `<span style="background:#d1fae5;color:#065f46;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">✅ You approved</span>`
       : `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">↩️ You requested changes</span>`
     : "";
-  // Key fix: use a global handler function instead of inline async onclick
   return `
-    <div class="card" style="margin-bottom:14px;cursor:pointer" onclick="showContentDetail('${esc(c.id)}')">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
-        <div>
-          <div style="font-weight:700;font-size:15px;margin-bottom:6px">${esc(c.title||"Untitled")}</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-            ${ctChannelBadge(c.channel)} ${ctStatusBadge(c.status)}
-            ${c.event_name ? `<span style="font-size:12px;color:var(--gray)">${esc(c.event_name)}</span>` : ""}
+    <div class="card" id="cc-${esc(c.id)}" style="margin-bottom:14px;position:relative">
+      ${c.status === "Draft" ? `<input type="checkbox" class="sb-draft-check" data-id="${esc(c.id)}"
+        style="position:absolute;top:14px;right:14px;width:16px;height:16px;accent-color:var(--gold);cursor:pointer;z-index:2"
+        onclick="event.stopPropagation()">` : ""}
+      <div style="cursor:pointer" onclick="showContentDetail('${esc(c.id)}')">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding-right:${c.status==="Draft"?"28px":"0"}">
+          <div>
+            <div style="font-weight:700;font-size:15px;margin-bottom:6px">${esc(c.title||"Untitled")}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+              ${ctChannelBadge(c.channel)} ${ctStatusBadge(c.status)}
+              ${c.event_name ? `<span style="font-size:12px;color:var(--gray)">${esc(c.event_name)}</span>` : ""}
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--gray);text-align:right;flex-shrink:0">
+            <div>v${c.version||1} · by ${esc(c.created_by||"")}</div>
+            ${summary.total > 0 ? `<div style="margin-top:2px">
+              ${summary.approved>0?`<span style="color:#065f46">✅${summary.approved}</span> `:""}
+              ${summary.changes>0?`<span style="color:#991b1b">↩️${summary.changes}</span> `:""}
+              ${summary.pending>0?`<span style="color:#92400e">⏳${summary.pending}</span>`:""}
+            </div>` : ""}
           </div>
         </div>
-        <div style="font-size:12px;color:var(--gray);text-align:right;flex-shrink:0">
-          <div>v${c.version||1} · by ${esc(c.created_by||"")}</div>
-          ${summary.total > 0 ? `<div style="margin-top:2px">
-            ${summary.approved>0?`<span style="color:#065f46">✅${summary.approved}</span> `:""}
-            ${summary.changes>0?`<span style="color:#991b1b">↩️${summary.changes}</span> `:""}
-            ${summary.pending>0?`<span style="color:#92400e">⏳${summary.pending}</span>`:""}
-          </div>` : ""}
+        ${(myReviewTag||extraBadges) ? `<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap">${myReviewTag}${extraBadges}</div>` : ""}
+        ${c.photo_url ? `<img src="${esc(c.photo_url)}" style="max-width:100%;max-height:100px;border-radius:6px;margin-bottom:8px;object-fit:cover">` : ""}
+        ${snippet ? `<div style="font-size:13px;color:var(--gray);line-height:1.5">${esc(snippet)}${(c.content_text?.length||0)>120?"…":""}</div>` : ""}
+        ${c.file_link ? `<div style="margin-top:8px"><a href="${esc(c.file_link)}" target="_blank" onclick="event.stopPropagation()" style="font-size:13px">📎 View File</a></div>` : ""}
+        <div style="margin-top:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--gray)">
+          <span>💬 ${comments.length} comment${comments.length!==1?"s":""}</span>
+          ${c.review_deadline?`<span>🔍 Review by ${c.review_deadline}</span>`:""}
+          ${c.post_date?`<span>📅 Post ${c.post_date}</span>`:""}
         </div>
       </div>
-      ${(myReviewTag||extraBadges) ? `<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap">${myReviewTag}${extraBadges}</div>` : ""}
-      ${c.photo_url ? `<img src="${esc(c.photo_url)}" style="max-width:100%;max-height:100px;border-radius:6px;margin-bottom:8px;object-fit:cover">` : ""}
-      ${snippet ? `<div style="font-size:13px;color:var(--gray);line-height:1.5">${esc(snippet)}${(c.content_text?.length||0)>120?"…":""}</div>` : ""}
-      ${c.file_link ? `<div style="margin-top:8px"><a href="${esc(c.file_link)}" target="_blank" onclick="event.stopPropagation()" style="font-size:13px">📎 View File</a></div>` : ""}
-      <div style="margin-top:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--gray)">
-        <span>💬 ${comments.length} comment${comments.length!==1?"s":""}</span>
-        ${c.review_deadline?`<span>🔍 Review by ${c.review_deadline}</span>`:""}
-        ${c.post_date?`<span>📅 Post ${c.post_date}</span>`:""}
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();copyContentText('${esc(c.id)}')" title="Copy post text to clipboard">📋 Copy Text</button>
+        ${c.status === "Draft" && isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openInlineEdit('${esc(c.id)}')">✏️ Quick Edit</button>` : ""}
+        ${c.status === "Draft" && isEditor() ? `<button class="btn btn-gold btn-sm" onclick="event.stopPropagation();submitForReview('${esc(c.id)}')">Submit for Review</button>` : ""}
+      </div>
+      <div id="inline-edit-${esc(c.id)}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <textarea class="form-textarea" id="inline-text-${esc(c.id)}" style="min-height:120px;font-size:13px">${esc(c.content_text||"")}</textarea>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-gold btn-sm" onclick="event.stopPropagation();saveInlineEdit('${esc(c.id)}')">Save</button>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();closeInlineEdit('${esc(c.id)}')">Cancel</button>
+        </div>
       </div>
     </div>`;
 }
 
-// The key fix — synchronous wrapper that calls the async function
+function copyContentText(contentId) {
+  const c = ALL_CONTENT.find(x => x.id === contentId);
+  if (!c || !c.content_text) { showToast("No text to copy."); return; }
+  navigator.clipboard.writeText(c.content_text).then(() => {
+    showToast("📋 Copied to clipboard!");
+  }).catch(() => {
+    // Fallback for browsers without clipboard API
+    const ta = document.createElement("textarea");
+    ta.value = c.content_text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    showToast("📋 Copied to clipboard!");
+  });
+}
+
+function openInlineEdit(contentId) {
+  const panel = document.getElementById("inline-edit-" + contentId);
+  const ta    = document.getElementById("inline-text-" + contentId);
+  if (!panel) return;
+  const c = ALL_CONTENT.find(x => x.id === contentId);
+  if (ta && c) ta.value = c.content_text || "";
+  panel.style.display = "";
+}
+
+function closeInlineEdit(contentId) {
+  const panel = document.getElementById("inline-edit-" + contentId);
+  if (panel) panel.style.display = "none";
+}
+
+async function saveInlineEdit(contentId) {
+  const ta = document.getElementById("inline-text-" + contentId);
+  if (!ta) return;
+  const newText = ta.value.trim();
+  try {
+    await sbUpdate("MyBFFContent", contentId, { content_text: newText, updated_at: new Date().toISOString() }, "id");
+    const idx = ALL_CONTENT.findIndex(x => x.id === contentId);
+    if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], content_text: newText };
+    closeInlineEdit(contentId);
+    // Update the snippet on the card without full re-render
+    const snippet = document.querySelector(`#cc-${contentId} div[style*="font-size:13px;color:var(--gray)"]`);
+    if (snippet) snippet.textContent = newText.substring(0, 120) + (newText.length > 120 ? "…" : "");
+    showToast("Saved.");
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+function toggleSelectAllDrafts(checked) {
+  document.querySelectorAll(".sb-draft-check").forEach(cb => { cb.checked = checked; });
+}
+
+async function bulkSubmitForReview() {
+  const checked = [...document.querySelectorAll(".sb-draft-check:checked")].map(cb => cb.dataset.id);
+  if (!checked.length) { showToast("Select at least one draft first."); return; }
+  let done = 0;
+  for (const id of checked) {
+    try { await submitForReview(id); done++; } catch(e) {}
+  }
+  showToast(`${done} post${done!==1?"s":""} submitted for review.`);
+  renderStatusBoard();
+}
+
+// Synchronous wrapper that calls the async function
 function showContentDetail(contentId) {
   openContentDetail(contentId).catch(e => showToast("Error opening content: " + e.message, "error"));
 }
