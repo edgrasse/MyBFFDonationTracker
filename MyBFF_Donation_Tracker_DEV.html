@@ -2258,7 +2258,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.15a-DEV · Jun 05 2026";
+const BUILD_VERSION = "v5.15b-DEV · Jun 05 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -9980,7 +9980,7 @@ const AI_CONTENT_HTML = `
       <div id="aiSeqResults" style="display:none;margin-top:1.5rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem;">
           <strong style="font-size:.9rem;color:var(--navy);">Proposed Schedule</strong>
-          <button class="btn btn-gold btn-sm" onclick="acceptAllSequencePosts()">Accept All to Drafts</button>
+          <button id="aiSeqAcceptAllBtn" class="btn btn-gold btn-sm" onclick="acceptAllSequencePosts()">Accept All to Drafts</button>
         </div>
         <div id="aiSeqPostList" style="display:flex;flex-direction:column;gap:.75rem;"></div>
       </div>
@@ -10678,8 +10678,15 @@ async function generateMonthlySequence() {
       // Strip code fences if present
       const cleaned = result.replace(/```json\n?/gi,'').replace(/```\n?/gi,'').trim();
       posts = JSON.parse(cleaned);
-    } catch {
-      showToast('Could not parse sequence response. Check the raw output.');
+      if (!Array.isArray(posts) || posts.length === 0) throw new Error('Empty array returned');
+    } catch(parseErr) {
+      // Show the raw response so we can diagnose
+      const preview = result ? result.substring(0, 300) : '(empty)';
+      showToast('Could not parse schedule response. Raw: ' + preview, 'error');
+      console.error('Sequence parse error:', parseErr.message);
+      console.log('Raw response:', result);
+      btn.disabled = false;
+      btn.textContent = 'Generate Schedule';
       return;
     }
 
@@ -10799,34 +10806,42 @@ async function regenerateSequencePost(idx) {
   }
 }
 
-function acceptAllSequencePosts() {
+async function acceptAllSequencePosts() {
   if (_aiSeq.posts.length === 0) { showToast('No posts to accept.'); return; }
 
   const toSave = _aiSeq.accepted.size > 0
     ? [..._aiSeq.accepted].map(i => _aiSeq.posts[i])
     : _aiSeq.posts;
 
+  const btn = document.getElementById('aiSeqAcceptAllBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
   let saved = 0;
-  toSave.forEach(post => {
+  for (const post of toSave) {
     const record = {
       id:             genId(),
-      type:           post.type === 'Make Today Count Monday' ? 'Facebook' : 'Facebook',
+      type:           'Facebook',
       title:          `${post.date} — ${post.type}`,
-      body:           post.draft || post.preview,
+      body:           post.draft || post.preview || '',
       status:         'Draft',
       scheduled_date: post.date,
       created_by:     currentUser ? currentUser.displayName : 'AI Module',
       created_at:     new Date().toISOString(),
       ai_generated:   true,
     };
-    if (typeof ALL_CONTENT !== 'undefined' && Array.isArray(ALL_CONTENT)) {
-      ALL_CONTENT.unshift(record);
+    try {
+      await sbInsert('MyBFFContent', record);
+      if (Array.isArray(ALL_CONTENT)) ALL_CONTENT.unshift(record);
+      saved++;
+    } catch(e) {
+      console.error('Failed to save post:', post.date, e.message);
     }
-    saved++;
-  });
+  }
 
   showToast(`${saved} post${saved !== 1 ? 's' : ''} saved as drafts.`);
+  if (btn) { btn.disabled = false; btn.textContent = 'Accept All to Drafts'; }
   closeAISequenceModal();
+  if (typeof renderStatusBoard === 'function') renderStatusBoard();
 }
 
 // ─── Sequence Prompt Builder ──────────────────────────────────────────────────
