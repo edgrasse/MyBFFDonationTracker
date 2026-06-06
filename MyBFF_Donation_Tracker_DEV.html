@@ -2258,7 +2258,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.15b-DEV · Jun 05 2026";
+const BUILD_VERSION = "v5.15c-DEV · Jun 05 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -10820,13 +10820,15 @@ async function acceptAllSequencePosts() {
   for (const post of toSave) {
     const record = {
       id:             genId(),
-      type:           'Facebook',
+      channel:        'Facebook',
       title:          `${post.date} — ${post.type}`,
-      body:           post.draft || post.preview || '',
+      content_text:   post.draft || post.preview || '',
       status:         'Draft',
-      scheduled_date: post.date,
+      post_date:      post.date,
       created_by:     currentUser ? currentUser.displayName : 'AI Module',
       created_at:     new Date().toISOString(),
+      updated_at:     new Date().toISOString(),
+      version:        1,
       ai_generated:   true,
     };
     try {
