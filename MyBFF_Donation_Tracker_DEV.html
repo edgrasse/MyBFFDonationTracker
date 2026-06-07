@@ -1065,7 +1065,7 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- NL Q&A MODAL -->
-    <div class="modal-overlay" id="nlQAModal" style="display:none" onclick="if(event.target===this)closeModal('nlQAModal')">
+    <div class="modal-overlay" id="nlQAModal" onclick="if(event.target===this)closeModal('nlQAModal')">
       <div class="modal" style="max-width:620px">
         <div class="modal-header">
           <div class="modal-title">💬 Add Q&amp;A to Queue</div>
@@ -1094,7 +1094,7 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- NL ARTICLE MODAL -->
-    <div class="modal-overlay" id="nlArticleModal" style="display:none" onclick="if(event.target===this)closeModal('nlArticleModal')">
+    <div class="modal-overlay" id="nlArticleModal" onclick="if(event.target===this)closeModal('nlArticleModal')">
       <div class="modal" style="max-width:480px">
         <div class="modal-header">
           <div class="modal-title">📰 Add Article to Queue</div>
@@ -1120,7 +1120,7 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- POST REGENERATE MODAL -->
-    <div class="modal-overlay" id="regenModal" style="display:none" onclick="if(event.target===this)closeModal('regenModal')">
+    <div class="modal-overlay" id="regenModal" onclick="if(event.target===this)closeModal('regenModal')">
       <div class="modal" style="max-width:560px">
         <div class="modal-header">
           <div class="modal-title">🔄 Regenerate Post</div>
@@ -2343,7 +2343,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.15e-DEV · Jun 05 2026";
+const BUILD_VERSION = "v5.15f-DEV · Jun 05 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
