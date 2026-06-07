@@ -888,6 +888,7 @@ if ('serviceWorker' in navigator) {
           Status Board <span id="mktgBadgeStatus" style="display:none;background:#dc2626;color:white;border-radius:9999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px"></span>
         </button>
         <button class="sub-tab" id="mktgTabCreate" onclick="showMktgTab('create')">Create Content</button>
+        <button class="sub-tab" id="mktgTabNlqueue" onclick="showMktgTab('nlqueue')">📋 Newsletter Queue</button>
         <button class="sub-tab" id="mktgTabAssets" onclick="showMktgTab('assets')">Asset Library</button>
         <button class="sub-tab" id="mktgTabAi" onclick="showMktgTab('ai')">🤖 AI Settings</button>
       </div>
@@ -910,6 +911,11 @@ if ('serviceWorker' in navigator) {
       <!-- CREATE CONTENT -->
       <div id="mktg-create" class="mktg-panel" style="display:none">
         <div id="mktgCreatePanel"></div>
+      </div>
+
+      <!-- NEWSLETTER QUEUE -->
+      <div id="mktg-nlqueue" class="mktg-panel" style="display:none">
+        <div id="mktgNLQueue"></div>
       </div>
 
       <!-- ASSET LIBRARY -->
@@ -1054,6 +1060,85 @@ if ('serviceWorker' in navigator) {
         <div style="display:flex;gap:10px;justify-content:flex-end">
           <button class="btn btn-outline" onclick="closeModal('customLinkModal')">Cancel</button>
           <button class="btn btn-gold" onclick="saveCustomLink()">Save Link</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- NL Q&A MODAL -->
+    <div class="modal-overlay" id="nlQAModal" style="display:none" onclick="if(event.target===this)closeModal('nlQAModal')">
+      <div class="modal" style="max-width:620px">
+        <div class="modal-header">
+          <div class="modal-title">💬 Add Q&amp;A to Queue</div>
+          <button class="modal-close" onclick="closeModal('nlQAModal')">&#x2715;</button>
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Person Name <span class="req">*</span> <span style="font-size:11px;color:var(--gray);font-weight:400">First name + last initial only (e.g. "Sarah M.")</span></label>
+          <input type="text" class="form-input" id="nlQAPersonName" placeholder="e.g. Sarah M.">
+        </div>
+        <div class="form-group" style="margin-bottom:10px">
+          <label class="form-label">Paste Q&amp;A Text</label>
+          <textarea class="form-textarea" id="nlQAText" rows="8" placeholder="Paste the full Q&A here — questions and answers alternating. Claude Code will parse them into pairs automatically."></textarea>
+        </div>
+        <div style="margin-bottom:16px">
+          <button class="btn btn-outline btn-sm" onclick="parseNLQAText()">Parse Q&amp;A Pairs →</button>
+        </div>
+        <div id="nlQAPairsSection" style="display:none;margin-bottom:16px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:8px">Select Q&amp;As to Include</div>
+          <div id="nlQAPairsList"></div>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button class="btn btn-outline" onclick="closeModal('nlQAModal')">Cancel</button>
+          <button class="btn btn-gold" onclick="saveNLQA()">Save to Queue</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- NL ARTICLE MODAL -->
+    <div class="modal-overlay" id="nlArticleModal" style="display:none" onclick="if(event.target===this)closeModal('nlArticleModal')">
+      <div class="modal" style="max-width:480px">
+        <div class="modal-header">
+          <div class="modal-title">📰 Add Article to Queue</div>
+          <button class="modal-close" onclick="closeModal('nlArticleModal')">&#x2715;</button>
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Article Title <span class="req">*</span></label>
+          <input type="text" class="form-input" id="nlArticleTitle" placeholder="e.g. Scientists Crack a Tough Cancer Target">
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">URL <span class="req">*</span></label>
+          <input type="text" class="form-input" id="nlArticleUrl" placeholder="https://...">
+        </div>
+        <div class="form-group" style="margin-bottom:20px">
+          <label class="form-label">Notes <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+          <input type="text" class="form-input" id="nlArticleNotes" placeholder="Why this article is relevant">
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button class="btn btn-outline" onclick="closeModal('nlArticleModal')">Cancel</button>
+          <button class="btn btn-gold" onclick="saveNLArticle()">Save to Queue</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- POST REGENERATE MODAL -->
+    <div class="modal-overlay" id="regenModal" style="display:none" onclick="if(event.target===this)closeModal('regenModal')">
+      <div class="modal" style="max-width:560px">
+        <div class="modal-header">
+          <div class="modal-title">🔄 Regenerate Post</div>
+          <button class="modal-close" onclick="closeModal('regenModal')">&#x2715;</button>
+        </div>
+        <div style="margin-bottom:14px">
+          <div style="font-size:12px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Current Draft</div>
+          <div id="regenCurrentDraft" style="background:#f9fafb;border:1px solid var(--border);border-radius:8px;padding:12px;font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label">What would you like different? <span style="font-size:11px;color:var(--gray);font-weight:400">optional — leave blank for a general improvement</span></label>
+          <input type="text" class="form-input" id="regenFeedback" placeholder="e.g. Make it shorter, add more urgency about the Aug 8 deadline">
+        </div>
+        <div style="font-size:12px;color:var(--gray);margin-bottom:16px" id="regenCount">0 of 3 regenerations used</div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+          <button class="btn btn-outline" onclick="closeModal('regenModal')">Cancel</button>
+          <button class="btn btn-outline" id="regenBtn" onclick="regenPost()">🔄 Regenerate</button>
+          <button class="btn btn-gold" onclick="acceptRegenDraft()">✓ Accept &amp; Save</button>
         </div>
       </div>
     </div>
@@ -2258,7 +2343,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.15d-DEV · Jun 05 2026";
+const BUILD_VERSION = "v5.15e-DEV · Jun 05 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -2312,6 +2397,8 @@ let ALL_DON_CATS = [];   // loaded from MyBFFDonationCategories
 let ALL_CONTENT = [];         // loaded from MyBFFContent
 let ALL_CONTENT_COMMENTS = []; // loaded from MyBFFContentComments
 let ALL_CONTENT_REVIEWERS = []; // loaded from MyBFFContentReviewers
+let ALL_NL_QA = [];           // loaded from MyBFFNewsletterQA
+let ALL_NL_ARTICLES = [];     // loaded from MyBFFNewsletterArticles
 let _refreshTimer = null;      // auto-refresh interval handle
 let ALL_GRANTS = [];           // loaded from MyBFFGrants
 let ALL_GRANT_REQUESTS = [];   // loaded from MyBFFGrantRequests
@@ -2466,7 +2553,7 @@ async function launchApp() {
 async function loadAll() {
   await loadDonations();
   await Promise.all([loadVendors(), loadEvents(), loadPickups(), loadUsers(), loadEventTypes(), loadDonationCategories()]);
-  await Promise.all([loadTasks(), loadTaskTemplates(), loadTaskNotes(), loadContent(), loadContentComments(), loadContentReviewers(), loadAIConfig(), loadAILibrary(), loadAIHistory(), loadGrants(), loadGrantRequests(), loadAssets()]);
+  await Promise.all([loadTasks(), loadTaskTemplates(), loadTaskNotes(), loadContent(), loadContentComments(), loadContentReviewers(), loadAIConfig(), loadAILibrary(), loadAIHistory(), loadGrants(), loadGrantRequests(), loadAssets(), loadNLQueue()]);
   checkCampaignExpiry();
   updateActionSummary();
   startAutoRefresh();
@@ -6804,17 +6891,18 @@ function updateMktgBadge() {
 
 // ── Tab switching ─────────────────────────────────────────────
 function showMktgTab(tab) {
-  _activeSectionFilter = null; // reset section filter on tab switch
-  ["status","create","assets","ai"].forEach(t => {
+  _activeSectionFilter = null;
+  ["status","create","nlqueue","assets","ai"].forEach(t => {
     const panel = document.getElementById("mktg-" + t);
-    const btn = document.getElementById("mktgTab" + t.charAt(0).toUpperCase() + t.slice(1));
+    const btn   = document.getElementById("mktgTab" + t.charAt(0).toUpperCase() + t.slice(1));
     if (panel) panel.style.display = t === tab ? "" : "none";
-    if (btn) btn.classList.toggle("active", t === tab);
+    if (btn)   btn.classList.toggle("active", t === tab);
   });
-  if (tab === "status") renderStatusBoard();
-  if (tab === "create") renderCreatePanel();
-  if (tab === "assets") renderAssetLibrary();
-  if (tab === "ai") renderAISettings();
+  if (tab === "status")   renderStatusBoard();
+  if (tab === "create")   renderCreatePanel();
+  if (tab === "nlqueue")  renderNLQueue();
+  if (tab === "assets")   renderAssetLibrary();
+  if (tab === "ai")       renderAISettings();
 }
 
 // ── Status helpers ────────────────────────────────────────────
@@ -7019,6 +7107,7 @@ function contentCard(c, extraBadges = "") {
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();copyContentText('${esc(c.id)}')" title="Copy post text to clipboard">📋 Copy Text</button>
         ${c.status === "Draft" && isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openInlineEdit('${esc(c.id)}')">✏️ Quick Edit</button>` : ""}
+        ${c.status === "Draft" && isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openRegenModal('${esc(c.id)}')">🔄 Regenerate</button>` : ""}
         ${c.status === "Draft" && isEditor() ? `<button class="btn btn-gold btn-sm" onclick="event.stopPropagation();submitForReview('${esc(c.id)}')">Submit for Review</button>` : ""}
       </div>
       <div id="inline-edit-${esc(c.id)}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
@@ -9892,6 +9981,350 @@ function filterHelp() {
     const visible = [...cat.querySelectorAll(".help-item")].some(el => !el.classList.contains("hidden"));
     cat.style.display = visible ? "" : "none";
   });
+}
+
+// ═══════════════════════════════════════════════════════════
+// NEWSLETTER QUEUE — Q&A Bank + Article Bank
+// ═══════════════════════════════════════════════════════════
+
+async function loadNLQueue() {
+  try {
+    const [qa, art] = await Promise.all([
+      sbGet("MyBFFNewsletterQA",       "order=created_at.desc"),
+      sbGet("MyBFFNewsletterArticles", "order=created_at.desc"),
+    ]);
+    ALL_NL_QA       = (qa  || []).filter(r => r.id);
+    ALL_NL_ARTICLES = (art || []).filter(r => r.id);
+  } catch(e) { console.warn("loadNLQueue:", e.message); }
+}
+
+function renderNLQueue() {
+  const container = document.getElementById("mktgNLQueue");
+  if (!container) return;
+
+  const queuedQA  = ALL_NL_QA.filter(r => r.status === "Queued");
+  const usedQA    = ALL_NL_QA.filter(r => r.status !== "Queued");
+  const queuedArt = ALL_NL_ARTICLES.filter(r => r.status === "Queued");
+  const usedArt   = ALL_NL_ARTICLES.filter(r => r.status !== "Queued");
+
+  container.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+
+      <!-- Q&A Bank -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-weight:700;font-size:16px">💬 Q&amp;A Bank</div>
+          <button class="btn btn-gold btn-sm" onclick="openNLQAModal()">+ Add Q&amp;A</button>
+        </div>
+        ${queuedQA.length === 0 ? `<div style="font-size:13px;color:var(--gray);padding:12px 0">No Q&amp;As queued.</div>` : ""}
+        ${queuedQA.map(q => `
+          <div class="card" style="margin-bottom:10px;padding:12px 14px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+              <div>
+                <div style="font-weight:600;font-size:14px">${esc(q.person_name)}</div>
+                <div style="font-size:11px;color:var(--gray);margin-top:2px">
+                  ${q.qa_pairs ? JSON.parse(q.qa_pairs).length : "?"} Q&amp;A pairs · Added ${fmtDate(q.created_at?.split("T")[0])}
+                </div>
+                <span style="background:#d1fae5;color:#065f46;font-size:10px;padding:1px 8px;border-radius:20px;font-weight:700;margin-top:4px;display:inline-block">QUEUED</span>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0">
+                <button class="btn btn-outline btn-sm" onclick="openNLQAModal('${esc(q.id)}')">✎</button>
+                <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b" onclick="deleteNLQA('${esc(q.id)}')">✕</button>
+              </div>
+            </div>
+          </div>`).join("")}
+        ${usedQA.length ? `<div style="font-size:12px;color:var(--gray);margin-top:8px;font-weight:600">${usedQA.length} used</div>` : ""}
+      </div>
+
+      <!-- Article Bank -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-weight:700;font-size:16px">📰 Article Bank</div>
+          <button class="btn btn-gold btn-sm" onclick="openNLArticleModal()">+ Add Article</button>
+        </div>
+        ${queuedArt.length === 0 ? `<div style="font-size:13px;color:var(--gray);padding:12px 0">No articles queued.</div>` : ""}
+        ${queuedArt.map(a => `
+          <div class="card" style="margin-bottom:10px;padding:12px 14px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.title)}</div>
+                <a href="${esc(a.url)}" target="_blank" style="font-size:11px;color:var(--navy)">${esc(a.url?.substring(0,50))}${(a.url?.length||0)>50?"…":""}</a>
+                ${a.notes ? `<div style="font-size:12px;color:var(--gray);margin-top:2px">${esc(a.notes)}</div>` : ""}
+                <span style="background:#d1fae5;color:#065f46;font-size:10px;padding:1px 8px;border-radius:20px;font-weight:700;margin-top:4px;display:inline-block">QUEUED</span>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0">
+                <button class="btn btn-outline btn-sm" onclick="openNLArticleModal('${esc(a.id)}')">✎</button>
+                <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b" onclick="deleteNLArticle('${esc(a.id)}')">✕</button>
+              </div>
+            </div>
+          </div>`).join("")}
+        ${usedArt.length ? `<div style="font-size:12px;color:var(--gray);margin-top:8px;font-weight:600">${usedArt.length} used</div>` : ""}
+      </div>
+
+    </div>
+
+    ${queuedQA.length < 2 ? `<div style="margin-top:20px;padding:10px 14px;background:#fff3cd;border:1px solid #f59e0b;border-radius:8px;font-size:13px;color:#92400e">
+      ⚠️ <strong>Queue running low:</strong> Only ${queuedQA.length} Q&amp;A${queuedQA.length!==1?"s":""} queued. Consider adding more soon.
+    </div>` : ""}
+    ${queuedArt.length < 2 ? `<div style="margin-top:10px;padding:10px 14px;background:#fff3cd;border:1px solid #f59e0b;border-radius:8px;font-size:13px;color:#92400e">
+      ⚠️ <strong>Queue running low:</strong> Only ${queuedArt.length} article${queuedArt.length!==1?"s":""} queued. Consider adding more soon.
+    </div>` : ""}
+  `;
+}
+
+// ── Q&A Modal ─────────────────────────────────────────────
+let _editingNLQAId = null;
+let _nlQAPairs = []; // array of {q, a, include}
+
+function openNLQAModal(id = null) {
+  _editingNLQAId = id;
+  _nlQAPairs = [];
+  const existing = id ? ALL_NL_QA.find(r => r.id === id) : null;
+  const modal = document.getElementById("nlQAModal");
+  if (!modal) return;
+  document.getElementById("nlQAPersonName").value = existing?.person_name || "";
+  document.getElementById("nlQAText").value = "";
+  document.getElementById("nlQAPairsSection").style.display = "none";
+  document.getElementById("nlQAPairsList").innerHTML = "";
+  if (existing?.qa_pairs) {
+    try {
+      _nlQAPairs = JSON.parse(existing.qa_pairs);
+      renderNLQAPairs();
+      document.getElementById("nlQAPairsSection").style.display = "";
+    } catch(e) {}
+  }
+  openModal("nlQAModal");
+}
+
+function parseNLQAText() {
+  const raw = document.getElementById("nlQAText").value.trim();
+  if (!raw) { showToast("Paste the Q&A text first.", "error"); return; }
+  // Parse: bold questions followed by answers
+  // Supports "Question: Answer" or "Q: A" patterns or bold/plain alternation
+  const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
+  _nlQAPairs = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    // Detect question lines — end with ? or start with bold markers or are short (<100 chars)
+    const isQuestion = line.endsWith("?") || line.length < 120;
+    if (isQuestion && i + 1 < lines.length) {
+      // Clean question — remove bold markdown, leading "Q:" etc.
+      const q = line.replace(/^\*\*/, "").replace(/\*\*$/, "").replace(/^Q\d*[:.]\s*/i, "").trim();
+      const a = lines[i+1].replace(/^A[:.]\s*/i, "").trim();
+      _nlQAPairs.push({ q, a, include: _nlQAPairs.length < 5 });
+      i += 2;
+    } else { i++; }
+  }
+  if (!_nlQAPairs.length) {
+    // Fallback: split alternating lines
+    for (let j = 0; j < lines.length - 1; j += 2) {
+      _nlQAPairs.push({ q: lines[j], a: lines[j+1] || "", include: j < 10 });
+    }
+  }
+  renderNLQAPairs();
+  document.getElementById("nlQAPairsSection").style.display = "";
+}
+
+function renderNLQAPairs() {
+  const list = document.getElementById("nlQAPairsList");
+  if (!list) return;
+  const selectedCount = _nlQAPairs.filter(p => p.include).length;
+  list.innerHTML = `
+    <div style="font-size:12px;color:var(--gray);margin-bottom:10px">
+      Select which Q&amp;As to include. <strong>${selectedCount} of ${_nlQAPairs.length}</strong> selected
+      (aim for 5 that fit the newsletter space — ~350 words total).
+    </div>
+    ${_nlQAPairs.map((p, i) => {
+      const wc = (p.q + " " + p.a).split(/\s+/).length;
+      return `<div style="padding:10px 12px;margin-bottom:8px;border:1.5px solid ${p.include?"var(--gold)":"var(--border)"};border-radius:8px;background:${p.include?"#fffbeb":"white"}">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+          <input type="checkbox" ${p.include?"checked":""} style="margin-top:3px;accent-color:var(--gold)"
+            onchange="_nlQAPairs[${i}].include=this.checked;renderNLQAPairs()">
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:13px;color:var(--navy)">${esc(p.q)}</div>
+            <div style="font-size:12px;color:#555;margin-top:4px;line-height:1.5">${esc(p.a.substring(0,150))}${p.a.length>150?"…":""}</div>
+            <div style="font-size:11px;color:var(--gray);margin-top:4px">~${wc} words</div>
+          </div>
+        </label>
+      </div>`;
+    }).join("")}`;
+}
+
+async function saveNLQA() {
+  const name = document.getElementById("nlQAPersonName").value.trim();
+  if (!name) { showToast("Person name is required.", "error"); return; }
+  if (!_nlQAPairs.length) { showToast("Parse Q&A text first.", "error"); return; }
+  const row = {
+    id:          _editingNLQAId || genId(),
+    person_name: name,
+    qa_pairs:    JSON.stringify(_nlQAPairs),
+    status:      "Queued",
+    created_at:  _editingNLQAId ? (ALL_NL_QA.find(r=>r.id===_editingNLQAId)?.created_at || new Date().toISOString()) : new Date().toISOString(),
+    created_by:  currentUser?.displayName || "",
+  };
+  try {
+    if (_editingNLQAId) {
+      await sbUpdate("MyBFFNewsletterQA", _editingNLQAId, row, "id");
+      const idx = ALL_NL_QA.findIndex(r => r.id === _editingNLQAId);
+      if (idx >= 0) ALL_NL_QA[idx] = row;
+    } else {
+      await sbInsert("MyBFFNewsletterQA", row);
+      ALL_NL_QA.unshift(row);
+    }
+    closeModal("nlQAModal");
+    renderNLQueue();
+    showToast("Q&A saved to queue.");
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+async function deleteNLQA(id) {
+  if (!confirm("Remove this Q&A from the queue?")) return;
+  try {
+    await sbDelete("MyBFFNewsletterQA", id, "id");
+    ALL_NL_QA = ALL_NL_QA.filter(r => r.id !== id);
+    renderNLQueue();
+    showToast("Q&A removed.");
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+// ── Article Modal ─────────────────────────────────────────
+let _editingNLArticleId = null;
+
+function openNLArticleModal(id = null) {
+  _editingNLArticleId = id;
+  const existing = id ? ALL_NL_ARTICLES.find(r => r.id === id) : null;
+  const modal = document.getElementById("nlArticleModal");
+  if (!modal) return;
+  document.getElementById("nlArticleTitle").value = existing?.title || "";
+  document.getElementById("nlArticleUrl").value   = existing?.url   || "";
+  document.getElementById("nlArticleNotes").value = existing?.notes || "";
+  openModal("nlArticleModal");
+}
+
+async function saveNLArticle() {
+  const title = document.getElementById("nlArticleTitle").value.trim();
+  let   url   = document.getElementById("nlArticleUrl").value.trim();
+  const notes = document.getElementById("nlArticleNotes").value.trim();
+  if (!title) { showToast("Title is required.", "error"); return; }
+  if (!url)   { showToast("URL is required.", "error"); return; }
+  if (!url.startsWith("http")) url = "https://" + url;
+  const row = {
+    id:         _editingNLArticleId || genId(),
+    title, url, notes,
+    status:     "Queued",
+    created_at: _editingNLArticleId ? (ALL_NL_ARTICLES.find(r=>r.id===_editingNLArticleId)?.created_at || new Date().toISOString()) : new Date().toISOString(),
+    created_by: currentUser?.displayName || "",
+  };
+  try {
+    if (_editingNLArticleId) {
+      await sbUpdate("MyBFFNewsletterArticles", _editingNLArticleId, row, "id");
+      const idx = ALL_NL_ARTICLES.findIndex(r => r.id === _editingNLArticleId);
+      if (idx >= 0) ALL_NL_ARTICLES[idx] = row;
+    } else {
+      await sbInsert("MyBFFNewsletterArticles", row);
+      ALL_NL_ARTICLES.unshift(row);
+    }
+    closeModal("nlArticleModal");
+    renderNLQueue();
+    showToast("Article saved to queue.");
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+async function deleteNLArticle(id) {
+  if (!confirm("Remove this article from the queue?")) return;
+  try {
+    await sbDelete("MyBFFNewsletterArticles", id, "id");
+    ALL_NL_ARTICLES = ALL_NL_ARTICLES.filter(r => r.id !== id);
+    renderNLQueue();
+    showToast("Article removed.");
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// POST REGENERATION — Individual post regenerate with feedback
+// ═══════════════════════════════════════════════════════════
+
+let _regenState = { contentId: null, regenCount: 0 };
+
+function openRegenModal(contentId) {
+  const c = ALL_CONTENT.find(x => x.id === contentId);
+  if (!c) return;
+  _regenState = { contentId, regenCount: 0 };
+  document.getElementById("regenCurrentDraft").textContent = c.content_text || "(no text)";
+  document.getElementById("regenFeedback").value = "";
+  document.getElementById("regenCount").textContent = "0 of 3 regenerations used";
+  document.getElementById("regenBtn").disabled = false;
+  document.getElementById("regenBtn").textContent = "🔄 Regenerate";
+  openModal("regenModal");
+}
+
+async function regenPost() {
+  if (_regenState.regenCount >= 3) {
+    showToast("Maximum regenerations reached. Edit the draft directly.", "error");
+    return;
+  }
+  const c = ALL_CONTENT.find(x => x.id === _regenState.contentId);
+  if (!c) return;
+  const feedback = document.getElementById("regenFeedback").value.trim();
+  const btn = document.getElementById("regenBtn");
+  btn.disabled = true;
+  btn.textContent = "Generating…";
+
+  const brand = AI_CONFIG || {};
+  const prompt = `You are writing content for My Best Friends Foundation (MyBFF), a 501(c)(3) cancer support nonprofit.
+
+BRAND VOICE:
+- Use words/phrases: ${brand.use_words || "#MakeTodayCount, warm, community, friendship"}
+- Avoid: ${brand.avoid_words || "battle, lost their battle, giving back, making a difference"}
+- Always end with #MakeTodayCount #MyBFF plus 2-4 contextual hashtags
+- Sentences under 15 words. One CTA at the end, under 8 words.
+
+ORIGINAL DRAFT:
+${c.content_text || ""}
+
+USER FEEDBACK:
+${feedback || "Please improve this post while keeping it on-brand."}
+
+Write an improved version of this ${c.channel || "Facebook"} post incorporating the feedback.
+Return ONLY the post content. No commentary. No quotes around the output.`;
+
+  try {
+    const result = await sendToClaudeForContent(prompt);
+    _regenState.regenCount++;
+    document.getElementById("regenCurrentDraft").textContent = result;
+    document.getElementById("regenCount").textContent = `${_regenState.regenCount} of 3 regenerations used`;
+    document.getElementById("regenFeedback").value = "";
+    if (_regenState.regenCount >= 3) {
+      btn.disabled = true;
+      btn.textContent = "Max regenerations reached";
+    } else {
+      btn.disabled = false;
+      btn.textContent = "🔄 Regenerate Again";
+    }
+    // Store new draft in state for accept
+    _regenState.newDraft = result;
+  } catch(e) {
+    showToast("Regeneration failed: " + e.message, "error");
+    btn.disabled = false;
+    btn.textContent = "🔄 Regenerate";
+  }
+}
+
+async function acceptRegenDraft() {
+  const draft = _regenState.newDraft || document.getElementById("regenCurrentDraft").textContent;
+  if (!draft || !_regenState.contentId) return;
+  try {
+    await sbUpdate("MyBFFContent", _regenState.contentId, {
+      content_text: draft,
+      updated_at:   new Date().toISOString(),
+    }, "id");
+    const idx = ALL_CONTENT.findIndex(x => x.id === _regenState.contentId);
+    if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], content_text: draft };
+    closeModal("regenModal");
+    renderStatusBoard();
+    showToast("Draft updated.");
+  } catch(e) { showToast("Error saving: " + e.message, "error"); }
 }
 
 // ═══════════════════════════════════════════════════════════
