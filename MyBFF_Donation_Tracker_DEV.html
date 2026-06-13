@@ -895,7 +895,7 @@ if ('serviceWorker' in navigator) {
 
       <!-- STATUS BOARD -->
       <div id="mktg-status" class="mktg-panel">
-        <div class="filters" style="margin-bottom:16px">
+        <div class="filters" style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
           <select class="filter-select" id="mktgEventFilter" onchange="renderStatusBoard()">
             <option value="">All Events</option>
           </select>
@@ -903,6 +903,11 @@ if ('serviceWorker' in navigator) {
             <option value="">All Channels</option>
             <option>Facebook</option><option>Instagram</option>
             <option>Email</option><option>Newsletter</option><option>Flyer</option><option>Other</option>
+          </select>
+          <select class="filter-select" id="mktgSortOrder" onchange="renderStatusBoard()">
+            <option value="asc">Date ↑ (oldest first)</option>
+            <option value="desc" selected>Date ↓ (newest first)</option>
+            <option value="created">Created date</option>
           </select>
         </div>
         <div id="mktgStatusBoard"></div>
@@ -2343,7 +2348,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.15h-DEV · Jun 05 2026";
+const BUILD_VERSION = "v5.15i-DEV · Jun 05 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -6961,12 +6966,23 @@ function renderStatusBoard() {
   const myName = currentUser?.displayName || "";
   const evFilter = (ALL_EVENTS_DATA.length > 0 && document.getElementById("mktgEventFilter")?.value) ? document.getElementById("mktgEventFilter").value : "";
   const chFilter = document.getElementById("mktgChannelFilter")?.value || "";
+  const sortOrder = document.getElementById("mktgSortOrder")?.value || "desc";
   const today = new Date().toISOString().split("T")[0];
   const soon = new Date(Date.now()+3*86400000).toISOString().split("T")[0];
 
   let allItems = [...ALL_CONTENT];
   if (evFilter) allItems = allItems.filter(c => c.event_name === evFilter);
   if (chFilter) allItems = allItems.filter(c => c.channel === chFilter);
+
+  // Apply sort
+  allItems.sort((a, b) => {
+    if (sortOrder === "created") {
+      return new Date(b.created_at||0) - new Date(a.created_at||0);
+    }
+    const da = a.post_date || a.created_at || "";
+    const db = b.post_date || b.created_at || "";
+    return sortOrder === "asc" ? da.localeCompare(db) : db.localeCompare(da);
+  });
 
   if (!isEditor()) {
     allItems = allItems.filter(c => {
@@ -7109,6 +7125,7 @@ function contentCard(c, extraBadges = "") {
         ${c.status === "Draft" && isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openInlineEdit('${esc(c.id)}')">✏️ Quick Edit</button>` : ""}
         ${c.status === "Draft" && isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openRegenModal('${esc(c.id)}')">🔄 Regenerate</button>` : ""}
         ${c.status === "Draft" && isEditor() ? `<button class="btn btn-gold btn-sm" onclick="event.stopPropagation();submitForReview('${esc(c.id)}')">Submit for Review</button>` : ""}
+        ${isEditor() ? `<button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5" onclick="event.stopPropagation();deleteContentRecord('${esc(c.id)}')">🗑 Delete</button>` : ""}
       </div>
       <div id="inline-edit-${esc(c.id)}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
         <textarea class="form-textarea" id="inline-text-${esc(c.id)}" style="min-height:120px;font-size:13px">${esc(c.content_text||"")}</textarea>
@@ -7118,6 +7135,40 @@ function contentCard(c, extraBadges = "") {
         </div>
       </div>
     </div>`;
+}
+
+async function deleteContentRecord(contentId) {
+  const c = ALL_CONTENT.find(x => x.id === contentId);
+  if (!c) return;
+  if (!confirm(`Delete "${c.title || 'this post'}"? This cannot be undone.`)) return;
+  try {
+    await sbDelete("MyBFFContent", contentId, "id");
+    ALL_CONTENT = ALL_CONTENT.filter(x => x.id !== contentId);
+    renderStatusBoard();
+    showToast("Post deleted.");
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+function updateNLBlockStats(blockId, statsId, warningId, wordLimit, charLimit) {
+  const ta = document.getElementById(blockId);
+  const stats = document.getElementById(statsId);
+  const warn = document.getElementById(warningId);
+  if (!ta || !stats) return;
+  const text = ta.value;
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const chars = text.length;
+  const overWords = words > wordLimit;
+  const overChars = chars > charLimit;
+  stats.textContent = `${words} words · ${chars} characters`;
+  stats.style.color = (overWords || overChars) ? '#dc2626' : 'var(--gray)';
+  if (warn) {
+    if (overWords || overChars) {
+      warn.style.display = '';
+      warn.textContent = `⚠️ Over limit: ${overWords ? words + ' words (max ' + wordLimit + ')' : ''} ${overWords && overChars ? ' · ' : ''} ${overChars ? chars + ' characters (max ' + charLimit + ')' : ''}`.trim();
+    } else {
+      warn.style.display = 'none';
+    }
+  }
 }
 
 function copyContentText(contentId) {
@@ -10612,7 +10663,7 @@ const AI_CONTENT_HTML = `
               <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('qa')" id="aiNLSec1AcceptBtn" disabled>Approve</button>
             </div>
           </div>
-          <textarea id="aiNLSec1Text" class="form-textarea" rows="6" placeholder="Generated Q&A will appear here…" style="font-size:.83rem;"></textarea>
+          <textarea id="aiNLSec1Text" class="form-textarea" rows="14" placeholder="Generated Q&A will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
         </div>
 
         <!-- Section 2: Article summary -->
@@ -10625,7 +10676,7 @@ const AI_CONTENT_HTML = `
               <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('article')" id="aiNLSec2AcceptBtn" disabled>Approve</button>
             </div>
           </div>
-          <textarea id="aiNLSec2Text" class="form-textarea" rows="5" placeholder="Generated article summary will appear here…" style="font-size:.83rem;"></textarea>
+          <textarea id="aiNLSec2Text" class="form-textarea" rows="10" placeholder="Generated article summary will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
         </div>
 
         <!-- Section 3: Events calendar -->
@@ -10638,41 +10689,56 @@ const AI_CONTENT_HTML = `
               <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('events')" id="aiNLSec3AcceptBtn" disabled>Approve</button>
             </div>
           </div>
-          <textarea id="aiNLSec3Text" class="form-textarea" rows="5" placeholder="Generated events calendar will appear here…" style="font-size:.83rem;"></textarea>
+          <textarea id="aiNLSec3Text" class="form-textarea" rows="8" placeholder="Generated events list will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
         </div>
       </div>
 
       <!-- Step 3: Three copy blocks for Canva -->
       <div id="aiNLStep3" style="display:none;">
         <div style="background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#92400e">
-          &#128203; <strong>Ready to paste into Canva.</strong> Each section below is formatted for its column/section in the newsletter template. Copy each block and paste it into the corresponding area in Canva.
+          &#128203; <strong>Ready to paste into Canva.</strong> Copy each block into the corresponding section. Text is formatted with bold questions and Open Sans 10pt styling notes below each block.
         </div>
 
         <!-- Block 1: Q&A -->
         <div class="card" style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
             <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9312; LEFT COLUMN — Q&amp;A WITH A FRIEND</div>
-            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock1')">&#128203; Copy</button>
+            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock1')">&#128203; Copy Text</button>
           </div>
-          <textarea id="aiNLBlock1" class="form-textarea" rows="10" style="font-size:12px;line-height:1.6;font-family:monospace" placeholder="Q&A block will appear here…"></textarea>
+          <div id="nlBlock1Stats" style="font-size:11px;color:var(--gray);margin-bottom:6px"></div>
+          <div id="nlBlock1Warning" style="display:none;font-size:12px;color:#dc2626;background:#fef2f2;padding:6px 10px;border-radius:6px;margin-bottom:8px"></div>
+          <textarea id="aiNLBlock1" class="form-textarea" rows="14"
+            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
+            placeholder="Q&A block will appear here…"
+            oninput="updateNLBlockStats('aiNLBlock1','nlBlock1Stats','nlBlock1Warning',225,1300)"></textarea>
+          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Questions are BOLD, answers are regular text. Font: Open Sans 10pt, black, left-justified.</div>
         </div>
 
         <!-- Block 2: Article -->
         <div class="card" style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
             <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9313; RIGHT COLUMN — CANCER NEWS</div>
-            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock2')">&#128203; Copy</button>
+            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock2')">&#128203; Copy Text</button>
           </div>
-          <textarea id="aiNLBlock2" class="form-textarea" rows="8" style="font-size:12px;line-height:1.6;font-family:monospace" placeholder="Article summary will appear here…"></textarea>
+          <div id="nlBlock2Stats" style="font-size:11px;color:var(--gray);margin-bottom:6px"></div>
+          <div id="nlBlock2Warning" style="display:none;font-size:12px;color:#dc2626;background:#fef2f2;padding:6px 10px;border-radius:6px;margin-bottom:8px"></div>
+          <textarea id="aiNLBlock2" class="form-textarea" rows="12"
+            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
+            placeholder="Article summary will appear here…"
+            oninput="updateNLBlockStats('aiNLBlock2','nlBlock2Stats','nlBlock2Warning',200,1200)"></textarea>
+          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Title is BOLD, body text is regular. Font: Open Sans 10pt, black, left-justified.</div>
         </div>
 
         <!-- Block 3: Events -->
         <div class="card" style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
             <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9314; BOTTOM STRIP — UPCOMING EVENTS</div>
-            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock3')">&#128203; Copy</button>
+            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock3')">&#128203; Copy Text</button>
           </div>
-          <textarea id="aiNLBlock3" class="form-textarea" rows="5" style="font-size:12px;line-height:1.6;font-family:monospace" placeholder="Events list will appear here…"></textarea>
+          <textarea id="aiNLBlock3" class="form-textarea" rows="6"
+            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
+            placeholder="Events list will appear here…"></textarea>
+          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Event name is BOLD, date is regular text. Font: Open Sans 10pt, black, left-justified. No times listed.</div>
         </div>
 
         <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:8px">
@@ -11050,6 +11116,12 @@ function buildGenerationPrompt(contentType, formData, brandBrain) {
   const org = bb.org_name || 'My Best Friends Foundation';
   const lines = [];
 
+  // Role framing
+  lines.push('You are an expert social media strategist and Facebook content specialist with deep experience in nonprofit storytelling. You understand the Facebook algorithm, engagement optimization, optimal post structure, and how to write content that stops the scroll and drives action without feeling like advertising.');
+  lines.push('');
+  lines.push('You are creating content for My Best Friends Foundation (MyBFF), a 501(c)(3) cancer support nonprofit in Chicagoland.');
+  lines.push('');
+
   // 1. BRAND BRAIN CONTEXT
   lines.push('=== BRAND BRAIN ===');
   lines.push(`Organization: ${org}`);
@@ -11123,9 +11195,21 @@ function buildGenerationPrompt(contentType, formData, brandBrain) {
   lines.push('');
   lines.push('=== CONTENT TYPE INSTRUCTIONS ===');
   if (contentType === 'Facebook') {
-    lines.push('Open with a person, moment, or specific detail — not an org announcement. Short sentences. Calm confidence, not hype. No exclamation points doing emotional labor.');
+    lines.push('FACEBOOK BEST PRACTICES:');
+    lines.push('- Hook in the first 1-2 lines — Facebook truncates after ~125 characters before "See More". Lead with emotion or a specific detail that makes people stop scrolling.');
+    lines.push('- Optimal length: 40-80 words for engagement posts, up to 150 for event announcements.');
+    lines.push('- Short paragraphs — 1-2 sentences max. White space increases readability in the feed.');
+    lines.push('- One clear call-to-action at the end. Never two.');
+    lines.push('- Open with a person, moment, or specific detail — not an org announcement.');
+    lines.push('- Avoid exclamation points doing emotional labor. Confidence over hype.');
+    lines.push('- End with hashtags on their own line: always #MakeTodayCount #MyBFF + 2-4 contextual.');
   } else if (contentType === 'Instagram') {
-    lines.push('Lead with a strong hook (the first 3 words matter most). Hook should not start with "We" or the org name. Close with hashtags on their own line.');
+    lines.push('INSTAGRAM BEST PRACTICES:');
+    lines.push('- First 3 words determine the scroll-stop. Never start with "We" or the org name.');
+    lines.push('- Optimal length: 40-60 words for the caption before hashtags.');
+    lines.push('- Use line breaks between short paragraphs for visual breathing room.');
+    lines.push('- Hashtags on their own line at the end. 5-10 targeted hashtags.');
+    lines.push('- Strong hook → brief context → CTA → hashtags.');
   } else if (contentType === 'Email') {
     lines.push('Subject line first on its own line labeled SUBJECT:. Then body. Professional but warm. Mission-driven without being heavy. Open with the most important information.');
   } else if (contentType === 'Flyer') {
@@ -11604,15 +11688,29 @@ function _buildNLEventChecklist() {
     return;
   }
 
+  // Select/Deselect all row
+  const allRow = document.createElement('div');
+  allRow.style.cssText = 'display:flex;gap:10px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border)';
+  allRow.innerHTML = `
+    <label style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;cursor:pointer;font-weight:600">
+      <input type="checkbox" id="aiNLEvtAll" checked onchange="toggleAllNLEvents(this.checked)">
+      Select / Deselect All
+    </label>`;
+  container.appendChild(allRow);
+
   events.forEach((ev, i) => {
     const label = document.createElement('label');
     label.style.cssText = 'display:flex;align-items:center;gap:.5rem;font-size:.85rem;cursor:pointer;';
     label.innerHTML = `
-      <input type="checkbox" id="aiNLEvt_${i}" checked />
-      <span>${esc(ev.name || 'Unnamed Event')} — ${esc(fmtDate(ev.date) || ev.date || '')}${ev.location ? ' · ' + esc(ev.location) : ''}</span>
+      <input type="checkbox" id="aiNLEvt_${i}" checked class="aiNLEvtCheck" />
+      <span>${esc(ev.name || 'Unnamed Event')} — ${esc(fmtDate(ev.event_date) || ev.event_date || '')}${ev.location ? ' · ' + esc(ev.location) : ''}</span>
     `;
     container.appendChild(label);
   });
+}
+
+function toggleAllNLEvents(checked) {
+  document.querySelectorAll('.aiNLEvtCheck').forEach(cb => { cb.checked = checked; });
 }
 
 function handleNLQAFileUpload(event) {
@@ -11698,7 +11796,6 @@ async function generateNewsletterSection(section) {
     if (section === 'qa') {
       const qa = _aiNL.qaText;
       if (!qa) throw new Error('No Q&A text found.');
-      // Get person name from selected queue entry
       const qaEntry = _aiNL.selectedQAId ? ALL_NL_QA.find(r => r.id === _aiNL.selectedQAId) : null;
       const personName = qaEntry?.person_name || 'a Friend';
 
@@ -11706,19 +11803,20 @@ async function generateNewsletterSection(section) {
 
 STRICT RULES — follow exactly:
 1. Do NOT change, paraphrase, summarize, or alter any answer. Every answer must be reproduced word-for-word, character-for-character as written.
-2. Format each question in BOLD (use **Question text** with the question mark included).
-3. Put the answer on the next line, plain text, no formatting.
+2. Format each question on its own line with NO markdown, NO asterisks, NO bold markers of any kind. Just the plain question text followed by a colon. Example: What kind of support did you receive from MyBFF?
+3. Put the answer on the next line as plain text.
 4. Leave one blank line between each Q&A pair.
-5. Do NOT add any introduction, commentary, transition sentences, or closing remarks.
-6. Do NOT add a header — return ONLY the Q&A pairs themselves.
-7. The target length is approximately 350 words total. If the provided Q&As exceed this, use only the first 5 pairs.
+5. Do NOT add any introduction, commentary, transition sentences, header, or closing remarks.
+6. Return ONLY the Q&A pairs — nothing else.
+7. CRITICAL: The total output must be 225 words or fewer AND 1300 characters or fewer. If the provided Q&As exceed this, use only the first 5 pairs, or fewer if still over the limit.
+8. Do not use any special characters, markdown, or formatting codes.
 
 PERSON: ${personName}
 
 Q&A TEXT — reproduce answers verbatim:
 ${qa}
 
-Return only the formatted Q&A pairs. Nothing else.`;
+Return only the plain-text formatted Q&A pairs. Nothing else. No asterisks. No markdown.`;
 
     } else if (section === 'article') {
       const url = _aiNL.articleURL;
@@ -11729,34 +11827,37 @@ Return only the formatted Q&A pairs. Nothing else.`;
 Search for and read the article at this URL: ${url}
 
 Then write a summary following these STRICT RULES:
-1. Write a single headline in ALL CAPS (no more than 8 words).
-2. Write 3 short paragraphs totaling approximately 150-200 words.
-3. Tone: warm, accessible, plain language. No medical jargon. Explain technical terms simply.
-4. End with exactly this line on its own line: You can read the full article here.
-5. Do NOT include the URL in the text.
-6. Do NOT add any header, label, or commentary — return only the headline and paragraphs.
+1. Write a single headline in ALL CAPS on its own line (no more than 8 words). No asterisks, no bold markers.
+2. Write 3 short paragraphs as plain text totaling 200 words or fewer AND 1200 characters or fewer.
+3. Tone: warm, accessible, plain language. No medical jargon.
+4. End with exactly this line: You can read the full article here.
+5. Do NOT include the URL in the body text.
+6. Do NOT add any header, label, asterisks, markdown, or commentary.
+7. All text should be black, left-justified, no special formatting characters.
 
 Return only the headline and 3 paragraphs. Nothing else.`;
 
     } else if (section === 'events') {
       if (!_aiNL.selectedEvents.length) throw new Error('No events selected.');
       const evList = _aiNL.selectedEvents.map(ev =>
-        `${ev.name}|${ev.event_date||''}|${ev.event_time||''}|${ev.location||''}`
+        `${ev.name}|${ev.event_date||''}|${ev.location||''}`
       ).join('\n');
 
       prompt = `You are formatting the Upcoming Events section for the My Best Friends Foundation (MyBFF) monthly newsletter.
 
 STRICT RULES:
-1. List each event as a simple bullet point.
-2. Format: Event Name — Date — Location (if known)
-3. No descriptions, no emoji, no commentary, no narrative prose.
-4. Do NOT add any header or label — return only the bullet list.
-5. Keep it extremely simple — just the facts.
+1. List each event as a simple line. Format: Event Name — Date — Location
+2. DO NOT include times.
+3. DO NOT include descriptions, commentary, emoji, or narrative prose.
+4. DO NOT add any header or label.
+5. Event name should appear first on each line, followed by em dash, date, em dash, location.
+6. Plain text only. No asterisks, no markdown, no bold markers.
+7. All text black, left-justified.
 
 EVENTS:
 ${evList}
 
-Return only the bullet list. Nothing else.`;
+Return only the plain event list. Nothing else.`;
     }
 
     const result = await sendToClaudeForContent(prompt);
@@ -11805,8 +11906,8 @@ async function generateFullNewsletter() {
   const b1 = document.getElementById('aiNLBlock1');
   const b2 = document.getElementById('aiNLBlock2');
   const b3 = document.getElementById('aiNLBlock3');
-  if (b1) b1.value = _aiNL.sections.qa || '';
-  if (b2) b2.value = _aiNL.sections.article || '';
+  if (b1) { b1.value = _aiNL.sections.qa || ''; updateNLBlockStats('aiNLBlock1','nlBlock1Stats','nlBlock1Warning',225,1300); }
+  if (b2) { b2.value = _aiNL.sections.article || ''; updateNLBlockStats('aiNLBlock2','nlBlock2Stats','nlBlock2Warning',200,1200); }
   if (b3) b3.value = _aiNL.sections.events || '';
 
   _nlGoToStep(3);
