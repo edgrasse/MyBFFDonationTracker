@@ -888,6 +888,7 @@ if ('serviceWorker' in navigator) {
           Status Board <span id="mktgBadgeStatus" style="display:none;background:#dc2626;color:white;border-radius:9999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px"></span>
         </button>
         <button class="sub-tab" id="mktgTabCreate" onclick="showMktgTab('create')">Create Content</button>
+        <button class="sub-tab" id="mktgTabSocialqueue" onclick="showMktgTab('socialqueue')">💡 Social Queue</button>
         <button class="sub-tab" id="mktgTabNlqueue" onclick="showMktgTab('nlqueue')">📋 Newsletter Queue</button>
         <button class="sub-tab" id="mktgTabAssets" onclick="showMktgTab('assets')">Asset Library</button>
         <button class="sub-tab" id="mktgTabAi" onclick="showMktgTab('ai')">🤖 AI Settings</button>
@@ -916,6 +917,11 @@ if ('serviceWorker' in navigator) {
       <!-- CREATE CONTENT -->
       <div id="mktg-create" class="mktg-panel" style="display:none">
         <div id="mktgCreatePanel"></div>
+      </div>
+
+      <!-- SOCIAL QUEUE -->
+      <div id="mktg-socialqueue" class="mktg-panel" style="display:none">
+        <div id="mktgSocialQueue"></div>
       </div>
 
       <!-- NEWSLETTER QUEUE -->
@@ -1069,6 +1075,26 @@ if ('serviceWorker' in navigator) {
       </div>
     </div>
 
+    <!-- MARK AS USED MODAL -->
+    <div class="modal-overlay" id="markUsedModal" onclick="if(event.target===this)closeModal('markUsedModal')">
+      <div class="modal" style="max-width:400px">
+        <div class="modal-header">
+          <div class="modal-title">✓ Mark as Used</div>
+          <button class="modal-close" onclick="closeModal('markUsedModal')">&#x2715;</button>
+        </div>
+        <input type="hidden" id="markUsedContentId">
+        <div style="font-size:13px;color:var(--gray);margin-bottom:14px">Marking <strong id="markUsedTitle"></strong> as used.</div>
+        <div class="form-group" style="margin-bottom:20px">
+          <label class="form-label">Date Used <span class="req">*</span></label>
+          <input type="date" class="form-input" id="markUsedDate">
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button class="btn btn-outline" onclick="closeModal('markUsedModal')">Cancel</button>
+          <button class="btn btn-gold" onclick="markContentUsed()">Mark as Used</button>
+        </div>
+      </div>
+    </div>
+
     <!-- NL IDEA MODAL -->
     <div class="modal-overlay" id="nlIdeaModal" onclick="if(event.target===this)closeModal('nlIdeaModal')">
       <div class="modal" style="max-width:480px">
@@ -1079,6 +1105,10 @@ if ('serviceWorker' in navigator) {
         <div class="form-group" style="margin-bottom:14px">
           <label class="form-label">Idea <span class="req">*</span></label>
           <textarea class="form-textarea" id="nlIdeaText" rows="4" placeholder="e.g. Post about the impact of gift cards on families who can't cook during treatment — share a story angle"></textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional — article, link, or reference the AI should read</span></label>
+          <input type="text" class="form-input" id="nlIdeaUrl" placeholder="https://...">
         </div>
         <div class="form-group" style="margin-bottom:20px">
           <label class="form-label">Additional Notes <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
@@ -1932,6 +1962,7 @@ if ('serviceWorker' in navigator) {
           <option value="Brand">&#127942; Brand</option>
           <option value="Events">&#128197; Events</option>
           <option value="Newsletters">&#128240; Newsletters</option>
+          <option value="Social Media">&#128247; Social Media</option>
           <option value="Grants">&#128204; Grants</option>
           <option value="Donations">&#127873; Donations</option>
         </select>
@@ -2370,7 +2401,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.15k-DEV · Jun 05 2026";
+const BUILD_VERSION = "v5.16a-DEV · Jun 14 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -6920,17 +6951,18 @@ function updateMktgBadge() {
 // ── Tab switching ─────────────────────────────────────────────
 function showMktgTab(tab) {
   _activeSectionFilter = null;
-  ["status","create","nlqueue","assets","ai"].forEach(t => {
+  ["status","create","socialqueue","nlqueue","assets","ai"].forEach(t => {
     const panel = document.getElementById("mktg-" + t);
     const btn   = document.getElementById("mktgTab" + t.charAt(0).toUpperCase() + t.slice(1));
     if (panel) panel.style.display = t === tab ? "" : "none";
     if (btn)   btn.classList.toggle("active", t === tab);
   });
-  if (tab === "status")   renderStatusBoard();
-  if (tab === "create")   renderCreatePanel();
-  if (tab === "nlqueue")  renderNLQueue();
-  if (tab === "assets")   renderAssetLibrary();
-  if (tab === "ai")       renderAISettings();
+  if (tab === "status")      renderStatusBoard();
+  if (tab === "create")      renderCreatePanel();
+  if (tab === "socialqueue") renderSocialQueue();
+  if (tab === "nlqueue")     renderNLQueue();
+  if (tab === "assets")      renderAssetLibrary();
+  if (tab === "ai")          renderAISettings();
 }
 
 // ── Status helpers ────────────────────────────────────────────
@@ -7031,6 +7063,13 @@ function renderStatusBoard() {
     { key:"posted",   label:"🟣 Posted",                 items: allItems.filter(c => c.status === "Posted") },
   ];
 
+  // Used items — separate from main sections, shown collapsed at bottom
+  const usedItems = ALL_CONTENT
+    .filter(c => c.status === "Used")
+    .filter(c => !evFilter || c.event_name === evFilter)
+    .filter(c => !chFilter || c.channel === chFilter)
+    .sort((a, b) => (b.post_date||b.updated_at||"").localeCompare(a.post_date||a.updated_at||""));
+
   const draftItems = allItems.filter(c => c.status === "Draft");
   const bulkBar = draftItems.length > 0 ? `
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px">
@@ -7079,7 +7118,15 @@ function renderStatusBoard() {
             : `<div style="font-size:13px;color:var(--gray);padding:12px 4px">Nothing here yet.</div>`}
         </div>
       </div>`;
-  }).join("")) || `<div style="text-align:center;padding:40px;color:var(--gray)">No content yet. Go to <strong>Create Content</strong> to add the first piece.</div>`;
+  }).join("")) + (usedItems.length && !_activeSectionFilter ? `
+    <details style="margin-top:16px">
+      <summary style="font-size:14px;font-weight:700;color:var(--gray);cursor:pointer;padding:10px 14px;background:#f9fafb;border-radius:8px;border:1px solid var(--border)">
+        ✓ Used — ${usedItems.length} post${usedItems.length!==1?"s":""} (click to expand, sorted by date used)
+      </summary>
+      <div style="padding-top:8px">
+        ${usedItems.map(c => contentCard(c, `<span style="background:#e5e7eb;color:#374151;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600">✓ Used ${c.post_date||""}</span>`)).join("")}
+      </div>
+    </details>` : "") || `<div style="text-align:center;padding:40px;color:var(--gray)">No content yet. Go to <strong>Create Content</strong> to add the first piece.</div>`;
 }
 
 let _activeSectionFilter = null; // null = show all, else = section key
@@ -7145,9 +7192,11 @@ function contentCard(c, extraBadges = "") {
       </div>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();copyContentText('${esc(c.id)}')" title="Copy post text to clipboard">📋 Copy Text</button>
+        ${c.channel === "Email" ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();copyContentSubject('${esc(c.id)}')" title="Copy subject line">📋 Copy Subject</button>` : ""}
         ${c.status === "Draft" && isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openInlineEdit('${esc(c.id)}')">✏️ Quick Edit</button>` : ""}
-        ${c.status === "Draft" && isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openRegenModal('${esc(c.id)}')">🔄 Regenerate</button>` : ""}
+        ${(c.status === "Draft" || c.status === "In Review") && isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openRegenModal('${esc(c.id)}')">🔄 Regenerate</button>` : ""}
         ${c.status === "Draft" && isEditor() ? `<button class="btn btn-gold btn-sm" onclick="event.stopPropagation();submitForReview('${esc(c.id)}')">Submit for Review</button>` : ""}
+        ${(c.status === "Approved" || c.status === "Posted" || c.status === "In Review" || c.status === "Draft") && isEditor() ? `<button class="btn btn-sm" style="background:#e0f2fe;color:#0369a1;border:1px solid #7dd3fc" onclick="event.stopPropagation();openMarkUsedModal('${esc(c.id)}')">✓ Mark Used</button>` : ""}
         ${isEditor() ? `<button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5" onclick="event.stopPropagation();deleteContentRecord('${esc(c.id)}')">🗑 Delete</button>` : ""}
       </div>
       <div id="inline-edit-${esc(c.id)}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
@@ -7438,8 +7487,8 @@ async function submitReview(action) {
     updateMktgBadge();
     const msg = action==="approve" ? "✅ Approved!" : action==="changes" ? "↩️ Changes requested" : "💬 Comment added";
     showToast(msg);
-    if ((action==="approve"||action==="changes") && c2?.status !== "In Review") {
-      setTimeout(() => closeModal("contentDetailModal"), 1200);
+    if (action==="approve" || action==="changes") {
+      closeModal("contentDetailModal");
     }
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
@@ -8217,7 +8266,7 @@ function renderAssetLibrary() {
   const path = window._assetPath;
 
   // Top-level folders
-  const TOP_FOLDERS = ["Brand","Events","Newsletters","Grants","Donations","General"];
+  const TOP_FOLDERS = ["Brand","Events","Newsletters","Social Media","Grants","Donations","General"];
 
   // Helper: get the stored folder value for an asset and test against a path
   const assetFolder = a => a.folder || "General";
@@ -8247,10 +8296,16 @@ function renderAssetLibrary() {
 
   if (!path.length) {
     // ROOT — show top-level folder icons with counts
-    bodyHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px">
+    const assetSearch = document.getElementById("assetLibSearch")?.value?.toLowerCase() || "";
+    bodyHTML = `
+      <div style="margin-bottom:14px">
+        <input type="text" class="form-input" id="assetLibSearch" placeholder="Search assets…"
+          oninput="renderAssetLibrary()" style="max-width:300px" value="${esc(assetSearch)}">
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px">
       ${TOP_FOLDERS.map(f => {
         const count = ALL_ASSETS.filter(a => assetInPath(a, [f])).length;
-        const icons = {Brand:"&#127942;",Events:"&#128197;",Newsletters:"&#128240;",Grants:"&#128204;",Donations:"&#127873;",General:"&#128193;"};
+        const icons = {Brand:"&#127942;",Events:"&#128197;",Newsletters:"&#128240;","Social Media":"&#128247;",Grants:"&#128204;",Donations:"&#127873;",General:"&#128193;"};
         return `<div onclick="window._assetPath=['${f}'];renderAssetLibrary()"
           class="card" style="padding:20px 14px;text-align:center;cursor:pointer;transition:box-shadow 0.15s"
           onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow=''">
@@ -8259,7 +8314,7 @@ function renderAssetLibrary() {
           <div style="font-size:12px;color:var(--gray);margin-top:4px">${count} file${count!==1?"s":""}</div>
         </div>`;
       }).join("")}
-    </div>`;
+      </div>`;
 
   } else if (path[0] === "Events" && path.length === 1) {
     // EVENTS ROOT — show event subfolders + unknown bucket
@@ -8362,7 +8417,7 @@ function renderAssetGrid(assets) {
           : `<div style="width:100%;height:80px;display:flex;align-items:center;justify-content:center;font-size:40px;background:#f9fafb;border-radius:6px;border:1px solid var(--border)">${icon}</div>`}
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px;flex-wrap:wrap">
           <div style="font-weight:600;font-size:14px;word-break:break-word;flex:1">${esc(a.name)}</div>
-          <span style="background:#f0f4ff;color:var(--navy);font-size:10px;padding:1px 7px;border-radius:20px;font-weight:600;white-space:nowrap;flex-shrink:0">${esc(folderLabel)}</span>
+          <span style="background:#f0f4ff;color:var(--navy);font-size:10px;padding:1px 7px;border-radius:20px;font-weight:600;word-break:break-all;max-width:100%">${esc(folderLabel)}</span>
         </div>
         ${a.tags ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
           ${a.tags.split(",").filter(Boolean).map(t=>`<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:20px;font-size:10px">${esc(t.trim())}</span>`).join("")}
@@ -10108,6 +10163,125 @@ function filterHelp() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// SOCIAL MEDIA QUEUE — Post Ideas
+// ═══════════════════════════════════════════════════════════
+
+function renderSocialQueue() {
+  const container = document.getElementById("mktgSocialQueue");
+  if (!container) return;
+
+  const queuedIdeas = ALL_NL_IDEAS.filter(r => r.status === "Queued");
+  const usedIdeas   = ALL_NL_IDEAS.filter(r => r.status !== "Queued");
+
+  // Search
+  const searchVal = (document.getElementById("socialQueueSearch")?.value || "").toLowerCase();
+  const filtered  = searchVal
+    ? queuedIdeas.filter(i => (i.title||"").toLowerCase().includes(searchVal) || (i.notes||"").toLowerCase().includes(searchVal))
+    : queuedIdeas;
+
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div style="font-weight:700;font-size:18px">💡 Social Media Post Ideas</div>
+      <button class="btn btn-gold" onclick="openNLIdeaModal()">+ Add Idea</button>
+    </div>
+    <div style="margin-bottom:16px">
+      <input type="text" class="form-input" id="socialQueueSearch" placeholder="Search ideas…"
+        oninput="renderSocialQueue()" style="max-width:320px">
+    </div>
+    ${filtered.length === 0 ? `<div style="font-size:13px;color:var(--gray);padding:24px 0;text-align:center">
+      ${queuedIdeas.length === 0 ? "No ideas queued yet. Add ideas from your team to pull into monthly content generation." : "No ideas match your search."}
+    </div>` : ""}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-bottom:24px">
+      ${filtered.map(idea => `
+        <div class="card" style="padding:14px 16px">
+          <div style="font-size:13px;line-height:1.5;margin-bottom:8px">${esc(idea.title)}</div>
+          ${idea.url ? `<a href="${esc(idea.url)}" target="_blank" style="font-size:11px;color:var(--navy);display:block;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(idea.url)}</a>` : ""}
+          ${idea.notes ? `<div style="font-size:12px;color:var(--gray);margin-bottom:8px">${esc(idea.notes)}</div>` : ""}
+          <div style="font-size:11px;color:var(--gray);margin-bottom:10px">By ${esc(idea.created_by||"?")} · ${fmtDate(idea.created_at?.split("T")[0])}</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-outline btn-sm" onclick="openNLIdeaModal('${esc(idea.id)}')">✎ Edit</button>
+            <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b" onclick="deleteNLIdea('${esc(idea.id)}')">✕ Remove</button>
+          </div>
+        </div>`).join("")}
+    </div>
+    ${usedIdeas.length > 0 ? `
+      <details style="margin-top:8px">
+        <summary style="font-size:13px;color:var(--gray);cursor:pointer;font-weight:600">${usedIdeas.length} used idea${usedIdeas.length!==1?"s":""}</summary>
+        <div style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">
+          ${usedIdeas.map(i => `
+            <div class="card" style="padding:10px 14px;opacity:0.7">
+              <div style="font-size:12px">${esc(i.title)}</div>
+              <div style="font-size:11px;color:var(--gray);margin-top:3px">Used: ${esc(i.used_in_issue||"")}</div>
+            </div>`).join("")}
+        </div>
+      </details>` : ""}
+  `;
+}
+
+// ── Mark as Used modal ────────────────────────────────────
+function openMarkUsedModal(contentId) {
+  const c = ALL_CONTENT.find(x => x.id === contentId);
+  if (!c) return;
+  document.getElementById("markUsedContentId").value = contentId;
+  // Pre-fill date from post_date if available, else today
+  const defaultDate = c.post_date || new Date().toISOString().split("T")[0];
+  document.getElementById("markUsedDate").value = defaultDate;
+  document.getElementById("markUsedTitle").textContent = c.title || "this post";
+  openModal("markUsedModal");
+}
+
+async function markContentUsed() {
+  const contentId = document.getElementById("markUsedContentId").value;
+  const usedDate  = document.getElementById("markUsedDate").value;
+  if (!usedDate) { showToast("Please enter the date used.", "error"); return; }
+  const c = ALL_CONTENT.find(x => x.id === contentId);
+  if (!c) return;
+
+  try {
+    await sbUpdate("MyBFFContent", contentId, {
+      status: "Used",
+      post_date: usedDate,
+      updated_at: new Date().toISOString()
+    }, "id");
+    const idx = ALL_CONTENT.findIndex(x => x.id === contentId);
+    if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], status: "Used", post_date: usedDate };
+
+    // If there's a photo, save it to Social Media folder in Asset Library
+    if (c.photo_url) {
+      const assetRow = {
+        id: genId(),
+        name: c.title || "Social Post Photo",
+        folder: "Social Media",
+        file_url: c.photo_url,
+        file_type: "image/*",
+        file_size: 0,
+        tags: "social,used",
+        notes: `From post: ${c.title || contentId} — used ${usedDate}`,
+        for_ai: false,
+        created_by: currentUser?.displayName || "",
+        created_at: new Date().toISOString()
+      };
+      try { await sbInsert("MyBFFAssets", assetRow); ALL_ASSETS.unshift(assetRow); } catch(e) {}
+    }
+
+    closeModal("markUsedModal");
+    renderStatusBoard();
+    showToast("✓ Marked as used.");
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+function copyContentSubject(contentId) {
+  const c = ALL_CONTENT.find(x => x.id === contentId);
+  if (!c || !c.content_text) { showToast("No content to copy."); return; }
+  // Extract subject line — stored as "SUBJECT: ..." at the start
+  const match = c.content_text.match(/^SUBJECT:\s*(.+?)(\n|$)/i);
+  const subject = match ? match[1].trim() : c.title || "";
+  if (!subject) { showToast("No subject line found."); return; }
+  navigator.clipboard.writeText(subject).then(() => showToast("📋 Subject copied!"))
+    .catch(() => { showToast("Copy failed — try manually."); });
+}
+
+// ═══════════════════════════════════════════════════════════
 // NEWSLETTER QUEUE — Q&A Bank + Article Bank
 // ═══════════════════════════════════════════════════════════
 
@@ -10132,8 +10306,70 @@ function renderNLQueue() {
   const usedQA     = ALL_NL_QA.filter(r => r.status !== "Queued");
   const queuedArt  = ALL_NL_ARTICLES.filter(r => r.status === "Queued");
   const usedArt    = ALL_NL_ARTICLES.filter(r => r.status !== "Queued");
-  const queuedIdeas = ALL_NL_IDEAS.filter(r => r.status === "Queued");
-  const usedIdeas  = ALL_NL_IDEAS.filter(r => r.status !== "Queued");
+
+  container.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+
+      <!-- Q&A Bank -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-weight:700;font-size:16px">💬 Q&amp;A Bank</div>
+          <button class="btn btn-gold btn-sm" onclick="openNLQAModal()">+ Add Q&amp;A</button>
+        </div>
+        ${queuedQA.length === 0 ? `<div style="font-size:13px;color:var(--gray);padding:12px 0">No Q&amp;As queued.</div>` : ""}
+        ${queuedQA.map(q => `
+          <div class="card" style="margin-bottom:10px;padding:12px 14px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+              <div>
+                <div style="font-weight:600;font-size:14px">${esc(q.person_name)}</div>
+                <div style="font-size:11px;color:var(--gray);margin-top:2px">
+                  ${q.qa_pairs ? JSON.parse(q.qa_pairs).length : "?"} Q&amp;A pairs · Added ${fmtDate(q.created_at?.split("T")[0])}
+                </div>
+                <span style="background:#d1fae5;color:#065f46;font-size:10px;padding:1px 8px;border-radius:20px;font-weight:700;margin-top:4px;display:inline-block">QUEUED</span>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0">
+                <button class="btn btn-outline btn-sm" onclick="openNLQAModal('${esc(q.id)}')">✎</button>
+                <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b" onclick="deleteNLQA('${esc(q.id)}')">✕</button>
+              </div>
+            </div>
+          </div>`).join("")}
+        ${usedQA.length ? `<div style="font-size:12px;color:var(--gray);margin-top:8px;font-weight:600">${usedQA.length} used</div>` : ""}
+      </div>
+
+      <!-- Article Bank -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-weight:700;font-size:16px">📰 Article Bank</div>
+          <button class="btn btn-gold btn-sm" onclick="openNLArticleModal()">+ Add Article</button>
+        </div>
+        ${queuedArt.length === 0 ? `<div style="font-size:13px;color:var(--gray);padding:12px 0">No articles queued.</div>` : ""}
+        ${queuedArt.map(a => `
+          <div class="card" style="margin-bottom:10px;padding:12px 14px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.title)}</div>
+                <a href="${esc(a.url)}" target="_blank" style="font-size:11px;color:var(--navy)">${esc(a.url?.substring(0,50))}${(a.url?.length||0)>50?"…":""}</a>
+                ${a.notes ? `<div style="font-size:12px;color:var(--gray);margin-top:2px">${esc(a.notes)}</div>` : ""}
+                <span style="background:#d1fae5;color:#065f46;font-size:10px;padding:1px 8px;border-radius:20px;font-weight:700;margin-top:4px;display:inline-block">QUEUED</span>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0">
+                <button class="btn btn-outline btn-sm" onclick="openNLArticleModal('${esc(a.id)}')">✎</button>
+                <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b" onclick="deleteNLArticle('${esc(a.id)}')">✕</button>
+              </div>
+            </div>
+          </div>`).join("")}
+        ${usedArt.length ? `<div style="font-size:12px;color:var(--gray);margin-top:8px;font-weight:600">${usedArt.length} used</div>` : ""}
+      </div>
+
+    </div>
+
+    ${queuedQA.length < 2 ? `<div style="margin-top:20px;padding:10px 14px;background:#fff3cd;border:1px solid #f59e0b;border-radius:8px;font-size:13px;color:#92400e">
+      ⚠️ <strong>Queue running low:</strong> Only ${queuedQA.length} Q&amp;A${queuedQA.length!==1?"s":""} queued.
+    </div>` : ""}
+    ${queuedArt.length < 2 ? `<div style="margin-top:10px;padding:10px 14px;background:#fff3cd;border:1px solid #f59e0b;border-radius:8px;font-size:13px;color:#92400e">
+      ⚠️ <strong>Queue running low:</strong> Only ${queuedArt.length} article${queuedArt.length!==1?"s":""} queued.
+    </div>` : ""}
+  `;
 
   container.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px">
@@ -10187,31 +10423,6 @@ function renderNLQueue() {
             </div>
           </div>`).join("")}
         ${usedArt.length ? `<div style="font-size:12px;color:var(--gray);margin-top:8px;font-weight:600">${usedArt.length} used</div>` : ""}
-      </div>
-
-      <!-- Social Ideas Bank -->
-      <div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-          <div style="font-weight:700;font-size:16px">💡 Post Ideas</div>
-          <button class="btn btn-gold btn-sm" onclick="openNLIdeaModal()">+ Add Idea</button>
-        </div>
-        ${queuedIdeas.length === 0 ? `<div style="font-size:13px;color:var(--gray);padding:12px 0">No ideas queued.</div>` : ""}
-        ${queuedIdeas.map(idea => `
-          <div class="card" style="margin-bottom:10px;padding:12px 14px">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-              <div style="flex:1;min-width:0">
-                <div style="font-size:13px;line-height:1.5">${esc(idea.title)}</div>
-                ${idea.notes ? `<div style="font-size:12px;color:var(--gray);margin-top:3px">${esc(idea.notes)}</div>` : ""}
-                <div style="font-size:11px;color:var(--gray);margin-top:3px">By ${esc(idea.created_by||"?")} · ${fmtDate(idea.created_at?.split("T")[0])}</div>
-                <span style="background:#dbeafe;color:#1e40af;font-size:10px;padding:1px 8px;border-radius:20px;font-weight:700;margin-top:4px;display:inline-block">QUEUED</span>
-              </div>
-              <div style="display:flex;gap:6px;flex-shrink:0">
-                <button class="btn btn-outline btn-sm" onclick="openNLIdeaModal('${esc(idea.id)}')">✎</button>
-                <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b" onclick="deleteNLIdea('${esc(idea.id)}')">✕</button>
-              </div>
-            </div>
-          </div>`).join("")}
-        ${usedIdeas.length ? `<div style="font-size:12px;color:var(--gray);margin-top:8px;font-weight:600">${usedIdeas.length} used</div>` : ""}
       </div>
 
     </div>
@@ -10348,18 +10559,21 @@ function openNLIdeaModal(id = null) {
   _editingNLIdeaId = id;
   const existing = id ? ALL_NL_IDEAS.find(r => r.id === id) : null;
   document.getElementById("nlIdeaText").value  = existing?.title || "";
+  document.getElementById("nlIdeaUrl").value   = existing?.url   || "";
   document.getElementById("nlIdeaNotes").value = existing?.notes || "";
   openModal("nlIdeaModal");
 }
 
 async function saveNLIdea() {
   const text  = document.getElementById("nlIdeaText").value.trim();
+  let   url   = document.getElementById("nlIdeaUrl").value.trim();
   const notes = document.getElementById("nlIdeaNotes").value.trim();
   if (!text) { showToast("Idea text is required.", "error"); return; }
+  if (url && !url.startsWith("http")) url = "https://" + url;
   const row = {
     id:         _editingNLIdeaId || genId(),
     title:      text,
-    url:        "",
+    url:        url || "",
     notes:      notes,
     item_type:  "idea",
     status:     "Queued",
@@ -11566,7 +11780,11 @@ async function generateMonthlySequence() {
   const selectedIdeaEls = [...document.querySelectorAll('.aiSeqIdeaCheck:checked')];
   const selectedIdeas = selectedIdeaEls.map(cb => {
     const idea = ALL_NL_IDEAS.find(r => r.id === cb.dataset.id);
-    return idea ? idea.title + (idea.notes ? ' — ' + idea.notes : '') : '';
+    if (!idea) return '';
+    let text = idea.title;
+    if (idea.notes) text += ' — ' + idea.notes;
+    if (idea.url) text += ` [Reference URL: ${idea.url}]`;
+    return text;
   }).filter(Boolean);
   _aiSeq.selectedIdeaIds = selectedIdeaEls.map(cb => cb.dataset.id);
 
