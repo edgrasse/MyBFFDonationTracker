@@ -1069,6 +1069,28 @@ if ('serviceWorker' in navigator) {
       </div>
     </div>
 
+    <!-- NL IDEA MODAL -->
+    <div class="modal-overlay" id="nlIdeaModal" onclick="if(event.target===this)closeModal('nlIdeaModal')">
+      <div class="modal" style="max-width:480px">
+        <div class="modal-header">
+          <div class="modal-title">💡 Add Post Idea</div>
+          <button class="modal-close" onclick="closeModal('nlIdeaModal')">&#x2715;</button>
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Idea <span class="req">*</span></label>
+          <textarea class="form-textarea" id="nlIdeaText" rows="4" placeholder="e.g. Post about the impact of gift cards on families who can't cook during treatment — share a story angle"></textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:20px">
+          <label class="form-label">Additional Notes <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+          <input type="text" class="form-input" id="nlIdeaNotes" placeholder="e.g. Could tie to Giving Tuesday or volunteer spotlight">
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button class="btn btn-outline" onclick="closeModal('nlIdeaModal')">Cancel</button>
+          <button class="btn btn-gold" onclick="saveNLIdea()">Save Idea</button>
+        </div>
+      </div>
+    </div>
+
     <!-- NL Q&A MODAL -->
     <div class="modal-overlay" id="nlQAModal" onclick="if(event.target===this)closeModal('nlQAModal')">
       <div class="modal" style="max-width:620px">
@@ -2348,7 +2370,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.15j-DEV · Jun 05 2026";
+const BUILD_VERSION = "v5.15k-DEV · Jun 05 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -2403,7 +2425,8 @@ let ALL_CONTENT = [];         // loaded from MyBFFContent
 let ALL_CONTENT_COMMENTS = []; // loaded from MyBFFContentComments
 let ALL_CONTENT_REVIEWERS = []; // loaded from MyBFFContentReviewers
 let ALL_NL_QA = [];           // loaded from MyBFFNewsletterQA
-let ALL_NL_ARTICLES = [];     // loaded from MyBFFNewsletterArticles
+let ALL_NL_ARTICLES = [];     // loaded from MyBFFNewsletterArticles (item_type='article')
+let ALL_NL_IDEAS = [];        // loaded from MyBFFNewsletterArticles (item_type='idea')
 let _refreshTimer = null;      // auto-refresh interval handle
 let ALL_GRANTS = [];           // loaded from MyBFFGrants
 let ALL_GRANT_REQUESTS = [];   // loaded from MyBFFGrantRequests
@@ -10095,7 +10118,9 @@ async function loadNLQueue() {
       sbGet("MyBFFNewsletterArticles", "order=created_at.desc"),
     ]);
     ALL_NL_QA       = (qa  || []).filter(r => r.id);
-    ALL_NL_ARTICLES = (art || []).filter(r => r.id);
+    const artAll    = (art || []).filter(r => r.id);
+    ALL_NL_ARTICLES = artAll.filter(r => !r.item_type || r.item_type === 'article');
+    ALL_NL_IDEAS    = artAll.filter(r => r.item_type === 'idea');
   } catch(e) { console.warn("loadNLQueue:", e.message); }
 }
 
@@ -10103,13 +10128,15 @@ function renderNLQueue() {
   const container = document.getElementById("mktgNLQueue");
   if (!container) return;
 
-  const queuedQA  = ALL_NL_QA.filter(r => r.status === "Queued");
-  const usedQA    = ALL_NL_QA.filter(r => r.status !== "Queued");
-  const queuedArt = ALL_NL_ARTICLES.filter(r => r.status === "Queued");
-  const usedArt   = ALL_NL_ARTICLES.filter(r => r.status !== "Queued");
+  const queuedQA   = ALL_NL_QA.filter(r => r.status === "Queued");
+  const usedQA     = ALL_NL_QA.filter(r => r.status !== "Queued");
+  const queuedArt  = ALL_NL_ARTICLES.filter(r => r.status === "Queued");
+  const usedArt    = ALL_NL_ARTICLES.filter(r => r.status !== "Queued");
+  const queuedIdeas = ALL_NL_IDEAS.filter(r => r.status === "Queued");
+  const usedIdeas  = ALL_NL_IDEAS.filter(r => r.status !== "Queued");
 
   container.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px">
 
       <!-- Q&A Bank -->
       <div>
@@ -10162,13 +10189,38 @@ function renderNLQueue() {
         ${usedArt.length ? `<div style="font-size:12px;color:var(--gray);margin-top:8px;font-weight:600">${usedArt.length} used</div>` : ""}
       </div>
 
+      <!-- Social Ideas Bank -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-weight:700;font-size:16px">💡 Post Ideas</div>
+          <button class="btn btn-gold btn-sm" onclick="openNLIdeaModal()">+ Add Idea</button>
+        </div>
+        ${queuedIdeas.length === 0 ? `<div style="font-size:13px;color:var(--gray);padding:12px 0">No ideas queued.</div>` : ""}
+        ${queuedIdeas.map(idea => `
+          <div class="card" style="margin-bottom:10px;padding:12px 14px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;line-height:1.5">${esc(idea.title)}</div>
+                ${idea.notes ? `<div style="font-size:12px;color:var(--gray);margin-top:3px">${esc(idea.notes)}</div>` : ""}
+                <div style="font-size:11px;color:var(--gray);margin-top:3px">By ${esc(idea.created_by||"?")} · ${fmtDate(idea.created_at?.split("T")[0])}</div>
+                <span style="background:#dbeafe;color:#1e40af;font-size:10px;padding:1px 8px;border-radius:20px;font-weight:700;margin-top:4px;display:inline-block">QUEUED</span>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0">
+                <button class="btn btn-outline btn-sm" onclick="openNLIdeaModal('${esc(idea.id)}')">✎</button>
+                <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b" onclick="deleteNLIdea('${esc(idea.id)}')">✕</button>
+              </div>
+            </div>
+          </div>`).join("")}
+        ${usedIdeas.length ? `<div style="font-size:12px;color:var(--gray);margin-top:8px;font-weight:600">${usedIdeas.length} used</div>` : ""}
+      </div>
+
     </div>
 
     ${queuedQA.length < 2 ? `<div style="margin-top:20px;padding:10px 14px;background:#fff3cd;border:1px solid #f59e0b;border-radius:8px;font-size:13px;color:#92400e">
-      ⚠️ <strong>Queue running low:</strong> Only ${queuedQA.length} Q&amp;A${queuedQA.length!==1?"s":""} queued. Consider adding more soon.
+      ⚠️ <strong>Queue running low:</strong> Only ${queuedQA.length} Q&amp;A${queuedQA.length!==1?"s":""} queued.
     </div>` : ""}
     ${queuedArt.length < 2 ? `<div style="margin-top:10px;padding:10px 14px;background:#fff3cd;border:1px solid #f59e0b;border-radius:8px;font-size:13px;color:#92400e">
-      ⚠️ <strong>Queue running low:</strong> Only ${queuedArt.length} article${queuedArt.length!==1?"s":""} queued. Consider adding more soon.
+      ⚠️ <strong>Queue running low:</strong> Only ${queuedArt.length} article${queuedArt.length!==1?"s":""} queued.
     </div>` : ""}
   `;
 }
@@ -10286,6 +10338,56 @@ async function deleteNLQA(id) {
     ALL_NL_QA = ALL_NL_QA.filter(r => r.id !== id);
     renderNLQueue();
     showToast("Q&A removed.");
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+// ── Post Ideas ────────────────────────────────────────────
+let _editingNLIdeaId = null;
+
+function openNLIdeaModal(id = null) {
+  _editingNLIdeaId = id;
+  const existing = id ? ALL_NL_IDEAS.find(r => r.id === id) : null;
+  document.getElementById("nlIdeaText").value  = existing?.title || "";
+  document.getElementById("nlIdeaNotes").value = existing?.notes || "";
+  openModal("nlIdeaModal");
+}
+
+async function saveNLIdea() {
+  const text  = document.getElementById("nlIdeaText").value.trim();
+  const notes = document.getElementById("nlIdeaNotes").value.trim();
+  if (!text) { showToast("Idea text is required.", "error"); return; }
+  const row = {
+    id:         _editingNLIdeaId || genId(),
+    title:      text,
+    url:        "",
+    notes:      notes,
+    item_type:  "idea",
+    status:     "Queued",
+    created_at: _editingNLIdeaId ? (ALL_NL_IDEAS.find(r=>r.id===_editingNLIdeaId)?.created_at || new Date().toISOString()) : new Date().toISOString(),
+    created_by: currentUser?.displayName || "",
+  };
+  try {
+    if (_editingNLIdeaId) {
+      await sbUpdate("MyBFFNewsletterArticles", _editingNLIdeaId, row, "id");
+      const idx = ALL_NL_IDEAS.findIndex(r => r.id === _editingNLIdeaId);
+      if (idx >= 0) ALL_NL_IDEAS[idx] = row;
+    } else {
+      await sbInsert("MyBFFNewsletterArticles", row);
+      ALL_NL_IDEAS.unshift(row);
+    }
+    closeModal("nlIdeaModal");
+    renderNLQueue();
+    showToast("Idea saved to queue.");
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+async function deleteNLIdea(id) {
+  if (!confirm("Remove this idea from the queue?")) return;
+  try {
+    await sbDelete("MyBFFNewsletterArticles", id, "id");
+    ALL_NL_IDEAS = ALL_NL_IDEAS.filter(r => r.id !== id);
+    renderNLQueue();
+    showToast("Idea removed.");
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
@@ -10598,6 +10700,12 @@ const AI_CONTENT_HTML = `
             <input type="checkbox" id="aiSeqSun" /> Sun
           </label>
         </div>
+      </div>
+
+      <!-- Post Ideas from queue -->
+      <div class="form-group" id="aiSeqIdeasSection" style="display:none">
+        <label class="form-label">Post Ideas to Include <span style="font-weight:400;font-size:11px;color:var(--gray)">from your idea queue — check which ones to weave in</span></label>
+        <div id="aiSeqIdeasList" style="border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:#f9fafb;max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
       </div>
 
       <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
@@ -11414,6 +11522,21 @@ function openAISequenceModal() {
   _aiSeq.accepted = new Set();
   document.getElementById('aiSeqResults').style.display = 'none';
   document.getElementById('aiSeqPostList').innerHTML = '';
+
+  // Populate ideas checklist
+  const queuedIdeas = ALL_NL_IDEAS.filter(r => r.status === 'Queued');
+  const ideasSection = document.getElementById('aiSeqIdeasSection');
+  const ideasList    = document.getElementById('aiSeqIdeasList');
+  if (ideasSection) ideasSection.style.display = queuedIdeas.length > 0 ? '' : 'none';
+  if (ideasList) {
+    ideasList.innerHTML = queuedIdeas.length === 0 ? '<div style="font-size:12px;color:var(--gray)">No ideas in queue yet.</div>' :
+      queuedIdeas.map((idea, i) => `
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" class="aiSeqIdeaCheck" data-id="${esc(idea.id)}" data-idx="${i}" style="margin-top:2px;accent-color:var(--gold)">
+          <span>${esc(idea.title)}${idea.notes ? ` <span style="color:var(--gray);font-size:11px">— ${esc(idea.notes)}</span>` : ''}</span>
+        </label>`).join('');
+  }
+
   document.getElementById('aiSequenceModal').style.display = 'flex';
 }
 
@@ -11427,7 +11550,6 @@ async function generateMonthlySequence() {
   const year  = parseInt(document.getElementById('aiSeqYear').value, 10);
   const focus = document.getElementById('aiSeqFocus').value.trim();
 
-  const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const dayKeys  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const checkIds = ['aiSeqMon','aiSeqTue','aiSeqWed','aiSeqThu','aiSeqFri','aiSeqSat','aiSeqSun'];
   const postingDays = dayKeys.filter((_, i) =>
@@ -11440,24 +11562,29 @@ async function generateMonthlySequence() {
     return;
   }
 
+  // Capture selected ideas
+  const selectedIdeaEls = [...document.querySelectorAll('.aiSeqIdeaCheck:checked')];
+  const selectedIdeas = selectedIdeaEls.map(cb => {
+    const idea = ALL_NL_IDEAS.find(r => r.id === cb.dataset.id);
+    return idea ? idea.title + (idea.notes ? ' — ' + idea.notes : '') : '';
+  }).filter(Boolean);
+  _aiSeq.selectedIdeaIds = selectedIdeaEls.map(cb => cb.dataset.id);
+
   const btn = document.getElementById('aiSeqGenerateBtn');
   btn.disabled = true;
   btn.textContent = 'Generating…';
 
   try {
-    // Pull events that fall in this month
     const upcomingEvents = _getEventsForMonth(month, year);
-    const prompt = buildSequencePrompt(month, year, focus, postingDays, upcomingEvents);
+    const prompt = buildSequencePrompt(month, year, focus, postingDays, upcomingEvents, selectedIdeas);
     const result = await sendToClaudeForContent(prompt);
 
     let posts = [];
     try {
-      // Strip code fences if present
       const cleaned = result.replace(/```json\n?/gi,'').replace(/```\n?/gi,'').trim();
       posts = JSON.parse(cleaned);
       if (!Array.isArray(posts) || posts.length === 0) throw new Error('Empty array returned');
     } catch(parseErr) {
-      // Show the raw response so we can diagnose
       const preview = result ? result.substring(0, 300) : '(empty)';
       showToast('Could not parse schedule response. Raw: ' + preview, 'error');
       console.error('Sequence parse error:', parseErr.message);
@@ -11618,6 +11745,16 @@ async function acceptAllSequencePosts() {
   }
 
   showToast(`${saved} post${saved !== 1 ? 's' : ''} saved as drafts.`);
+
+  // Mark selected ideas as Used
+  const ideaIds = _aiSeq.selectedIdeaIds || [];
+  for (const id of ideaIds) {
+    try {
+      await sbUpdate('MyBFFNewsletterArticles', id, { status: 'Used', used_in_issue: `Schedule ${new Date().toLocaleDateString()}` }, 'id');
+      const idea = ALL_NL_IDEAS.find(r => r.id === id);
+      if (idea) idea.status = 'Used';
+    } catch(e) { console.warn('Failed to mark idea used:', id); }
+  }
   if (btn) { btn.disabled = false; btn.textContent = 'Accept All to Drafts'; }
   closeAISequenceModal();
   if (typeof renderStatusBoard === 'function') renderStatusBoard();
@@ -11625,20 +11762,23 @@ async function acceptAllSequencePosts() {
 
 // ─── Sequence Prompt Builder ──────────────────────────────────────────────────
 
-function buildSequencePrompt(month, year, focus, postingDays, events) {
+function buildSequencePrompt(month, year, focus, postingDays, events, ideas) {
   const MONTH_NAMES = ['','January','February','March','April','May','June',
                        'July','August','September','October','November','December'];
   const monthName = MONTH_NAMES[month] || month;
-
-  // Build list of posting dates for the month
   const dates = _getPostingDates(month, year, postingDays);
 
-  // Build event context
   let eventContext = 'None';
   if (events && events.length > 0) {
     eventContext = events.map(ev =>
-      `- ${ev.name || 'Event'}: ${ev.date}${ev.location ? ' at ' + ev.location : ''}`
+      `- ${ev.name || 'Event'}: ${ev.event_date||ev.date||''}${ev.location ? ' at ' + ev.location : ''}`
     ).join('\n');
+  }
+
+  let ideasContext = '';
+  if (ideas && ideas.length > 0) {
+    ideasContext = `\nSUBMITTED POST IDEAS — incorporate these naturally into the schedule, one idea per post:\n` +
+      ideas.map((idea, i) => `${i+1}. ${idea}`).join('\n') + '\n';
   }
 
   return `You are generating a monthly social media post schedule for My Best Friends Foundation, a 501(c)(3) cancer support organization based in Schaumburg, Illinois.
@@ -11650,7 +11790,7 @@ MONTHLY FOCUS: ${focus || 'General community and mission content'}
 
 UPCOMING EVENTS THIS MONTH:
 ${eventContext}
-
+${ideasContext}
 SCHEDULING RULES (apply strictly):
 - Every Monday: "Make Today Count Monday" post — uplifting, person-centered, tied to mission
 - First of month (if it is a posting day): "Newsletter Social" post promoting that month's newsletter
@@ -11665,6 +11805,7 @@ SCHEDULING RULES (apply strictly):
   - 10% volunteer spotlight
 - Never schedule two posts of the same type back to back
 - Weave the monthly focus theme throughout where natural — not forced
+- If submitted post ideas are provided above, incorporate each one as a dedicated post
 - All posts must follow MyBFF voice: calm confidence, specific details, no nonprofit clichés
 
 BRAND VOICE REMINDERS:
