@@ -2348,7 +2348,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.15i-DEV · Jun 05 2026";
+const BUILD_VERSION = "v5.15j-DEV · Jun 05 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -7137,6 +7137,41 @@ function contentCard(c, extraBadges = "") {
     </div>`;
 }
 
+async function handleSimplePhotoUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('ctPhotoStatus');
+  const urlEl    = document.getElementById('ctPhotoUrl');
+  if (statusEl) statusEl.textContent = 'Uploading…';
+
+  try {
+    // Get signed upload URL from Worker
+    const ext = file.name.split('.').pop().toLowerCase();
+    const filePath = `content/${genId()}.${ext}`;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64Data = e.target.result.split(',')[1];
+      const result = await workerCall({
+        method: 'STORAGE_UPLOAD',
+        appId: APP_ID,
+        bucket: 'mybff-content',
+        filePath,
+        base64Data,
+        contentType: file.type
+      });
+      if (result && result.url) {
+        if (urlEl) urlEl.value = result.url;
+        if (statusEl) statusEl.textContent = '✅ Photo uploaded — ' + file.name;
+      } else {
+        throw new Error(result?.error || 'Upload failed');
+      }
+    };
+    reader.readAsDataURL(file);
+  } catch(e) {
+    if (statusEl) statusEl.textContent = '❌ Upload failed: ' + e.message;
+  }
+}
+
 async function deleteContentRecord(contentId) {
   const c = ALL_CONTENT.find(x => x.id === contentId);
   if (!c) return;
@@ -7510,21 +7545,23 @@ function buildContentTypeForm(type) {
   const typeFields = {
     Facebook: `
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Post Text <span style="font-size:11px;color:var(--gray)">(aim for under 300 characters)</span></label>
-        <textarea class="form-input form-textarea" id="ctNewText" rows="5" placeholder="Write the Facebook post here..." oninput="updateCharCount(this,'ctNewCharCount',300)"></textarea>
-        <div id="ctNewCharCount" style="font-size:11px;color:var(--gray);margin-top:4px;text-align:right"></div>
+        <label class="form-label">What should this post be about? <span class="req">*</span></label>
+        <textarea class="form-input form-textarea" id="ctNewText" rows="4"
+          placeholder="Describe what you want to say — the AI will write the post from this. e.g. Promote the Walk/Run on August 8 at Judson University. Emphasize all paces welcome, virtual option available."></textarea>
       </div>
-      <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Link / URL to attach</label>
+      <div class="form-group">
+        <label class="form-label">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <select class="form-input" id="ctNewEvent">${evOpts}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Link / URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
         <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Photo <span style="font-size:11px;color:var(--gray)">optional</span></label>
-        <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px">
-      </div>
-      <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Call to Action</label>
-        <input type="text" class="form-input" id="ctNewCTA" placeholder="e.g. Register now at mybff.org">
+        <label class="form-label">Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — uploads immediately</span></label>
+        <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px" onchange="handleSimplePhotoUpload(this)">
+        <div id="ctPhotoStatus" style="font-size:12px;color:var(--gray);margin-top:4px"></div>
+        <input type="hidden" id="ctPhotoUrl" value="">
       </div>`,
     Instagram: `
       <div class="form-group" style="grid-column:1/-1">
@@ -7533,45 +7570,36 @@ function buildContentTypeForm(type) {
         <div id="ctNewCharCount" style="font-size:11px;color:var(--gray);margin-top:4px;text-align:right"></div>
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Hashtags <span style="font-size:11px;color:var(--gray)">separate from caption</span></label>
+        <label class="form-label">Hashtags</label>
         <textarea class="form-input form-textarea" id="ctNewHashtags" rows="2" placeholder="#MyBFF #TriviaForGood #Cornhole2026"></textarea>
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Photo / Image <span class="req">*</span> <span style="font-size:11px;color:var(--gray)">Instagram is visual-first</span></label>
+        <label class="form-label">Photo / Image <span class="req">*</span></label>
         <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Alt Text <span style="font-size:11px;color:var(--gray)">for accessibility</span></label>
+        <label class="form-label">Alt Text</label>
         <input type="text" class="form-input" id="ctNewAltText" placeholder="e.g. Team playing cornhole at Mikerphone Brewing">
       </div>`,
     Email: `
-      <div class="form-group">
-        <label class="form-label">Subject Line <span class="req">*</span></label>
-        <input type="text" class="form-input" id="ctNewSubject" placeholder="e.g. You're Invited — MyBFF Cornhole Tournament June 13th">
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">What should this email be about? <span class="req">*</span></label>
+        <textarea class="form-input form-textarea" id="ctNewText" rows="4"
+          placeholder="Describe what you want to say — the AI will write the subject and body. e.g. Invite past attendees to register for Walk/Run Aug 8. Include early bird pricing ends July 1."></textarea>
       </div>
       <div class="form-group">
-        <label class="form-label">Preview Text <span style="font-size:11px;color:var(--gray)">shown in inbox before opening</span></label>
-        <input type="text" class="form-input" id="ctNewPreview" placeholder="e.g. Join us for a day of fun, music, and community.">
+        <label class="form-label">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <select class="form-input" id="ctNewEvent">${evOpts}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Link / URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Body Content</label>
-        <textarea class="form-input form-textarea" id="ctNewText" rows="6" placeholder="Write the full email body here..."></textarea>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Call to Action Button Text</label>
-        <input type="text" class="form-input" id="ctNewCTA" placeholder="e.g. Register Now">
-      </div>
-      <div class="form-group">
-        <label class="form-label">CTA URL</label>
-        <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://mybff.org/register">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Recipient List / Audience</label>
-        <input type="text" class="form-input" id="ctNewAudience" placeholder="e.g. All donors, Past attendees, Sponsors">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Estimated Send Count</label>
-        <input type="number" class="form-input" id="ctNewSendCount" placeholder="e.g. 450">
+        <label class="form-label">Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — uploads immediately</span></label>
+        <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px" onchange="handleSimplePhotoUpload(this)">
+        <div id="ctPhotoStatus" style="font-size:12px;color:var(--gray);margin-top:4px"></div>
+        <input type="hidden" id="ctPhotoUrl" value="">
       </div>`,
     Newsletter: `
       <div class="form-group">
@@ -7665,12 +7693,22 @@ function buildContentTypeForm(type) {
       </div>`
   };
 
-  return newsletterBanner + `
-    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
-    <div style="font-weight:700;font-size:15px;margin-bottom:14px">📝 ${type} Details</div>
+  // For Facebook and Email, Generate Draft is the primary action — show it prominently at top
+  const isAIFirst = ["Facebook", "Email"].includes(type);
+  const aiFirstBanner = isAIFirst ? `
+    <div style="background:var(--navy);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="color:white;font-weight:700;font-size:15px">&#10024; AI Draft Generator</div>
+        <div style="color:#ccc;font-size:12px;margin-top:3px">Fill in the details below, then click Generate to create your ${type} content</div>
+      </div>
+      <button class="btn btn-gold" onclick="if(typeof openAIGenerateModal==='function')openAIGenerateModal('${type}')">Generate Draft →</button>
+    </div>` : "";
+
+  return newsletterBanner + aiFirstBanner + `
     <div class="form-grid">
       ${typeFields[type] || typeFields["Other"]}
-      ${commonFields}
+      ${isAIFirst ? "" : commonFields}
+      ${isAIFirst ? "" : `
       <div class="form-group" style="grid-column:1/-1">
         <label class="form-label">Assign Reviewers</label>
         <div style="border:2px solid var(--border);border-radius:7px;padding:8px 12px;max-height:120px;overflow-y:auto;background:white;display:flex;flex-direction:column;gap:4px">${reviewerChecks}</div>
@@ -7678,8 +7716,9 @@ function buildContentTypeForm(type) {
       <div class="form-group full" style="grid-column:1/-1">
         <label class="form-label">Additional Notes</label>
         <textarea class="form-input form-textarea" id="ctNewNotes" rows="2" placeholder="Any additional context..."></textarea>
-      </div>
+      </div>`}
     </div>
+    ${!isAIFirst ? `
     <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-outline btn-sm" onclick="openAssetPicker('${type}')">&#128193; Insert from Asset Library</button>
       <button class="btn btn-sm" style="background:var(--navy);color:white" onclick="if(typeof openAIGenerateModal==='function')openAIGenerateModal('${type}')">&#10024; Generate Draft</button>
@@ -7689,7 +7728,10 @@ function buildContentTypeForm(type) {
       <button class="btn btn-outline" onclick="renderCreatePanel()">Cancel</button>
       <button class="btn btn-outline" onclick="saveNewContent('${type}','Draft')">Save as Draft</button>
       <button class="btn btn-gold" onclick="saveNewContent('${type}','In Review')">Submit for Review</button>
-    </div>`;
+    </div>` : `
+    <div style="margin-top:8px">
+      <button class="btn btn-outline" onclick="renderCreatePanel()">Cancel</button>
+    </div>`}`;
 }
 
 function updateCharCount(el, countId, limit) {
@@ -10485,12 +10527,18 @@ const AI_CONTENT_HTML = `
         Maximum regenerations reached. Edit the draft above or start over.
       </div>
 
+      <!-- Reviewer selection — shown above Accept button -->
+      <div id="aiDraftReviewerSection" style="margin:12px 0;padding:12px 14px;background:#f9fafb;border:1.5px solid var(--border);border-radius:8px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px">Select Reviewers</div>
+        <div id="aiDraftReviewerChecks" style="display:flex;flex-direction:column;gap:4px;max-height:100px;overflow-y:auto"></div>
+      </div>
+
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-top:.5rem;">
         <button class="btn" style="color:var(--navy);background:none;padding:0;text-decoration:underline;font-size:.85rem;" onclick="startOverAIGenerate()">Start Over</button>
         <div style="display:flex;gap:.75rem;align-items:center;">
           <span id="aiDraftRegenCountDisplay" style="font-size:.8rem;color:#666;"></span>
           <button id="aiDraftRegenBtn" class="btn btn-outline" onclick="regenerateContentDraft()">Regenerate</button>
-          <button class="btn btn-gold" onclick="acceptContentDraft()">Accept Draft</button>
+          <button class="btn btn-gold" onclick="acceptContentDraft()">Accept &amp; Save to Review</button>
         </div>
       </div>
 
@@ -11068,6 +11116,20 @@ function _showDraftPopup(bodyText, subjectText) {
   }
 
   document.getElementById('aiDraftFeedback').value = '';
+
+  // Populate reviewer checkboxes for Facebook/Email direct-save flow
+  const revSection = document.getElementById('aiDraftReviewerSection');
+  const revChecks  = document.getElementById('aiDraftReviewerChecks');
+  const isAIFirst  = ['Facebook','Email'].includes(_aiGen.contentType);
+  if (revSection) revSection.style.display = isAIFirst ? '' : 'none';
+  if (revChecks && isAIFirst) {
+    revChecks.innerHTML = APP_USERS.map(u => `
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+        <input type="checkbox" value="${esc(u.displayName)}" style="accent-color:var(--gold);width:14px;height:14px">
+        ${esc(u.displayName)}
+      </label>`).join('');
+  }
+
   document.getElementById('aiDraftPopup').style.display = 'flex';
 
   // Sync textarea edits to highlighted view live
@@ -11083,27 +11145,86 @@ function _highlightPlaceholders(escapedText) {
   );
 }
 
-function acceptContentDraft() {
-  const body = document.getElementById('aiDraftTextarea').value.trim();
-  const subject = document.getElementById('aiDraftSubjectField')
-                    ? document.getElementById('aiDraftSubjectField').value.trim()
-                    : '';
-  const type = _aiGen.contentType;
+async function acceptContentDraft() {
+  const draftText = document.getElementById('aiDraftTextarea').value.trim();
+  const subject   = document.getElementById('aiDraftSubjectField')?.value.trim() || '';
+  const type      = _aiGen.contentType;
 
-  if (type === 'Email') {
-    const subEl = document.getElementById('ctNewSubject');
-    const bodyEl = document.getElementById('ctNewBody');
-    if (subEl && subject) subEl.value = subject;
-    if (bodyEl) bodyEl.value = body;
-  } else if (type === 'Newsletter') {
-    const bodyEl = document.getElementById('ctNewBody');
-    if (bodyEl) bodyEl.value = body;
-  } else {
-    // Facebook, Instagram, Flyer
-    const textEl = document.getElementById('ctNewText');
-    if (textEl) textEl.value = body;
+  if (!draftText) { showToast('No draft text to save.', 'error'); return; }
+
+  // For Facebook/Email — save directly to Supabase as In Review
+  if (['Facebook','Email'].includes(type)) {
+    const isAIFirst = true;
+    const topic  = document.getElementById('ctNewText')?.value.trim() || draftText.substring(0, 60);
+    const link   = document.getElementById('ctNewFileLink')?.value.trim() || null;
+    const event  = document.getElementById('ctNewEvent')?.value || null;
+    const photoUrl = document.getElementById('ctPhotoUrl')?.value || null;
+
+    // Build content text
+    let contentText = draftText;
+    if (type === 'Email' && subject) {
+      contentText = `SUBJECT: ${subject}\n\n${draftText}`;
+    }
+
+    // Get selected reviewers from popup checkboxes
+    const checkedRevs = Array.from(
+      document.querySelectorAll('#aiDraftReviewerChecks input:checked')
+    ).map(c => c.value);
+
+    const now = new Date().toISOString();
+    const title = type === 'Email' && subject
+      ? subject.substring(0, 80)
+      : (topic.substring(0, 60) + (topic.length > 60 ? '…' : ''));
+
+    const row = {
+      id: genId(),
+      channel: type,
+      title: title || `${type} Post`,
+      content_text: contentText,
+      file_link: link,
+      event_name: event,
+      photo_url: photoUrl,
+      status: checkedRevs.length > 0 ? 'In Review' : 'Draft',
+      reviewers: checkedRevs.join(', '),
+      version: 1,
+      created_by: currentUser?.displayName || '',
+      created_at: now,
+      updated_at: now,
+      ai_generated: true,
+    };
+
+    try {
+      await sbInsert('MyBFFContent', row);
+      ALL_CONTENT.unshift(row);
+      // Add reviewer records
+      for (const rev of checkedRevs) {
+        const rRow = { id: genId(), content_id: row.id, reviewer: rev, status: 'pending', reviewed_at: null };
+        try { await sbInsert('MyBFFContentReviewers', rRow); ALL_CONTENT_REVIEWERS.push(rRow); } catch(e) {}
+      }
+      closeAIDraftPopup();
+      closeAIGenerateModal();
+      showToast(checkedRevs.length > 0 ? '✅ Sent to review!' : '✅ Saved as draft!');
+      showMktgTab('status');
+      renderStatusBoard();
+    } catch(e) {
+      showToast('Error saving: ' + e.message, 'error');
+    }
+    return;
   }
 
+  // For other types — original behavior: populate the form fields
+  if (type === 'Email') {
+    const subEl  = document.getElementById('ctNewSubject');
+    const bodyEl = document.getElementById('ctNewBody');
+    if (subEl && subject) subEl.value = subject;
+    if (bodyEl) bodyEl.value = draftText;
+  } else if (type === 'Newsletter') {
+    const bodyEl = document.getElementById('ctNewBody');
+    if (bodyEl) bodyEl.value = draftText;
+  } else {
+    const textEl = document.getElementById('ctNewText');
+    if (textEl) textEl.value = draftText;
+  }
   closeAIDraftPopup();
   closeAIGenerateModal();
   showToast('Draft accepted and populated in the form.');
