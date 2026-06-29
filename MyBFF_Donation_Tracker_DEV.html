@@ -434,7 +434,7 @@ if ('serviceWorker' in navigator) {
           <span style="font-size:12px;color:var(--gray);font-weight:600;margin-right:4px">Your action items:</span>
           <button id="asBtnTasks"     onclick="showPageNav('events')"    style="display:none;align-items:center;gap:5px;background:#fef3c7;color:#92400e;border:1.5px solid #f59e0b;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#9201; Tasks <span id="asCountTasks"    style="background:#f59e0b;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
           <button id="asBtnDonations" onclick="showPageNav('donations')" style="display:none;align-items:center;gap:5px;background:#eff6ff;color:#1e40af;border:1.5px solid #3b82f6;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#127873; Donations <span id="asCountDonations" style="background:#3b82f6;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
-          <button id="asBtnToDo"      onclick="showPageNav('donations')" style="display:none;align-items:center;gap:5px;background:#e0e7ff;color:#3730a3;border:1.5px solid #6366f1;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#9989; To Do <span id="asCountToDo"     style="background:#6366f1;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
+          <button id="asBtnToDo"      onclick="showPageNav('donations');setTimeout(()=>{const el=document.getElementById('donGranted');if(el){el.value='To Do';renderDonations();}},50)" style="display:none;align-items:center;gap:5px;background:#e0e7ff;color:#3730a3;border:1.5px solid #6366f1;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#9989; To Do <span id="asCountToDo"     style="background:#6366f1;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
           <button id="asBtnGrants"    onclick="showPageNav('grants')"    style="display:none;align-items:center;gap:5px;background:#f0fdf4;color:#166534;border:1.5px solid #22c55e;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#128204; Grants <span id="asCountGrants"    style="background:#22c55e;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
           <button id="asBtnMarketing" onclick="showPageNav('marketing')" style="display:none;align-items:center;gap:5px;background:#faf5ff;color:#6b21a8;border:1.5px solid #a855f7;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#128227; Marketing <span id="asCountMarketing" style="background:#a855f7;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
         </div>
@@ -2458,7 +2458,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.16a-DEV · Jun 29 2026";
+const BUILD_VERSION = "v5.16b-DEV · Jun 29 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3606,9 +3606,9 @@ function updateActionSummary() {
     )
   ).length;
 
-  // My To Do donations — assigned or no assignee
+  // My To Do donations — only ones entered by or assigned to current user
   const donToDo = ALL_DONATIONS.filter(d =>
-    d.granted === "To Do"
+    d.granted === "To Do" && (!d.who || d.who === myName)
   ).length;
 
   // Grant requests flagged for follow-up assigned to current user
