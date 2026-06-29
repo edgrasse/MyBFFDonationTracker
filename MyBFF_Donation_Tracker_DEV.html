@@ -1347,6 +1347,14 @@ if ('serviceWorker' in navigator) {
           <option value="To Do">To Do — Action Required</option>
         </select>
       </div>
+      <!-- To Do assignee — shown only when To Do is selected -->
+      <div class="form-group" id="donTodoAssignRow" style="display:none">
+        <label class="form-label">Assign To Do To</label>
+        <select class="form-select" id="donTodoAssignee">
+          <option value="">— Select person —</option>
+        </select>
+        <div style="font-size:11px;color:var(--gray);margin-top:3px">Defaults to the record creator. Change if assigning to someone else.</div>
+      </div>
       <!-- Granted = Yes fields -->
       <div id="grantedFields" style="display:none;grid-column:1/-1">
         <div class="form-grid">
@@ -2458,7 +2466,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.16b-DEV · Jun 29 2026";
+const BUILD_VERSION = "v5.16c-DEV · Jun 29 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3397,7 +3405,7 @@ function renderDashboard() {
     return assignees.includes(myName) && t.status !== "Done" && t.status !== "N/A";
   });
   const myEventTasks  = myTasks.filter(t => t.event_name && !t.linked_type);
-  const myQuickTasks  = myTasks.filter(t => t.linked_type && !t.event_name);
+  const myQuickTasks  = myTasks.filter(t => t.linked_type && (!t.event_name || t.event_name === ""));
   const now = new Date();
   const upcomingEvents = ALL_EVENTS_DATA
     .filter(e => e.event_date && new Date(e.event_date+"T12:00:00") >= now)
@@ -3606,9 +3614,11 @@ function updateActionSummary() {
     )
   ).length;
 
-  // My To Do donations — only ones entered by or assigned to current user
+  // My To Do donations — use todo_assignee if set, else fall back to d.who
   const donToDo = ALL_DONATIONS.filter(d =>
-    d.granted === "To Do" && (!d.who || d.who === myName)
+    d.granted === "To Do" && (
+      d.todo_assignee ? d.todo_assignee === myName : (!d.who || d.who === myName)
+    )
   ).length;
 
   // Grant requests flagged for follow-up assigned to current user
@@ -4549,6 +4559,17 @@ function editDonation(id) {
   }
   toggleGrantedFields();
   togglePickupAssign();
+
+  // Populate To Do assignee dropdown
+  const todoSel = document.getElementById("donTodoAssignee");
+  if (todoSel) {
+    const defaultAssignee = d.todo_assignee || d.who || currentUser?.displayName || "";
+    todoSel.innerHTML = `<option value="">— Select person —</option>` +
+      APP_USERS.map(u =>
+        `<option value="${esc(u.displayName)}" ${u.displayName===defaultAssignee?"selected":""}>${esc(u.displayName)}</option>`
+      ).join("");
+  }
+
   openModal("donationModal");
 }
 
@@ -4576,10 +4597,34 @@ function clearDonationForm() {
   if (catOther) catOther.style.display = "none";
   const invRow = document.getElementById("inventoryRow");
   if (invRow) invRow.style.display = "none";
+  // Reset To Do assignee — default to current user
+  const todoRow = document.getElementById("donTodoAssignRow");
+  if (todoRow) todoRow.style.display = "none";
+  const todoSel = document.getElementById("donTodoAssignee");
+  if (todoSel) {
+    todoSel.innerHTML = `<option value="">— Select person —</option>` +
+      APP_USERS.map(u =>
+        `<option value="${esc(u.displayName)}" ${u.displayName===currentUser?.displayName?"selected":""}>${esc(u.displayName)}</option>`
+      ).join("");
+  }
 }
 
 function toggleGrantedFields() {
-  document.getElementById("grantedFields").style.display = document.getElementById("donGranted2").value === "Yes" ? "contents" : "none";
+  const granted = document.getElementById("donGranted2").value;
+  document.getElementById("grantedFields").style.display = granted === "Yes" ? "contents" : "none";
+
+  // Show To Do assignee row when To Do is selected
+  const todoRow = document.getElementById("donTodoAssignRow");
+  if (todoRow) {
+    todoRow.style.display = granted === "To Do" ? "" : "none";
+    // Default to current user when first shown
+    if (granted === "To Do") {
+      const sel = document.getElementById("donTodoAssignee");
+      if (sel && !sel.value && currentUser?.displayName) {
+        sel.value = currentUser.displayName;
+      }
+    }
+  }
 }
 
 function toggleHowField() {
@@ -4616,6 +4661,9 @@ async function saveDonation() {
     how: document.getElementById("donHow").value,
     date_requested: document.getElementById("donDate").value,
     granted: document.getElementById("donGranted2").value,
+    todo_assignee: document.getElementById("donGranted2").value === "To Do"
+      ? (document.getElementById("donTodoAssignee")?.value || null)
+      : null,
     value: parseFloat(document.getElementById("donValue").value) || null,
     item: document.getElementById("donItem").value,
     lead_time: document.getElementById("donLeadTime").value,
@@ -10443,6 +10491,7 @@ async function saveQuickTask() {
     closeModal("quickTaskModal");
     showToast(`✅ Task assigned to ${assignTo}.`);
     updateActionSummary();
+    renderDashboard();
   } catch(e) {
     showToast("Error saving task: " + e.message, "error");
   }
