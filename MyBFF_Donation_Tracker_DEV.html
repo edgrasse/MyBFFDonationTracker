@@ -432,7 +432,7 @@ if ('serviceWorker' in navigator) {
         <div class="section-title" style="margin:0">Dashboard</div>
         <div id="actionSummaryBar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-size:12px;color:var(--gray);font-weight:600;margin-right:4px">Your action items:</span>
-          <button id="asBtnTasks"     onclick="showPageNav('events')"    style="display:none;align-items:center;gap:5px;background:#fef3c7;color:#92400e;border:1.5px solid #f59e0b;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#9201; Tasks <span id="asCountTasks"    style="background:#f59e0b;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
+          <button id="asBtnTasks"     onclick="openMyTasksModal()"    style="display:none;align-items:center;gap:5px;background:#fef3c7;color:#92400e;border:1.5px solid #f59e0b;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#9201; Tasks <span id="asCountTasks"    style="background:#f59e0b;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
           <button id="asBtnDonations" onclick="showPageNav('donations')" style="display:none;align-items:center;gap:5px;background:#eff6ff;color:#1e40af;border:1.5px solid #3b82f6;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#127873; Donations <span id="asCountDonations" style="background:#3b82f6;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
           <button id="asBtnToDo"      onclick="showPageNav('donations');setTimeout(()=>{const el=document.getElementById('donGranted');if(el){el.value='To Do';renderDonations();}},50)" style="display:none;align-items:center;gap:5px;background:#e0e7ff;color:#3730a3;border:1.5px solid #6366f1;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#9989; To Do <span id="asCountToDo"     style="background:#6366f1;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
           <button id="asBtnGrants"    onclick="showPageNav('grants')"    style="display:none;align-items:center;gap:5px;background:#f0fdf4;color:#166534;border:1.5px solid #22c55e;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#128204; Grants <span id="asCountGrants"    style="background:#22c55e;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
@@ -1078,6 +1078,17 @@ if ('serviceWorker' in navigator) {
           <button class="btn btn-outline" onclick="closeModal('customLinkModal')">Cancel</button>
           <button class="btn btn-gold" onclick="saveCustomLink()">Save Link</button>
         </div>
+      </div>
+    </div>
+
+    <!-- MY TASKS MODAL -->
+    <div class="modal-overlay" id="myTasksModal" onclick="if(event.target===this)closeModal('myTasksModal')">
+      <div class="modal" style="max-width:600px;width:100%">
+        <div class="modal-header">
+          <div class="modal-title">⏱ My Open Tasks</div>
+          <button class="modal-close" onclick="closeModal('myTasksModal')">&#x2715;</button>
+        </div>
+        <div id="myTasksModalContent" style="max-height:60vh;overflow-y:auto"></div>
       </div>
     </div>
 
@@ -2466,7 +2477,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.16c-DEV · Jun 29 2026";
+const BUILD_VERSION = "v5.16d-DEV · Jun 29 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3427,23 +3438,27 @@ function renderDashboard() {
       💰 <strong>$${totalRevenue.toLocaleString("en-US",{maximumFractionDigits:0})}</strong> raised across events in ${curYear}
     </div>` : ""}
     <div style="border-top:1px solid var(--border);padding-top:12px">
-      <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:600;margin-bottom:6px">Your Open Tasks</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:600">Your Open Tasks</div>
+        ${myTasks.length > 0 ? `<button onclick="openMyTasksModal()" style="font-size:11px;color:var(--gold);font-weight:600;background:none;border:none;cursor:pointer;text-decoration:underline">View All →</button>` : ""}
+      </div>
       ${myEventTasks.length
-        ? myEventTasks.slice(0,3).map(t => `
+        ? myEventTasks.slice(0,2).map(t => `
             <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
               <span style="font-size:11px;padding:2px 7px;border-radius:9999px;background:#dbeafe;color:#1d4ed8;font-weight:600">${t.status}</span>
               <span style="font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.task_name)}</span>
-            </div>`).join("") + (myEventTasks.length > 3 ? `<div style="font-size:12px;color:var(--gray);margin-top:6px">+${myEventTasks.length-3} more event tasks</div>` : "")
+              <span style="font-size:11px;color:var(--gray);flex-shrink:0">${esc(t.event_name || "")}</span>
+            </div>`).join("") + (myEventTasks.length > 2 ? `<div style="font-size:12px;color:var(--gray);margin-top:4px">+${myEventTasks.length-2} more</div>` : "")
         : `<div style="font-size:13px;color:var(--gray)">No open event tasks assigned to you</div>`}
       ${myQuickTasks.length ? `
-        <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:600;margin:10px 0 6px">Your Assigned Tasks</div>
-        ${myQuickTasks.slice(0,3).map(t => `
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:600;margin:8px 0 4px">Assigned Tasks</div>
+        ${myQuickTasks.slice(0,2).map(t => `
           <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
             <span style="font-size:11px;padding:2px 7px;border-radius:9999px;background:#e0e7ff;color:#3730a3;font-weight:600">${esc(t.linked_type||"")}</span>
             <span style="font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.task_name)}</span>
-            ${t.linked_name ? `<span style="font-size:11px;color:var(--gray);flex-shrink:0">${esc(t.linked_name)}</span>` : ""}
+            ${t.linked_name ? `<span style="font-size:11px;color:var(--gray);flex-shrink:0;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.linked_name)}</span>` : ""}
           </div>`).join("")}
-        ${myQuickTasks.length > 3 ? `<div style="font-size:12px;color:var(--gray);margin-top:6px">+${myQuickTasks.length-3} more assigned tasks</div>` : ""}` : ""}
+        ${myQuickTasks.length > 2 ? `<div style="font-size:12px;color:var(--gray);margin-top:4px">+${myQuickTasks.length-2} more</div>` : ""}` : ""}
     </div>`;
 
   // ── Donations card ───────────────────────────────────────
@@ -3601,10 +3616,11 @@ function updateActionSummary() {
   const myName = currentUser?.displayName || "";
   const today  = new Date();
 
-  // Tasks assigned to me that are open
-  const myTasks = ALL_TASKS.filter(t =>
-    t.assigned_to === myName && !["Done","N/A"].includes(t.status)
-  ).length;
+  // Tasks assigned to me that are open (handles comma-separated assignees)
+  const myTasks = ALL_TASKS.filter(t => {
+    const assignees = (t.assigned_to || "").split(",").map(a => a.trim());
+    return assignees.includes(myName) && !["Done","N/A"].includes(t.status);
+  }).length;
 
   // Donations flagged for follow-up assigned to current user (either slot)
   const donFU = ALL_DONATIONS.filter(d =>
@@ -10389,6 +10405,134 @@ function filterHelp() {
     const visible = [...cat.querySelectorAll(".help-item")].some(el => !el.classList.contains("hidden"));
     cat.style.display = visible ? "" : "none";
   });
+}
+
+// ═══════════════════════════════════════════════════════════
+// MY TASKS MODAL — unified view of all tasks assigned to me
+// ═══════════════════════════════════════════════════════════
+
+function openMyTasksModal() {
+  const myName = currentUser?.displayName || "";
+  const myTasks = ALL_TASKS.filter(t => {
+    const assignees = (t.assigned_to || "").split(",").map(a => a.trim());
+    return assignees.includes(myName) && t.status !== "Done" && t.status !== "N/A";
+  }).sort((a, b) => {
+    // Sort: overdue first, then by due_date, then by created_at
+    const da = a.due_date || "9999";
+    const db = b.due_date || "9999";
+    return da.localeCompare(db);
+  });
+
+  const eventTasks = myTasks.filter(t => t.event_name && !t.linked_type);
+  const quickTasks = myTasks.filter(t => t.linked_type && (!t.event_name || t.event_name === ""));
+  const today = new Date().toISOString().split("T")[0];
+
+  function taskRow(t, isEvent) {
+    const overdue = t.due_date && t.due_date < today;
+    const dueBadge = t.due_date
+      ? `<span style="font-size:11px;color:${overdue ? "#dc2626" : "var(--gray)"}">
+           ${overdue ? "⚠️ " : "📅 "}${fmtDate(t.due_date)}
+         </span>`
+      : "";
+
+    const statusColors = {
+      "Not Started": "#dbeafe;color:#1d4ed8",
+      "In Progress": "#fef3c7;color:#92400e",
+      "Blocked": "#fee2e2;color:#991b1b",
+    };
+    const statusStyle = statusColors[t.status] || "var(--gray-light);color:var(--gray)";
+
+    // Navigation button — differs by task type
+    let navBtn = "";
+    if (isEvent) {
+      navBtn = `<button class="btn btn-outline btn-sm" style="font-size:11px;padding:3px 8px"
+        onclick="closeModal('myTasksModal');showPageNav('events');setTimeout(()=>showEventDetail(${JSON.stringify(t.event_name)}),80)">
+        → View Event
+      </button>`;
+    } else if (t.linked_type === "Donation" && t.linked_id) {
+      navBtn = `<button class="btn btn-outline btn-sm" style="font-size:11px;padding:3px 8px"
+        onclick="closeModal('myTasksModal');showPageNav('donations');setTimeout(()=>viewDonation(${JSON.stringify(t.linked_id)}),80)">
+        → View Donation
+      </button>`;
+    } else if (t.linked_type === "Donation" && t.linked_name) {
+      navBtn = `<button class="btn btn-outline btn-sm" style="font-size:11px;padding:3px 8px"
+        onclick="closeModal('myTasksModal');showPageNav('donations');setTimeout(()=>{const el=document.getElementById('donSearch');if(el){el.value=${JSON.stringify(t.linked_name)};renderDonations();}},80)">
+        → View Donation
+      </button>`;
+    } else if (t.linked_type === "Grant") {
+      navBtn = `<button class="btn btn-outline btn-sm" style="font-size:11px;padding:3px 8px"
+        onclick="closeModal('myTasksModal');showPageNav('grants')">
+        → View Grants
+      </button>`;
+    } else if (t.linked_type === "Marketing") {
+      navBtn = `<button class="btn btn-outline btn-sm" style="font-size:11px;padding:3px 8px"
+        onclick="closeModal('myTasksModal');showPageNav('marketing')">
+        → View Marketing
+      </button>`;
+    }
+
+    return `
+      <div style="padding:12px 0;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:14px;margin-bottom:2px">${esc(t.task_name)}</div>
+            <div style="font-size:12px;color:var(--gray)">
+              ${isEvent
+                ? `📅 <strong>${esc(t.event_name)}</strong>`
+                : `${t.linked_type === "Donation" ? "🎁" : t.linked_type === "Grant" ? "📋" : t.linked_type === "Marketing" ? "📣" : "📌"}
+                   ${t.linked_name ? `<strong>${esc(t.linked_name)}</strong>` : esc(t.linked_type || "General")}`}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            ${dueBadge}
+            <span style="font-size:11px;background:${statusStyle};padding:2px 8px;border-radius:9999px;font-weight:600">${esc(t.status)}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          ${navBtn}
+          <button class="btn btn-sm" style="font-size:11px;padding:3px 8px;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7"
+            onclick="markMyTaskDone('${esc(t.id)}')">
+            ✓ Mark Done
+          </button>
+        </div>
+      </div>`;
+  }
+
+  const content = document.getElementById("myTasksModalContent");
+  if (!content) return;
+
+  if (myTasks.length === 0) {
+    content.innerHTML = `<div style="text-align:center;padding:32px;color:var(--gray);font-size:14px">
+      🎉 No open tasks assigned to you right now.
+    </div>`;
+  } else {
+    content.innerHTML = `
+      ${eventTasks.length ? `
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:700;margin-bottom:2px;padding-top:4px">
+          Event Tasks (${eventTasks.length})
+        </div>
+        ${eventTasks.map(t => taskRow(t, true)).join("")}` : ""}
+      ${quickTasks.length ? `
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:700;margin-top:${eventTasks.length ? "16px" : "4px"};margin-bottom:2px">
+          Assigned Tasks (${quickTasks.length})
+        </div>
+        ${quickTasks.map(t => taskRow(t, false)).join("")}` : ""}
+    `;
+  }
+
+  openModal("myTasksModal");
+}
+
+async function markMyTaskDone(taskId) {
+  try {
+    await sbUpdate("MyBFFTasks", taskId, { status: "Done", updated_at: new Date().toISOString() }, "id");
+    const t = ALL_TASKS.find(x => x.id === taskId);
+    if (t) t.status = "Done";
+    showToast("✓ Task marked done.");
+    openMyTasksModal(); // refresh the modal
+    updateActionSummary();
+    renderDashboard();
+  } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
 // ═══════════════════════════════════════════════════════════
