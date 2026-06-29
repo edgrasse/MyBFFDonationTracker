@@ -1083,43 +1083,47 @@ if ('serviceWorker' in navigator) {
 
     <!-- QUICK ASSIGN TASK MODAL -->
     <div class="modal-overlay" id="quickTaskModal" onclick="if(event.target===this)closeModal('quickTaskModal')">
-      <div class="modal" style="max-width:500px">
+      <div class="modal" style="max-width:480px;width:100%">
         <div class="modal-header">
           <div class="modal-title">📋 Assign Task</div>
           <button class="modal-close" onclick="closeModal('quickTaskModal')">&#x2715;</button>
         </div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label class="form-label">Category <span class="req">*</span></label>
-            <select class="form-input" id="qtCategory" onchange="updateQTLinkedOptions()">
-              <option value="Donation">Donation</option>
-              <option value="Grant">Grant</option>
-              <option value="Marketing">Marketing</option>
-              <option value="General">General</option>
-            </select>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Category <span class="req">*</span></label>
+              <select class="form-input" id="qtCategory" onchange="updateQTLinkedOptions()">
+                <option value="Donation">Donation</option>
+                <option value="Grant">Grant</option>
+                <option value="Marketing">Marketing</option>
+                <option value="General">General</option>
+              </select>
+            </div>
+            <div class="form-group" id="qtLinkedRow" style="margin:0">
+              <label class="form-label">Linked To</label>
+              <select class="form-input" id="qtLinked">
+                <option value="">— Select record —</option>
+              </select>
+            </div>
           </div>
-          <div class="form-group" id="qtLinkedRow">
-            <label class="form-label">Linked To</label>
-            <select class="form-input" id="qtLinked">
-              <option value="">— Select record —</option>
-            </select>
-          </div>
-          <div class="form-group" style="grid-column:1/-1">
+          <div class="form-group" style="margin:0">
             <label class="form-label">Task <span class="req">*</span></label>
-            <textarea class="form-input form-textarea" id="qtTaskName" rows="2" placeholder="What needs to be done?"></textarea>
+            <textarea class="form-input form-textarea" id="qtTaskName" rows="3" placeholder="What needs to be done?"></textarea>
           </div>
-          <div class="form-group">
-            <label class="form-label">Assign To <span class="req">*</span></label>
-            <select class="form-input" id="qtAssignTo">
-              <option value="">— Select person —</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Due Date</label>
-            <input type="date" class="form-input" id="qtDueDate">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Assign To <span class="req">*</span></label>
+              <select class="form-input" id="qtAssignTo">
+                <option value="">— Select person —</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Due Date</label>
+              <input type="date" class="form-input" id="qtDueDate">
+            </div>
           </div>
         </div>
-        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
           <button class="btn btn-outline" onclick="closeModal('quickTaskModal')">Cancel</button>
           <button class="btn btn-gold" onclick="saveQuickTask()">Assign Task</button>
         </div>
@@ -4464,8 +4468,9 @@ function viewDonation(id) {
         <span>${h.item || "—"}</span>
         ${h.value ? `<span style="color:var(--green);font-weight:600">$${parseFloat(h.value).toLocaleString()}</span>` : ""}
       </div>`).join("")}` : ""}
-    <div style="display:flex;gap:10px;margin-top:20px">
+    <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap">
       <button class="btn btn-outline" onclick='editDonation("${d.id}");closeModal("donDetailModal")'>Edit</button>
+      <button class="btn btn-outline" onclick='openQuickTaskModal("Donation","${esc(d.id)}","${esc(d.organization||"")}");closeModal("donDetailModal")'>📋 Assign Task</button>
       <button class="btn btn-outline" onclick='closeModal("donDetailModal")'>Close</button>
     </div>
   `;
