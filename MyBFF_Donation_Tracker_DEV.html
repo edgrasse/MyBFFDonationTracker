@@ -2492,7 +2492,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.16h-DEV · Jun 30 2026";
+const BUILD_VERSION = "v5.16i-DEV · Jun 30 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3934,8 +3934,8 @@ function showEventDetail(eventName) {
   const actions = document.getElementById("evDetailActions");
   if (actions) {
     actions.innerHTML = isEditor()
-      ? `<button class="btn btn-outline btn-sm" onclick="openEditEventModal('${esc(eventName)}')">✏️ Edit Event</button>`
-        + (isAdmin() ? `<button class="btn btn-danger btn-sm" onclick="deleteEvent('${esc(eventName)}')">Delete</button>` : "")
+      ? `<button class="btn btn-outline btn-sm" onclick='openEditEventModal(${JSON.stringify(eventName)})'>✏️ Edit Event</button>`
+        + (isAdmin() ? `<button class="btn btn-danger btn-sm" onclick='deleteEvent(${JSON.stringify(eventName)})'>Delete</button>` : "")
       : "";
   }
   document.getElementById("evDetailTitle").textContent = ev.name;
@@ -4253,7 +4253,7 @@ function renderEventsPage() {
       : null;
     const timeStr = ev.event_time ? " · " + formatTime12(ev.event_time) : "";
     return `
-      <div class="event-card" onclick="showEventDetail('${esc(ev.name)}')">
+      <div class="event-card" onclick='showEventDetail(${JSON.stringify(ev.name)})'>
         <div class="event-card-header">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
             <span class="event-badge ${eventClass(ev.name)}" style="font-size:13px;font-weight:700">${esc(ev.name)}</span>
