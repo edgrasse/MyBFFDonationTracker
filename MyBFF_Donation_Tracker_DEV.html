@@ -439,7 +439,8 @@ if ('serviceWorker' in navigator) {
           <button id="asBtnMarketing" onclick="showPageNav('marketing')" style="display:none;align-items:center;gap:5px;background:#faf5ff;color:#6b21a8;border:1.5px solid #a855f7;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#128227; Marketing <span id="asCountMarketing" style="background:#a855f7;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px" id="dashCards">
+      <!-- First row: main cards for everyone -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-bottom:20px" id="dashCards">
 
         <!-- Events Card -->
         <div class="card" style="border-top:4px solid var(--gold);cursor:pointer" onclick="showPageNav('events')">
@@ -473,6 +474,20 @@ if ('serviceWorker' in navigator) {
             </div>
           </div>
         </div>
+
+        <!-- Team Tasks Card -->
+        <div class="card" style="border-top:4px solid #0ea5e9">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div style="font-weight:700;font-size:16px">⏱ Team Tasks</div>
+            <span style="font-size:12px;color:#0ea5e9;font-weight:600" id="dashTasksSubtitle"></span>
+          </div>
+          <div id="dashTasksCard"><div class="loading"><div class="spinner"></div></div></div>
+        </div>
+
+      </div>
+
+      <!-- Second row: Admin (admin only) + Follow-Ups (full width) -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px" id="dashCards2">
 
         <!-- Admin Card (admin only) -->
         <div class="card admin-only" style="border-top:4px solid var(--red);cursor:pointer;display:none" onclick="showPageNav('admin')">
@@ -2477,7 +2492,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.16g-DEV · Jun 29 2026";
+const BUILD_VERSION = "v5.16h-DEV · Jun 30 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3494,6 +3509,7 @@ function renderDashboard() {
   // ── Follow-Ups card ──────────────────────────────────────
   renderDashboardFollowUps();
   renderDashboardAdminCard();
+  renderDashboardTasksCard();
   renderDashboardMarketingCard();
   updateActionSummary();
 }
@@ -3587,6 +3603,100 @@ function renderDashboardFollowUps() {
         ${grantFollowUps.length > 5 ? `<div style="font-size:12px;color:var(--gray);margin-top:6px;cursor:pointer" onclick="showPageNav('grants')">+${grantFollowUps.length-5} more → View Grants</div>` : ""}
       </div>` : ""}
     </div>`;
+}
+
+function renderDashboardTasksCard() {
+  const container = document.getElementById("dashTasksCard");
+  const subtitle  = document.getElementById("dashTasksSubtitle");
+  if (!container) return;
+
+  const today = new Date().toISOString().split("T")[0];
+
+  // Build per-user task summaries across all users
+  const userSummaries = APP_USERS.map(u => {
+    const name = u.displayName;
+    const open = ALL_TASKS.filter(t => {
+      const assignees = (t.assigned_to || "").split(",").map(a => a.trim());
+      return assignees.includes(name) && !["Done","N/A"].includes(t.status);
+    });
+    const done = ALL_TASKS.filter(t => {
+      const assignees = (t.assigned_to || "").split(",").map(a => a.trim());
+      return assignees.includes(name) && (t.status === "Done" || t.status === "N/A");
+    });
+    const overdue = open.filter(t => t.due_date && t.due_date < today);
+    return { name, open, done, overdue };
+  }).filter(u => u.open.length > 0 || u.done.length > 0)
+    .sort((a, b) => b.open.length - a.open.length);
+
+  const totalOpen = userSummaries.reduce((n, u) => n + u.open.length, 0);
+  if (subtitle) subtitle.textContent = `${totalOpen} open across team`;
+
+  if (userSummaries.length === 0) {
+    container.innerHTML = `<div style="font-size:13px;color:var(--gray);text-align:center;padding:16px 0">🎉 No open tasks for the team right now.</div>`;
+    return;
+  }
+
+  container.innerHTML = userSummaries.map(u => {
+    const overdueTag = u.overdue.length
+      ? `<span style="font-size:11px;background:#fee2e2;color:#991b1b;border-radius:9999px;padding:1px 7px;font-weight:700">⚠️ ${u.overdue.length} overdue</span>`
+      : "";
+
+    // Open tasks list (collapsed by default if more than 3)
+    const taskItems = u.open.map(t => {
+      const isOverdue = t.due_date && t.due_date < today;
+      const typeTag = t.linked_type
+        ? `<span style="font-size:10px;background:#e0e7ff;color:#3730a3;border-radius:9999px;padding:1px 5px">${esc(t.linked_type)}</span>`
+        : t.event_name
+        ? `<span style="font-size:10px;background:#fef3c7;color:#92400e;border-radius:9999px;padding:1px 5px">Event</span>`
+        : "";
+      const linked = t.linked_name || t.event_name || "";
+      const dueStr = t.due_date
+        ? `<span style="font-size:10px;color:${isOverdue ? "#dc2626" : "#888"}">${fmtDate(t.due_date)}</span>`
+        : "";
+      return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #f3f4f6;flex-wrap:wrap">
+        ${typeTag}
+        <span style="font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.task_name)}">${esc(t.task_name)}</span>
+        ${linked ? `<span style="font-size:10px;color:#888;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(linked)}">${esc(linked)}</span>` : ""}
+        ${dueStr}
+      </div>`;
+    }).join("");
+
+    // Done tasks — shown in collapsed details
+    const doneItems = u.done.slice(0, 10).map(t => {
+      return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;opacity:0.65">
+        <span style="font-size:10px;color:#16a34a;font-weight:700">✓</span>
+        <span style="font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:line-through" title="${esc(t.task_name)}">${esc(t.task_name)}</span>
+        <span style="font-size:10px;color:#888">${fmtDate(t.due_date || t.updated_at?.split("T")[0])}</span>
+      </div>`;
+    }).join("");
+
+    const isMe = u.name === currentUser?.displayName;
+    const nameBadge = isMe
+      ? `<span style="font-size:10px;background:var(--gold);color:white;border-radius:9999px;padding:1px 7px;font-weight:700">You</span>`
+      : "";
+
+    return `
+      <details style="margin-bottom:10px" ${isMe ? "open" : ""}>
+        <summary style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;list-style:none;user-select:none" onclick="void(0)">
+          <div style="width:30px;height:30px;border-radius:50%;background:var(--navy);color:white;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${esc(u.name.charAt(0))}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px">
+              ${esc(u.name)} ${nameBadge}
+            </div>
+            <div style="font-size:11px;color:var(--gray)">${u.open.length} open${u.done.length ? ` · ${u.done.length} done` : ""}${overdueTag ? " · " : ""}${overdueTag}</div>
+          </div>
+          <span style="font-size:20px;color:var(--gray);font-weight:300">›</span>
+        </summary>
+        <div style="padding:6px 0 4px 38px">
+          ${taskItems || `<div style="font-size:12px;color:var(--gray);padding:4px 0">No open tasks.</div>`}
+          ${u.done.length ? `
+            <details style="margin-top:6px">
+              <summary style="font-size:11px;color:var(--gray);cursor:pointer;padding:3px 0">Show ${u.done.length} completed task${u.done.length !== 1 ? "s" : ""}</summary>
+              <div style="padding:4px 0">${doneItems}${u.done.length > 10 ? `<div style="font-size:11px;color:var(--gray);margin-top:4px">+ ${u.done.length-10} more</div>` : ""}</div>
+            </details>` : ""}
+        </div>
+      </details>`;
+  }).join("");
 }
 
 function renderDashboardAdminCard() {
@@ -10573,6 +10683,7 @@ async function markMyTaskDone(taskId) {
     openMyTasksModal(); // refresh the modal
     updateActionSummary();
     renderDashboard();
+    if (document.getElementById("dashTasksCard")) renderDashboardTasksCard();
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
@@ -10677,6 +10788,7 @@ async function saveQuickTask() {
     showToast(`✅ Task assigned to ${assignTo}.`);
     updateActionSummary();
     renderDashboard();
+    if (document.getElementById("dashTasksCard")) renderDashboardTasksCard();
   } catch(e) {
     showToast("Error saving task: " + e.message, "error");
   }
