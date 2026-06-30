@@ -2477,7 +2477,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.16f-DEV · Jun 29 2026";
+const BUILD_VERSION = "v5.16g-DEV · Jun 29 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -10430,6 +10430,26 @@ function filterHelp() {
 // MY TASKS MODAL — unified view of all tasks assigned to me
 // ═══════════════════════════════════════════════════════════
 
+function navigateToMyTaskDonation(linkedId) {
+  console.log("[navigateToMyTaskDonation] called with:", linkedId);
+  closeModal("myTasksModal");
+  showPageNav("donations");
+  setTimeout(() => {
+    console.log("[navigateToMyTaskDonation] setTimeout firing, calling viewDonation");
+    viewDonation(linkedId);
+  }, 150);
+}
+
+function navigateToMyTaskDonationByName(linkedName) {
+  console.log("[navigateToMyTaskDonationByName] called with:", linkedName);
+  closeModal("myTasksModal");
+  showPageNav("donations");
+  setTimeout(() => {
+    console.log("[navigateToMyTaskDonationByName] setTimeout firing, calling viewDonation");
+    viewDonation(linkedName);
+  }, 150);
+}
+
 function openMyTasksModal() {
   const myName = currentUser?.displayName || "";
   const myTasks = ALL_TASKS.filter(t => {
@@ -10470,12 +10490,12 @@ function openMyTasksModal() {
       </button>`;
     } else if (t.linked_type === "Donation" && t.linked_id) {
       navBtn = `<button class="btn btn-outline btn-sm" style="font-size:11px;padding:3px 8px"
-        onclick="console.log('[navBtn] Donation click fired, linked_id=',${JSON.stringify(t.linked_id)});closeModal('myTasksModal');showPageNav('donations');setTimeout(()=>{console.log('[navBtn] setTimeout firing, calling viewDonation');viewDonation(${JSON.stringify(t.linked_id)});},150)">
+        onclick='navigateToMyTaskDonation(${JSON.stringify(t.linked_id)})'>
         → View Donation
       </button>`;
     } else if (t.linked_type === "Donation" && t.linked_name) {
       navBtn = `<button class="btn btn-outline btn-sm" style="font-size:11px;padding:3px 8px"
-        onclick="closeModal('myTasksModal');showPageNav('donations');setTimeout(()=>{const el=document.getElementById('donSearch');if(el){el.value=${JSON.stringify(t.linked_name)};renderDonations();}},80)">
+        onclick='navigateToMyTaskDonationByName(${JSON.stringify(t.linked_name)})'>
         → View Donation
       </button>`;
     } else if (t.linked_type === "Grant") {
