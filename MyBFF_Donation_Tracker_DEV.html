@@ -2477,7 +2477,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.16d-DEV · Jun 29 2026";
+const BUILD_VERSION = "v5.16e-DEV · Jun 29 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -4452,8 +4452,17 @@ function clearDonationFilters() {
 }
 
 function viewDonation(id) {
-  const d = ALL_DONATIONS.find(x => x.id === id);
-  if (!d) return;
+  let d = ALL_DONATIONS.find(x => x.id === id);
+  // Fallback: quick-assign tasks store the organization name as linked_id
+  // since donations are grouped by vendor, not a single record. If no exact
+  // ID match, treat the id as an organization name and find the most recent record.
+  if (!d) {
+    const matches = ALL_DONATIONS.filter(x => x.organization === id);
+    if (matches.length) {
+      d = matches.sort((a, b) => (b.date_requested || "").localeCompare(a.date_requested || ""))[0];
+    }
+  }
+  if (!d) { showToast("Donation record not found — it may have been deleted.", "error"); return; }
   const vend = ALL_VENDORS.find(v => v.name === d.organization);
   const vendHistory = ALL_DONATIONS.filter(x => x.organization === d.organization && x.id !== id);
   document.getElementById("donDetailContent").innerHTML = `
@@ -10524,6 +10533,8 @@ function openMyTasksModal() {
 }
 
 async function markMyTaskDone(taskId) {
+  const t = ALL_TASKS.find(x => x.id === taskId);
+  if (!confirm(`Mark "${t?.task_name || 'this task'}" as done?\n\nOnly confirm if the task is actually complete.`)) return;
   try {
     await sbUpdate("MyBFFTasks", taskId, { status: "Done", updated_at: new Date().toISOString() }, "id");
     const t = ALL_TASKS.find(x => x.id === taskId);
