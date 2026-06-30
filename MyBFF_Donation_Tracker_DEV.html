@@ -2492,7 +2492,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.16i-DEV · Jun 30 2026";
+const BUILD_VERSION = "v5.16j-DEV · Jun 30 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3911,15 +3911,29 @@ function showEvDetailTab(tab) {
 }
 
 function showEventDetail(eventName) {
+  console.log("[showEventDetail] called with:", JSON.stringify(eventName));
+  console.log("[showEventDetail] ALL_EVENTS_DATA names:", ALL_EVENTS_DATA.map(e=>e.name));
   CURRENT_EVENT_VIEW = eventName;
-  document.getElementById("evListView").style.display = "none";
-  document.getElementById("evDetailView").style.display = "";
-  const ev = ALL_EVENTS_DATA.find(e => e.name === eventName) || { name: eventName };
-  renderEventDetailCard(ev);
-  showEvDetailTab("tasks");
-  renderEventDetailTasks();
-  renderEventDetailDonations();
-  renderEventDetailAssets();
+  try {
+    document.getElementById("evListView").style.display = "none";
+    document.getElementById("evDetailView").style.display = "";
+    console.log("[showEventDetail] list hidden, detail shown");
+    const ev = ALL_EVENTS_DATA.find(e => e.name === eventName) || { name: eventName };
+    console.log("[showEventDetail] ev found:", ev ? ev.name : "FALLBACK");
+    renderEventDetailCard(ev);
+    console.log("[showEventDetail] renderEventDetailCard done");
+    showEvDetailTab("tasks");
+    console.log("[showEventDetail] showEvDetailTab done");
+    renderEventDetailTasks();
+    console.log("[showEventDetail] renderEventDetailTasks done");
+    renderEventDetailDonations();
+    console.log("[showEventDetail] renderEventDetailDonations done");
+    renderEventDetailAssets();
+    console.log("[showEventDetail] renderEventDetailAssets done");
+  } catch(err) {
+    console.error("[showEventDetail] CRASHED:", err.message, err.stack);
+    showToast("Error opening event: " + err.message, "error");
+  }
   // Populate donation category filter
   const catFilter = document.getElementById("evDetailDonCatFilter");
   if (catFilter) {
