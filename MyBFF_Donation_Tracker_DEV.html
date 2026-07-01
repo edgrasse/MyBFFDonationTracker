@@ -2492,7 +2492,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.16k-DEV · Jun 30 2026";
+const BUILD_VERSION = "v5.16l-DEV · Jun 30 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3459,21 +3459,21 @@ function renderDashboard() {
       </div>
       ${myEventTasks.length
         ? myEventTasks.slice(0,2).map(t => `
-            <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+            <div onclick="openMyTasksModal()" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background=''">
               <span style="font-size:11px;padding:2px 7px;border-radius:9999px;background:#dbeafe;color:#1d4ed8;font-weight:600">${t.status}</span>
               <span style="font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.task_name)}</span>
               <span style="font-size:11px;color:var(--gray);flex-shrink:0">${esc(t.event_name || "")}</span>
-            </div>`).join("") + (myEventTasks.length > 2 ? `<div style="font-size:12px;color:var(--gray);margin-top:4px">+${myEventTasks.length-2} more</div>` : "")
+            </div>`).join("") + (myEventTasks.length > 2 ? `<div onclick="openMyTasksModal()" style="font-size:12px;color:var(--gold);margin-top:4px;cursor:pointer;font-weight:600">+${myEventTasks.length-2} more → View All</div>` : "")
         : `<div style="font-size:13px;color:var(--gray)">No open event tasks assigned to you</div>`}
       ${myQuickTasks.length ? `
         <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:600;margin:8px 0 4px">Assigned Tasks</div>
         ${myQuickTasks.slice(0,2).map(t => `
-          <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+          <div onclick="openMyTasksModal()" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background=''">
             <span style="font-size:11px;padding:2px 7px;border-radius:9999px;background:#e0e7ff;color:#3730a3;font-weight:600">${esc(t.linked_type||"")}</span>
             <span style="font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.task_name)}</span>
             ${t.linked_name ? `<span style="font-size:11px;color:var(--gray);flex-shrink:0;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.linked_name)}</span>` : ""}
           </div>`).join("")}
-        ${myQuickTasks.length > 2 ? `<div style="font-size:12px;color:var(--gray);margin-top:4px">+${myQuickTasks.length-2} more</div>` : ""}` : ""}
+        ${myQuickTasks.length > 2 ? `<div onclick="openMyTasksModal()" style="font-size:12px;color:var(--gold);margin-top:4px;cursor:pointer;font-weight:600">+${myQuickTasks.length-2} more → View All</div>` : ""}` : ""}
     </div>`;
 
   // ── Donations card ───────────────────────────────────────
@@ -3610,7 +3610,7 @@ function renderDashboardTasksCard() {
   const subtitle  = document.getElementById("dashTasksSubtitle");
   if (!container) return;
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = (d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)(new Date());
 
   // Build per-user task summaries across all users
   const userSummaries = APP_USERS.map(u => {
@@ -5797,7 +5797,7 @@ function renderGrantDashboard() {
   const declined   = reqs.filter(r => r.status === "Declined").length;
   const pending    = reqs.filter(r => ["Submitted","Under Review","Drafting"].includes(r.status)).length;
   const totalAmt   = reqs.filter(r => r.status === "Awarded").reduce((s,r) => s + (parseFloat(r.amount_awarded)||0), 0);
-  const today      = new Date().toISOString().split("T")[0];
+  const today      = (d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)(new Date());
   const reportsDue = reqs.filter(r => r.report_due && r.report_due >= today && r.status === "Awarded").length;
   const renewalDue = reqs.filter(r => r.status === "Up for Renewal").length;
   const soonDeadline = reqs.filter(r => r.deadline && r.deadline >= today && r.deadline <= new Date(Date.now()+14*86400000).toISOString().split("T")[0] && !["Awarded","Declined","Closed"].includes(r.status)).length;
@@ -5888,7 +5888,7 @@ function renderGrantList() {
 }
 
 function grantRequestRow(r, g) {
-  const today = new Date().toISOString().split("T")[0];
+  const today = (d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)(new Date());
   const deadlineSoon = r.deadline && r.deadline >= today && r.deadline <= new Date(Date.now()+14*86400000).toISOString().split("T")[0] && !["Awarded","Declined","Closed"].includes(r.status);
   const reportDue = r.report_due && r.report_due >= today && r.status === "Awarded";
   return `
@@ -7307,7 +7307,7 @@ function renderStatusBoard() {
   const evFilter = (ALL_EVENTS_DATA.length > 0 && document.getElementById("mktgEventFilter")?.value) ? document.getElementById("mktgEventFilter").value : "";
   const chFilter = document.getElementById("mktgChannelFilter")?.value || "";
   const sortOrder = document.getElementById("mktgSortOrder")?.value || "desc";
-  const today = new Date().toISOString().split("T")[0];
+  const today = (d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)(new Date());
   const soon = new Date(Date.now()+3*86400000).toISOString().split("T")[0];
 
   let allItems = [...ALL_CONTENT];
@@ -9147,7 +9147,7 @@ function renderAISettings() {
 
 async function checkCampaignExpiry() {
   if (!AI_CONFIG.campaign_expires) return;
-  const today = new Date().toISOString().split("T")[0];
+  const today = (d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)(new Date());
   if (AI_CONFIG.campaign_expires > today) return;
   // Campaign has expired — clear campaign fields silently
   const cleared = {
@@ -10588,7 +10588,7 @@ function openMyTasksModal() {
 
   const eventTasks = myTasks.filter(t => t.event_name && !t.linked_type);
   const quickTasks = myTasks.filter(t => t.linked_type && (!t.event_name || t.event_name === ""));
-  const today = new Date().toISOString().split("T")[0];
+  const today = (d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)(new Date());
 
   function taskRow(t, isEvent) {
     const overdue = t.due_date && t.due_date < today;
@@ -10868,7 +10868,7 @@ function openMarkUsedModal(contentId) {
   if (!c) return;
   document.getElementById("markUsedContentId").value = contentId;
   // Pre-fill date from post_date if available, else today
-  const defaultDate = c.post_date || new Date().toISOString().split("T")[0];
+  const defaultDate = c.post_date || (d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)(new Date());
   document.getElementById("markUsedDate").value = defaultDate;
   document.getElementById("markUsedTitle").textContent = c.title || "this post";
   openModal("markUsedModal");
