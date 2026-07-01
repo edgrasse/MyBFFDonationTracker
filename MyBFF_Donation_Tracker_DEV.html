@@ -2492,7 +2492,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.16j-DEV · Jun 30 2026";
+const BUILD_VERSION = "v5.16k-DEV · Jun 30 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3948,8 +3948,8 @@ function showEventDetail(eventName) {
   const actions = document.getElementById("evDetailActions");
   if (actions) {
     actions.innerHTML = isEditor()
-      ? `<button class="btn btn-outline btn-sm" onclick='openEditEventModal(${JSON.stringify(eventName)})'>✏️ Edit Event</button>`
-        + (isAdmin() ? `<button class="btn btn-danger btn-sm" onclick='deleteEvent(${JSON.stringify(eventName)})'>Delete</button>` : "")
+      ? `<button class="btn btn-outline btn-sm" onclick="openEditEventModal(this.dataset.ev)" data-ev="${esc(eventName)}">✏️ Edit Event</button>`
+        + (isAdmin() ? `<button class="btn btn-danger btn-sm" onclick="deleteEvent(this.dataset.ev)" data-ev="${esc(eventName)}">Delete</button>` : "")
       : "";
   }
   document.getElementById("evDetailTitle").textContent = ev.name;
@@ -4267,7 +4267,7 @@ function renderEventsPage() {
       : null;
     const timeStr = ev.event_time ? " · " + formatTime12(ev.event_time) : "";
     return `
-      <div class="event-card" onclick='showEventDetail(${JSON.stringify(ev.name)})'>
+      <div class="event-card" data-evname="${esc(ev.name)}" onclick="showEventDetail(this.dataset.evname)">
         <div class="event-card-header">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
             <span class="event-badge ${eventClass(ev.name)}" style="font-size:13px;font-weight:700">${esc(ev.name)}</span>
@@ -5130,8 +5130,8 @@ function renderAdminUsers() {
           <td style="padding:10px 12px;border-bottom:1px solid var(--border);color:var(--gray)">@${esc(u.username)}</td>
           <td style="padding:10px 12px;border-bottom:1px solid var(--border)">${roleBadge(u.role)}</td>
           <td style="padding:10px 12px;border-bottom:1px solid var(--border)">
-            <button class="btn btn-outline btn-sm" onclick='openEditUserModal("${esc(u.username)}")'>Edit</button>
-            ${u.username !== currentUser.username ? `<button class="btn btn-danger btn-sm" style="margin-left:6px" onclick='deleteUser("${esc(u.username)}")'>Remove</button>` : '<span style="font-size:12px;color:var(--gray);margin-left:8px">(you)</span>'}
+            <button class="btn btn-outline btn-sm" data-un="${esc(u.username)}" onclick="openEditUserModal(this.dataset.un)">Edit</button>
+            ${u.username !== currentUser.username ? `<button class="btn btn-danger btn-sm" style="margin-left:6px" data-un="${esc(u.username)}" onclick="deleteUser(this.dataset.un)">Remove</button>` : '<span style="font-size:12px;color:var(--gray);margin-left:8px">(you)</span>'}
           </td>
         </tr>`).join("")}
       </tbody>
@@ -5213,7 +5213,7 @@ function renderEventTypes() {
         <span style="font-size:12px;color:var(--gray)">sort: ${t.sort_order ?? "—"}</span>
       </div>
       <div style="display:flex;gap:6px">
-        <button class="btn btn-outline btn-sm" onclick='openEventTypeModal("${esc(t.id)}","${esc(t.name)}",${t.sort_order??""})'>Edit</button>
+        <button class="btn btn-outline btn-sm" data-tid="${esc(t.id)}" data-tname="${esc(t.name)}" data-tsort="${t.sort_order??''}" onclick="openEventTypeModal(this.dataset.tid,this.dataset.tname,this.dataset.tsort)">Edit</button>
         <button class="btn btn-danger btn-sm" onclick='deleteEventType("${esc(t.id)}")'>✕</button>
       </div>
     </div>`).join("");
@@ -5279,7 +5279,7 @@ function renderDonCats() {
         <span style="font-size:12px;color:var(--gray)">sort: ${c.sort_order ?? "—"}</span>
       </div>
       <div style="display:flex;gap:6px">
-        <button class="btn btn-outline btn-sm" onclick='openDonCatModal("${esc(c.id)}","${esc(c.name)}",${c.sort_order??""})'>Edit</button>
+        <button class="btn btn-outline btn-sm" data-cid="${esc(c.id)}" data-cname="${esc(c.name)}" data-csort="${c.sort_order??''}" onclick="openDonCatModal(this.dataset.cid,this.dataset.cname,this.dataset.csort)">Edit</button>
         <button class="btn btn-danger btn-sm" onclick='deleteDonCat("${esc(c.id)}")'>✕</button>
       </div>
     </div>`).join("");
