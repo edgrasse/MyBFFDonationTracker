@@ -926,12 +926,23 @@ if ('serviceWorker' in navigator) {
           </select>
           <select class="filter-select" id="mktgChannelFilter" onchange="renderStatusBoard()">
             <option value="">All Channels</option>
-            <option>Facebook</option><option>Instagram</option>
-            <option>Email</option><option>Newsletter</option><option>Flyer</option><option>Other</option>
+            <option value="Facebook/Instagram">Facebook/Instagram</option>
+            <option value="Email">Email</option>
+            <option value="Newsletter">Newsletter</option>
+            <option value="Flyer">Flyer</option>
+            <option value="Other">Other</option>
+          </select>
+          <select class="filter-select" id="mktgStatusFilter" onchange="renderStatusBoard()">
+            <option value="">All Statuses</option>
+            <option value="Draft">Draft</option>
+            <option value="In Review">In Review</option>
+            <option value="Needs Changes">Needs Changes</option>
+            <option value="Approved">Approved</option>
+            <option value="Posted">Posted</option>
           </select>
           <select class="filter-select" id="mktgSortOrder" onchange="renderStatusBoard()">
-            <option value="asc">Date ↑ (oldest first)</option>
-            <option value="desc" selected>Date ↓ (newest first)</option>
+            <option value="asc" selected>Date ↑ (soonest first)</option>
+            <option value="desc">Date ↓ (newest first)</option>
             <option value="created">Created date</option>
           </select>
         </div>
@@ -2495,7 +2506,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v6.2-DEV2-Phase2 · Jul 02 2026";
+const BUILD_VERSION = "v6.3-DEV2-Phase3 · Jul 03 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -7139,7 +7150,7 @@ let _assetPickerMode = "link"; // "link" | "photo"
 let _assetPickerFolder = "all";
 
 function openAssetPicker(contentType) {
-  _assetPickerMode = ["Facebook","Instagram","Flyer"].includes(contentType) ? "photo" : "link";
+  _assetPickerMode = ["Facebook/Instagram","Facebook","Instagram","Flyer"].includes(contentType) ? "photo" : "link";
   _assetPickerFolder = "all";
   const hintEl = document.getElementById("assetPickerHint");
   if (hintEl) hintEl.textContent = _assetPickerMode === "photo"
@@ -7401,185 +7412,224 @@ function renderStatusBoard() {
   const container = document.getElementById("mktgStatusBoard");
   if (!container) return;
   const myName = currentUser?.displayName || "";
-  const evFilter = (ALL_EVENTS_DATA.length > 0 && document.getElementById("mktgEventFilter")?.value) ? document.getElementById("mktgEventFilter").value : "";
-  const chFilter = document.getElementById("mktgChannelFilter")?.value || "";
-  const sortOrder = document.getElementById("mktgSortOrder")?.value || "desc";
+  const evFilter  = document.getElementById("mktgEventFilter")?.value  || "";
+  const chFilter  = document.getElementById("mktgChannelFilter")?.value || "";
+  const stFilter  = document.getElementById("mktgStatusFilter")?.value  || "";
+  const sortOrder = document.getElementById("mktgSortOrder")?.value     || "asc";
   const today = (d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)(new Date());
-  const soon = new Date(Date.now()+3*86400000).toISOString().split("T")[0];
+  const soon  = (d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)(new Date(Date.now()+3*86400000));
 
-  let allItems = [...ALL_CONTENT];
-  if (evFilter) allItems = allItems.filter(c => c.event_name === evFilter);
-  if (chFilter) allItems = allItems.filter(c => c.channel === chFilter);
+  // Build item list — exclude Used (lazy-loaded separately)
+  let items = ALL_CONTENT.filter(c => c.status !== "Used");
 
-  // Apply sort
-  allItems.sort((a, b) => {
-    if (sortOrder === "created") {
-      return new Date(b.created_at||0) - new Date(a.created_at||0);
+  // Channel filter — match both "Facebook" and "Facebook/Instagram"
+  if (chFilter) {
+    if (chFilter === "Facebook/Instagram") {
+      items = items.filter(c => c.channel === "Facebook" || c.channel === "Facebook/Instagram" || c.channel === "Instagram");
+    } else {
+      items = items.filter(c => c.channel === chFilter);
     }
-    const da = a.post_date || a.created_at || "";
-    const db = b.post_date || b.created_at || "";
+  }
+  if (evFilter) items = items.filter(c => c.event_name === evFilter);
+  if (stFilter) items = items.filter(c => c.status === stFilter);
+
+  // Sort — soonest post date first by default
+  // Items with no post_date go to the bottom
+  items.sort((a, b) => {
+    if (sortOrder === "created") return new Date(b.created_at||0) - new Date(a.created_at||0);
+    const da = a.post_date || "9999-99-99";
+    const db = b.post_date || "9999-99-99";
     return sortOrder === "asc" ? da.localeCompare(db) : db.localeCompare(da);
   });
 
-  if (!isEditor()) {
-    allItems = allItems.filter(c => {
-      if (c.status === "Approved" || c.status === "Posted") return true;
-      if (c.status === "In Review") return ALL_CONTENT_REVIEWERS.some(r => r.content_id === c.id && r.reviewer === myName);
-      return false;
-    });
+  // Float "Needs Changes" to top for the creator
+  // Float "In Review" to top for the reviewer
+  const floatTop = [];
+  const rest = [];
+  items.forEach(c => {
+    const isMyNeedsChanges = c.status === "Needs Changes" && c.created_by === myName;
+    const isMyReview = c.status === "In Review" &&
+      ALL_CONTENT_REVIEWERS.some(r => r.content_id === c.id && r.reviewer === myName && r.status === "pending");
+    if (isMyNeedsChanges || isMyReview) floatTop.push(c);
+    else rest.push(c);
+  });
+  const sortedItems = [...floatTop, ...rest];
+
+  if (!sortedItems.length && !stFilter) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:40px;color:var(--gray)">
+        No content yet. Go to <strong>Create Content</strong> to add the first piece.
+      </div>
+      <details id="sbUsedSection" style="margin-top:16px">
+        <summary style="font-size:14px;font-weight:700;color:var(--gray);cursor:pointer;padding:10px 14px;background:#f9fafb;border-radius:8px;border:1px solid var(--border)"
+          onclick="loadAndRenderUsedContent()">✓ Used — click to expand</summary>
+        <div id="sbUsedContent" style="padding-top:8px"><div style="font-size:13px;color:var(--gray);padding:12px 4px">Click to load used posts…</div></div>
+      </details>`;
+    return;
   }
 
-  const sections = [
-    { key:"attention", label:"🔴 Needs Your Attention",
-      items: allItems.filter(c => {
-        if (c.status === "In Review") {
-          const r = ALL_CONTENT_REVIEWERS.find(x => x.content_id === c.id && x.reviewer === myName);
-          return r && r.status === "pending";
-        }
-        return c.status === "Needs Changes" && c.created_by === myName;
-      })},
-    { key:"review",   label:"🔵 In Review",             items: allItems.filter(c => c.status === "In Review") },
-    { key:"changes",  label:"🟡 Needs Changes",          items: allItems.filter(c => c.status === "Needs Changes") },
-    { key:"approved", label:"🟢 Approved — Ready to Post", items: allItems.filter(c => c.status === "Approved") },
-    { key:"draft",    label:"⚪ Drafts",                 items: allItems.filter(c => c.status === "Draft") },
-    { key:"posted",   label:"🟣 Posted",                 items: allItems.filter(c => c.status === "Posted") },
-  ];
+  if (!sortedItems.length && stFilter) {
+    container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--gray)">No ${stFilter} posts found.</div>`;
+    return;
+  }
 
-  // Used items are loaded lazily — filter them out of main sections
-  allItems = allItems.filter(c => c.status !== "Used");
+  const cards = sortedItems.map(c => {
+    const soonTag = c.post_date && c.post_date <= soon && c.status !== "Posted"
+      ? `<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600">📅 Soon</span>` : "";
+    return contentCard(c, soonTag);
+  }).join("");
 
-  const draftItems = allItems.filter(c => c.status === "Draft");
-  const bulkBar = draftItems.length > 0 ? `
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px">
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer">
-        <input type="checkbox" id="sbSelectAll" onchange="toggleSelectAllDrafts(this.checked)" style="width:15px;height:15px;accent-color:var(--gold)">
-        Select All Drafts (${draftItems.length})
-      </label>
-      <button class="btn btn-gold btn-sm" onclick="bulkSubmitForReview()" style="margin-left:auto">Submit Selected for Review</button>
-    </div>` : "";
-
-  // Filtering hint
-  const filterHint = _activeSectionFilter
-    ? `<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:8px 12px;background:#f0f4ff;border-radius:8px;font-size:13px">
-        <span>Showing: <strong>${sections.find(s=>s.key===_activeSectionFilter)?.label||""}</strong></span>
-        <button class="btn btn-sm btn-outline" onclick="_activeSectionFilter=null;renderStatusBoard()" style="margin-left:auto">✕ Show All</button>
-       </div>` : "";
-
-  const visibleSections = _activeSectionFilter
-    ? sections.filter(s => s.key === _activeSectionFilter)
-    : sections;
-
-  container.innerHTML = filterHint + bulkBar + (visibleSections.map(sec => {
-    if (!sec.items.length && sec.key !== "attention" && !_activeSectionFilter) return "";
-    const isActive = _activeSectionFilter === sec.key;
-    const headerBg = isActive ? "var(--navy)" : "var(--gray-light)";
-    const headerColor = isActive ? "white" : "inherit";
-    const badgeBg = isActive ? "white" : "var(--navy)";
-    const badgeColor = isActive ? "var(--navy)" : "white";
-    return `
-      <div style="margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${headerBg};color:${headerColor};border-radius:8px;cursor:pointer;transition:background 0.15s"
-             onclick="toggleSection('sb-${sec.key}')" title="${_activeSectionFilter===sec.key?'Click to show all':'Click to focus this section'}">
-          <span style="font-weight:700;font-size:14px;flex:1">${sec.label}</span>
-          <span style="background:${badgeBg};color:${badgeColor};border-radius:9999px;font-size:11px;font-weight:700;padding:1px 8px">${sec.items.length}</span>
-          ${!_activeSectionFilter ? `<span style="font-size:11px;opacity:0.6">click to focus</span>` : ""}
-        </div>
-        <div style="padding-top:8px">
-          ${sec.items.length
-            ? sec.items.map(c => {
-                const overdueTag = c.review_deadline && c.review_deadline < today && c.status==="In Review"
-                  ? `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600">⚠️ Review overdue</span>` : "";
-                const soonTag = c.post_date && c.post_date <= soon && c.status !== "Posted"
-                  ? `<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600">📅 Post date soon</span>` : "";
-                return contentCard(c, overdueTag + soonTag);
-              }).join("")
-            : `<div style="font-size:13px;color:var(--gray);padding:12px 4px">Nothing here yet.</div>`}
-        </div>
-      </div>`;
-  }).join("")) + `
+  container.innerHTML = `
+    <div style="font-size:12px;color:var(--gray);margin-bottom:10px">${sortedItems.length} post${sortedItems.length!==1?"s":""} — sorted by post date</div>
+    ${floatTop.length ? `<div style="background:#fff8e1;border:1.5px solid #f59e0b;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;font-weight:600;color:#92400e">⚡ ${floatTop.length} item${floatTop.length!==1?"s":""} need${floatTop.length===1?"s":""} your attention — shown at top</div>` : ""}
+    ${cards}
     <details id="sbUsedSection" style="margin-top:16px">
       <summary style="font-size:14px;font-weight:700;color:var(--gray);cursor:pointer;padding:10px 14px;background:#f9fafb;border-radius:8px;border:1px solid var(--border)"
-        onclick="loadAndRenderUsedContent()">
-        ✓ Used — click to expand
-      </summary>
-      <div id="sbUsedContent" style="padding-top:8px">
-        <div style="font-size:13px;color:var(--gray);padding:12px 4px">Click to load used posts…</div>
-      </div>
-    </details>` || `<div style="text-align:center;padding:40px;color:var(--gray)">No content yet. Go to <strong>Create Content</strong> to add the first piece.</div>`;
+        onclick="loadAndRenderUsedContent()">✓ Used — click to expand</summary>
+      <div id="sbUsedContent" style="padding-top:8px"><div style="font-size:13px;color:var(--gray);padding:12px 4px">Click to load used posts…</div></div>
+    </details>`;
 }
 
-let _activeSectionFilter = null; // null = show all, else = section key
-
-function toggleSection(id) {
-  const key = id.replace("sb-","");
-  if (_activeSectionFilter === key) {
-    // Already filtered to this — click again to show all
-    _activeSectionFilter = null;
-  } else {
-    _activeSectionFilter = key;
-  }
-  renderStatusBoard();
-}
+let _activeSectionFilter = null; // kept for backward compat, unused in new board
 
 // ── CONTENT CARD ──────────────────────────────────────────────
 function contentCard(c, extraBadges = "") {
-  const comments = ALL_CONTENT_COMMENTS.filter(x => x.content_id === c.id);
-  const summary = getReviewerSummary(c.id);
-  const myStatus = getMyReviewStatus(c.id);
-  const snippet = (c.content_text||"").substring(0,120);
-  const myName = currentUser?.displayName || "";
+  const comments  = ALL_CONTENT_COMMENTS.filter(x => x.content_id === c.id);
+  const summary   = getReviewerSummary(c.id);
+  const myName    = currentUser?.displayName || "";
   const isAssigned = ALL_CONTENT_REVIEWERS.some(r => r.content_id === c.id && r.reviewer === myName);
+  const myStatus  = getMyReviewStatus(c.id);
+
+  // Status badge — prominent, color-coded
+  const statusColors = {
+    "Draft":         ["#f3f4f6","#374151","⚪"],
+    "In Review":     ["#dbeafe","#1d4ed8","🔵"],
+    "Needs Changes": ["#fee2e2","#991b1b","🔴"],
+    "Approved":      ["#d1fae5","#065f46","🟢"],
+    "Posted":        ["#ede9fe","#5b21b6","🟣"],
+  };
+  const [sbg, sfg, sicon] = statusColors[c.status] || ["#f3f4f6","#374151","⚪"];
+  const statusBadge = `<span style="background:${sbg};color:${sfg};font-size:13px;font-weight:700;padding:4px 12px;border-radius:20px;white-space:nowrap">${sicon} ${c.status}</span>`;
+
+  // Channel display
+  const channelDisplay = c.channel === "Facebook" || c.channel === "Instagram" || c.channel === "Facebook/Instagram"
+    ? "Facebook/Instagram" : c.channel;
+
+  // Preview content — channel-specific format
+  const isSocial = channelDisplay === "Facebook/Instagram";
+  const isEmail  = c.channel === "Email";
+  let preview = "";
+
+  if (isSocial) {
+    // Social post preview — looks like a feed post
+    const postText = c.content_text || "";
+    const displayText = postText.length > 200 ? postText.substring(0,200) + "…" : postText;
+    preview = `
+      <div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:white;margin:10px 0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div style="width:36px;height:36px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <span style="color:var(--gold);font-weight:700;font-size:14px">M</span>
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:13px">My Best Friends Foundation</div>
+            <div style="font-size:11px;color:#888">${c.post_date ? fmtDate(c.post_date) : "Scheduled"}</div>
+          </div>
+        </div>
+        <div style="font-size:13px;line-height:1.6;white-space:pre-wrap;color:#1c1e21">${esc(displayText)}</div>
+        ${c.photo_url ? `<img src="${esc(c.photo_url)}" style="width:100%;max-height:180px;border-radius:8px;margin-top:8px;object-fit:cover">` : ""}
+      </div>`;
+  } else if (isEmail) {
+    // Email preview
+    const lines = (c.content_text||"").split("\n");
+    const subjectLine = lines.find(l => l.startsWith("SUBJECT:"))?.replace("SUBJECT:","").trim() || c.title || "";
+    const body = lines.filter(l => !l.startsWith("SUBJECT:")).join("\n").trim();
+    const bodySnippet = body.length > 160 ? body.substring(0,160) + "…" : body;
+    preview = `
+      <div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:white;margin:10px 0;font-family:Arial,sans-serif">
+        <div style="border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:8px">
+          <div style="font-size:11px;color:#888">From: My Best Friends Foundation &lt;info@mybff.org&gt;</div>
+          <div style="font-weight:700;font-size:14px;margin-top:4px">${esc(subjectLine)}</div>
+        </div>
+        <div style="font-size:13px;color:#333;line-height:1.6">${esc(bodySnippet)}</div>
+      </div>`;
+  } else {
+    // Other types — simple text preview
+    const snippet = (c.content_text||"").substring(0,160);
+    preview = snippet ? `<div style="font-size:13px;color:var(--gray);line-height:1.5;margin:8px 0">${esc(snippet)}${(c.content_text?.length||0)>160?"…":""}</div>` : "";
+  }
+
+  // My review status tag
   const myReviewTag = c.status === "In Review" && isAssigned
     ? myStatus === "pending"
       ? `<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">⏳ Awaiting your review</span>`
-    : myStatus === "approved"
+      : myStatus === "approved"
       ? `<span style="background:#d1fae5;color:#065f46;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">✅ You approved</span>`
       : `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">↩️ You requested changes</span>`
     : "";
+
+  // Needs changes badge for creator
+  const needsChangesTag = c.status === "Needs Changes" && c.created_by === myName
+    ? `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">🔴 Changes requested</span>`
+    : "";
+
   return `
     <div class="card" id="cc-${esc(c.id)}" style="margin-bottom:14px;position:relative">
-      ${c.status === "Draft" ? `<input type="checkbox" class="sb-draft-check" data-id="${esc(c.id)}"
-        style="position:absolute;top:14px;right:14px;width:16px;height:16px;accent-color:var(--gold);cursor:pointer;z-index:2"
-        onclick="event.stopPropagation()">` : ""}
       <div style="cursor:pointer" onclick="showContentDetail('${esc(c.id)}')">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding-right:${c.status==="Draft"?"28px":"0"}">
+        <!-- Header row: title + status badge -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px">
           <div>
-            <div style="font-weight:700;font-size:15px;margin-bottom:6px">${esc(c.title||"Untitled")}</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-              ${ctChannelBadge(c.channel)} ${ctStatusBadge(c.status)}
-              ${c.event_name ? `<span style="font-size:12px;color:var(--gray)">${esc(c.event_name)}</span>` : ""}
+            <div style="font-weight:700;font-size:15px">${esc(c.title||"Untitled")}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px">
+              <span style="font-size:12px;color:var(--gray);font-weight:600">${esc(channelDisplay)}</span>
+              ${c.event_name ? `<span style="font-size:12px;color:var(--gray)">· ${esc(c.event_name)}</span>` : ""}
+              ${c.post_date ? `<span style="font-size:12px;color:var(--gray)">· 📅 ${c.post_date}</span>` : `<span style="font-size:12px;color:#f59e0b">· No date set</span>`}
             </div>
           </div>
-          <div style="font-size:12px;color:var(--gray);text-align:right;flex-shrink:0">
-            <div>v${c.version||1} · by ${esc(c.created_by||"")}</div>
-            ${summary.total > 0 ? `<div style="margin-top:2px">
+          <div style="flex-shrink:0;text-align:right">
+            ${statusBadge}
+            ${summary.total > 0 ? `<div style="font-size:11px;color:var(--gray);margin-top:4px">
               ${summary.approved>0?`<span style="color:#065f46">✅${summary.approved}</span> `:""}
               ${summary.changes>0?`<span style="color:#991b1b">↩️${summary.changes}</span> `:""}
               ${summary.pending>0?`<span style="color:#92400e">⏳${summary.pending}</span>`:""}
             </div>` : ""}
           </div>
         </div>
-        ${(myReviewTag||extraBadges) ? `<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap">${myReviewTag}${extraBadges}</div>` : ""}
-        ${c.photo_url ? `<img src="${esc(c.photo_url)}" style="max-width:100%;max-height:100px;border-radius:6px;margin-bottom:8px;object-fit:cover">` : ""}
-        ${snippet ? `<div style="font-size:13px;color:var(--gray);line-height:1.5">${esc(snippet)}${(c.content_text?.length||0)>120?"…":""}</div>` : ""}
-        ${c.file_link ? `<div style="margin-top:8px"><a href="${esc(c.file_link)}" target="_blank" onclick="event.stopPropagation()" style="font-size:13px">📎 View File</a></div>` : ""}
-        <div style="margin-top:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--gray)">
-          <span>💬 ${comments.length} comment${comments.length!==1?"s":""}</span>
-          ${c.review_deadline?`<span>🔍 Review by ${c.review_deadline}</span>`:""}
-          ${c.post_date?`<span>📅 Post ${c.post_date}</span>`:""}
+
+        <!-- Tags row -->
+        ${(myReviewTag || needsChangesTag || extraBadges) ? `<div style="margin-bottom:6px;display:flex;gap:6px;flex-wrap:wrap">${myReviewTag}${needsChangesTag}${extraBadges}</div>` : ""}
+
+        <!-- Preview -->
+        ${preview}
+
+        <!-- Meta -->
+        <div style="margin-top:6px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--gray)">
+          <span>by ${esc(c.created_by||"")}</span>
+          <span>💬 ${comments.length}</span>
+          ${c.file_link ? `<a href="${esc(c.file_link)}" target="_blank" onclick="event.stopPropagation()" style="color:var(--navy)">📎 Link</a>` : ""}
         </div>
       </div>
+
+      <!-- Action buttons -->
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();copyContentText('${esc(c.id)}')" title="Copy post text to clipboard">📋 Copy Text</button>
-        ${c.channel === "Email" ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();copyContentSubject('${esc(c.id)}')" title="Copy subject line">📋 Copy Subject</button>` : ""}
-        ${c.status === "Draft" && isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openInlineEdit('${esc(c.id)}')">✏️ Quick Edit</button>` : ""}
-        ${(c.status === "Draft" || c.status === "In Review") && isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openRegenModal('${esc(c.id)}')">🔄 Regenerate</button>` : ""}
-        ${c.status === "Draft" && isEditor() ? `<button class="btn btn-gold btn-sm" onclick="event.stopPropagation();submitForReview('${esc(c.id)}')">Submit for Review</button>` : ""}
-        ${(c.status === "Approved" || c.status === "Posted" || c.status === "In Review" || c.status === "Draft") && isEditor() ? `<button class="btn btn-sm" style="background:#e0f2fe;color:#0369a1;border:1px solid #7dd3fc" onclick="event.stopPropagation();openMarkUsedModal('${esc(c.id)}')">✓ Mark Used</button>` : ""}
-        ${isEditor() ? `<button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5" onclick="event.stopPropagation();deleteContentRecord('${esc(c.id)}')">🗑 Delete</button>` : ""}
+        <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();copyContentText('${esc(c.id)}')" title="Copy post text">📋 Copy</button>
+        ${c.channel === "Email" ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();copyContentSubject('${esc(c.id)}')">📋 Subject</button>` : ""}
+        ${isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openInlineEdit('${esc(c.id)}')">✏️ Edit</button>` : ""}
+        ${(c.status === "Draft" || c.status === "In Review" || c.status === "Needs Changes") && isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openRegenModal('${esc(c.id)}')">🔄 Regenerate</button>` : ""}
+        ${(c.status === "Draft" || c.status === "Needs Changes") && isEditor() ? `<button class="btn btn-gold btn-sm" onclick="event.stopPropagation();submitForReview('${esc(c.id)}')">Send for Review</button>` : ""}
+        ${isEditor() ? `<button class="btn btn-sm" style="background:#e0f2fe;color:#0369a1;border:1px solid #7dd3fc" onclick="event.stopPropagation();openMarkUsedModal('${esc(c.id)}')">✓ Mark Used</button>` : ""}
+        ${isEditor() ? `<button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5" onclick="event.stopPropagation();deleteContentRecord('${esc(c.id)}')">🗑</button>` : ""}
       </div>
+
+      <!-- Inline edit area -->
       <div id="inline-edit-${esc(c.id)}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-        <textarea class="form-textarea" id="inline-text-${esc(c.id)}" style="min-height:120px;font-size:13px">${esc(c.content_text||"")}</textarea>
+        ${c.channel === "Email" ? `
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px">Subject Line</div>
+          <input type="text" class="form-input" id="inline-subject-${esc(c.id)}" style="margin-bottom:8px;font-size:13px"
+            value="${esc((c.content_text||"").match(/^SUBJECT:\s*(.+?)(\n|$)/i)?.[1]?.trim()||c.title||"")}">
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px">Body</div>` : ""}
+        <textarea class="form-textarea" id="inline-text-${esc(c.id)}" style="min-height:120px;font-size:13px">${esc(c.channel === "Email"
+          ? (c.content_text||"").replace(/^SUBJECT:[^\n]*\n?/i,"").trim()
+          : c.content_text||"")}</textarea>
         <div style="display:flex;gap:8px;margin-top:8px">
           <button class="btn btn-gold btn-sm" onclick="event.stopPropagation();saveInlineEdit('${esc(c.id)}')">Save</button>
           <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();closeInlineEdit('${esc(c.id)}')">Cancel</button>
@@ -7587,6 +7637,7 @@ function contentCard(c, extraBadges = "") {
       </div>
     </div>`;
 }
+
 
 async function offerAddPhotoToAssetLibrary(url, name) {
   const folder = prompt(`Save to which Asset Library folder?\n\nOptions: Social Media Photos, Brand, Events, General\n\nType folder name:`, "Social Media Photos");
@@ -7723,15 +7774,19 @@ function closeInlineEdit(contentId) {
 async function saveInlineEdit(contentId) {
   const ta = document.getElementById("inline-text-" + contentId);
   if (!ta) return;
-  const newText = ta.value.trim();
+  const c = ALL_CONTENT.find(x => x.id === contentId);
+  let newText = ta.value.trim();
+  // For Email, prepend subject line if separate subject field exists
+  const subjectEl = document.getElementById("inline-subject-" + contentId);
+  if (subjectEl && subjectEl.value.trim()) {
+    newText = `SUBJECT: ${subjectEl.value.trim()}\n\n${newText}`;
+  }
   try {
     await sbUpdate("MyBFFContent", contentId, { content_text: newText, updated_at: new Date().toISOString() }, "id");
     const idx = ALL_CONTENT.findIndex(x => x.id === contentId);
     if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], content_text: newText };
     closeInlineEdit(contentId);
-    // Update the snippet on the card without full re-render
-    const snippet = document.querySelector(`#cc-${contentId} div[style*="font-size:13px;color:var(--gray)"]`);
-    if (snippet) snippet.textContent = newText.substring(0, 120) + (newText.length > 120 ? "…" : "");
+    renderStatusBoard(); // re-render to update preview
     showToast("Saved.");
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
@@ -7956,20 +8011,28 @@ function renderCreatePanel() {
     container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--gray)">Content creation is available to Editors and Admins.</div>`;
     return;
   }
+  const types = [
+    { key: "Facebook/Instagram", label: "Social Post", sub: "Facebook/Instagram", icon: "📱" },
+    { key: "Email",              label: "Email",        sub: "Newsletter/Blast",   icon: "✉️" },
+    { key: "Newsletter",         label: "Newsletter",   sub: "Monthly issue",      icon: "📰" },
+    { key: "Flyer",              label: "Flyer",        sub: "Event/promo",        icon: "📄" },
+    { key: "Other",              label: "Other",        sub: "General content",    icon: "📌" },
+  ];
   container.innerHTML = `
     <div class="card" style="max-width:700px;margin:0 auto">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px">
         <div style="font-weight:700;font-size:16px">New Content</div>
-        ${isContributor() ? `<button class="btn btn-outline btn-sm" onclick="if(typeof openAISequenceModal==='function')openAISequenceModal()">&#128197; Generate Monthly Schedule</button>` : ''}
+        ${isContributor() ? `<button class="btn btn-outline btn-sm" onclick="if(typeof openAISequenceModal==='function')openAISequenceModal()">📅 Generate Monthly Schedule</button>` : ""}
       </div>
-      <div style="font-size:13px;color:var(--gray);margin-bottom:20px">Select a content type to see the right creation form.</div>
+      <div style="font-size:13px;color:var(--gray);margin-bottom:20px">Select a content type to get started.</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:24px" id="ctTypeGrid">
-        ${["Facebook","Instagram","Email","Newsletter","Flyer","Other"].map(t => `
-          <button onclick="selectContentType('${t}')" class="btn btn-outline"
-            style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"
-            id="ctTypeBtn-${t}">
-            <span style="font-size:24px">${{"Facebook":"👍","Instagram":"📸","Email":"✉️","Newsletter":"📰","Flyer":"📄","Other":"📌"}[t]}</span>
-            ${t}
+        ${types.map(t => `
+          <button data-type="${esc(t.key)}" onclick="selectContentType(this.dataset.type)" class="btn btn-outline"
+            style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:13px;font-weight:600"
+            id="ctTypeBtn-${esc(t.key)}">
+            <span style="font-size:28px">${t.icon}</span>
+            <span>${t.label}</span>
+            <span style="font-size:10px;color:var(--gray);font-weight:400">${t.sub}</span>
           </button>`).join("")}
       </div>
       <div id="ctTypeForm" style="display:none"></div>
@@ -7977,11 +8040,11 @@ function renderCreatePanel() {
 }
 
 function selectContentType(type) {
-  // Highlight selected type
-  ["Facebook","Instagram","Email","Newsletter","Flyer","Other"].forEach(t => {
-    const btn = document.getElementById("ctTypeBtn-" + t);
-    if (btn) btn.style.background = t === type ? "var(--gold)" : "";
-    if (btn) btn.style.color = t === type ? "white" : "";
+  document.querySelectorAll("#ctTypeGrid button").forEach(btn => {
+    const isSelected = btn.dataset.type === type;
+    btn.style.background = isSelected ? "var(--navy)" : "";
+    btn.style.color = isSelected ? "white" : "";
+    btn.querySelector("span:last-child").style.color = isSelected ? "rgba(255,255,255,0.7)" : "";
   });
   const form = document.getElementById("ctTypeForm");
   if (!form) return;
@@ -8027,11 +8090,31 @@ function buildContentTypeForm(type) {
     </div>`;
 
   const typeFields = {
-    Facebook: `
+    "Facebook/Instagram": `
       <div class="form-group" style="grid-column:1/-1">
         <label class="form-label">What should this post be about? <span class="req">*</span></label>
         <textarea class="form-input form-textarea" id="ctNewText" rows="4"
           placeholder="Describe what you want to say — the AI will write the post from this. e.g. Promote the Walk/Run on August 8 at Judson University. Emphasize all paces welcome, virtual option available."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <select class="form-input" id="ctNewEvent">${evOpts}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Link / URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — uploads immediately</span></label>
+        <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px" onchange="handleSimplePhotoUpload(this)">
+        <div id="ctPhotoStatus" style="font-size:12px;color:var(--gray);margin-top:4px"></div>
+        <input type="hidden" id="ctPhotoUrl" value="">
+      </div>`,
+    Facebook: `
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">What should this post be about? <span class="req">*</span></label>
+        <textarea class="form-input form-textarea" id="ctNewText" rows="4"
+          placeholder="Describe what you want to say — the AI will write the post from this."></textarea>
       </div>
       <div class="form-group">
         <label class="form-label">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
@@ -8178,7 +8261,7 @@ function buildContentTypeForm(type) {
   };
 
   // For Facebook and Email, Generate Draft is the primary action — show it prominently at top
-  const isAIFirst = ["Facebook", "Email"].includes(type);
+  const isAIFirst = ["Facebook/Instagram", "Facebook", "Email"].includes(type);
   const aiFirstBanner = isAIFirst ? `
     <div style="background:var(--navy);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
       <div>
@@ -11473,380 +11556,6 @@ async function acceptRegenDraft() {
 // v5.15 — AI CONTENT CREATION MODULE (Claude Code)
 // ═══════════════════════════════════════════════════════════
 
-const AI_CONTENT_HTML = `
-
-<!-- ═══════════════════════════════════════
-     MODAL: AI Single Post Generator
-     ═══════════════════════════════════════ -->
-<div id="aiGenerateModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAIGenerateModal()">
-  <div class="modal" style="max-width:600px;width:100%;max-height:90vh;overflow-y:auto;">
-    <div class="modal-header">
-      <span class="modal-title">✨ AI Draft Generator</span>
-      <button class="modal-close" onclick="closeAIGenerateModal()" aria-label="Close">&times;</button>
-    </div>
-    <div style="padding:1.5rem;">
-
-      <p id="aiGenContentTypeLabel" style="font-size:.85rem;color:var(--navy);font-weight:600;margin:0 0 1rem;text-transform:uppercase;letter-spacing:.05em;"></p>
-
-      <div class="form-group">
-        <label class="form-label" for="aiGenEvent">Event / Campaign</label>
-        <input id="aiGenEvent" class="form-input" type="text" placeholder="e.g. 2026 Walk/Run, Volunteer Appreciation Week" />
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="aiGenTalkingPoints">Talking Points <span style="font-weight:400;color:#666;">(what to include)</span></label>
-        <textarea id="aiGenTalkingPoints" class="form-textarea" rows="3" placeholder="Key facts, stats, names, moments, goals…"></textarea>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="aiGenExclude">Exclude <span style="font-weight:400;color:#666;">(what to leave out)</span></label>
-        <input id="aiGenExclude" class="form-input" type="text" placeholder="e.g. pricing details, specific sponsor names" />
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="aiGenTone">Tone Override</label>
-        <select id="aiGenTone" class="form-input">
-          <option value="standard">Standard MyBFF Voice</option>
-          <option value="urgent">More Urgent</option>
-          <option value="celebratory">More Celebratory</option>
-          <option value="emotional">More Emotional</option>
-          <option value="informational">More Informational</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="aiGenLength">Length Preference</label>
-        <input id="aiGenLength" class="form-input" type="text" readonly style="background:var(--cream);color:#555;" />
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="aiGenKeyDates">Key Dates</label>
-        <input id="aiGenKeyDates" class="form-input" type="text" placeholder="Event date, registration deadline, etc." />
-      </div>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:1.25rem;gap:1rem;flex-wrap:wrap;">
-        <span id="aiGenRegenCount" style="font-size:.8rem;color:#666;">0 of 3 regenerations used</span>
-        <button id="aiGenSubmitBtn" class="btn btn-gold" onclick="generateContentDraft()">Generate Draft</button>
-      </div>
-
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════
-     POPUP: AI Draft Result
-     ═══════════════════════════════════════ -->
-<div id="aiDraftPopup" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAIDraftPopup()">
-  <div class="modal" style="max-width:640px;width:100%;max-height:90vh;overflow-y:auto;">
-    <div class="modal-header">
-      <span class="modal-title">✨ Generated Draft</span>
-      <button class="modal-close" onclick="closeAIDraftPopup()" aria-label="Close">&times;</button>
-    </div>
-    <div style="padding:1.5rem;">
-
-      <div id="aiDraftEmailSubjectRow" style="display:none;" class="form-group">
-        <label class="form-label">Generated Subject Line</label>
-        <input id="aiDraftSubjectField" class="form-input" type="text" />
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Generated Draft</label>
-        <div id="aiDraftHighlighted" style="background:var(--cream);border:1px solid var(--border);border-radius:6px;padding:.75rem;font-size:.9rem;line-height:1.6;min-height:100px;margin-bottom:.5rem;white-space:pre-wrap;word-break:break-word;"></div>
-        <textarea id="aiDraftTextarea" class="form-textarea" rows="8" style="font-size:.875rem;line-height:1.6;"></textarea>
-      </div>
-
-      <div id="aiDraftPlaceholderWarning" style="display:none;background:#fff8e1;border:1px solid #f0c040;border-radius:6px;padding:.65rem .9rem;font-size:.82rem;color:#7a5a00;margin-bottom:1rem;">
-        ⚠ This draft contains <strong id="aiDraftPlaceholderCount">0</strong> placeholder(s). Fill them in before publishing.
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="aiDraftFeedback">Notes for Regeneration <span style="font-weight:400;color:#666;">(optional)</span></label>
-        <input id="aiDraftFeedback" class="form-input" type="text" placeholder="e.g. Make it shorter, add urgency around the deadline…" />
-      </div>
-
-      <div id="aiDraftRegenMaxMsg" style="display:none;font-size:.82rem;color:var(--red);margin-bottom:.75rem;">
-        Maximum regenerations reached. Edit the draft above or start over.
-      </div>
-
-      <!-- Reviewer selection — shown above Accept button -->
-      <div id="aiDraftReviewerSection" style="margin:12px 0;padding:12px 14px;background:#f9fafb;border:1.5px solid var(--border);border-radius:8px">
-        <div style="font-weight:600;font-size:13px;margin-bottom:8px">Select Reviewers</div>
-        <div id="aiDraftReviewerChecks" style="display:flex;flex-direction:column;gap:4px;max-height:100px;overflow-y:auto"></div>
-      </div>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-top:.5rem;">
-        <button class="btn" style="color:var(--navy);background:none;padding:0;text-decoration:underline;font-size:.85rem;" onclick="startOverAIGenerate()">Start Over</button>
-        <div style="display:flex;gap:.75rem;align-items:center;">
-          <span id="aiDraftRegenCountDisplay" style="font-size:.8rem;color:#666;"></span>
-          <button id="aiDraftRegenBtn" class="btn btn-outline" onclick="regenerateContentDraft()">Regenerate</button>
-          <button class="btn btn-gold" onclick="acceptContentDraft()">Accept &amp; Save to Review</button>
-        </div>
-      </div>
-
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════
-     MODAL: Monthly Sequence Generator
-     ═══════════════════════════════════════ -->
-<div id="aiSequenceModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAISequenceModal()">
-  <div class="modal" style="max-width:700px;width:100%;max-height:92vh;overflow-y:auto;">
-    <div class="modal-header">
-      <span class="modal-title">📅 Generate Monthly Post Schedule</span>
-      <button class="modal-close" onclick="closeAISequenceModal()" aria-label="Close">&times;</button>
-    </div>
-    <div style="padding:1.5rem;">
-
-      <div style="display:flex;gap:1rem;flex-wrap:wrap;">
-        <div class="form-group" style="flex:1;min-width:140px;">
-          <label class="form-label" for="aiSeqMonth">Month</label>
-          <select id="aiSeqMonth" class="form-input"></select>
-        </div>
-        <div class="form-group" style="flex:1;min-width:100px;">
-          <label class="form-label" for="aiSeqYear">Year</label>
-          <input id="aiSeqYear" class="form-input" type="number" min="2024" max="2035" />
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="aiSeqFocus">Monthly Focus</label>
-        <input id="aiSeqFocus" class="form-input" type="text" placeholder="e.g. Cancer Survivors Month, Walk/Run Promotion, Volunteer Appreciation" />
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Posting Schedule</label>
-        <div style="display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;margin-top:.25rem;">
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
-            <input type="checkbox" id="aiSeqMon" checked /> Mon
-          </label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
-            <input type="checkbox" id="aiSeqTue" /> Tue
-          </label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
-            <input type="checkbox" id="aiSeqWed" checked /> Wed
-          </label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
-            <input type="checkbox" id="aiSeqThu" checked /> Thu
-          </label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
-            <input type="checkbox" id="aiSeqFri" /> Fri
-          </label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
-            <input type="checkbox" id="aiSeqSat" /> Sat
-          </label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
-            <input type="checkbox" id="aiSeqSun" /> Sun
-          </label>
-        </div>
-      </div>
-
-      <!-- Post Ideas from queue -->
-      <div class="form-group" id="aiSeqIdeasSection" style="display:none">
-        <label class="form-label">Post Ideas to Include <span style="font-weight:400;font-size:11px;color:var(--gray)">from your idea queue — check which ones to weave in</span></label>
-        <div id="aiSeqIdeasList" style="border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:#f9fafb;max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
-      </div>
-
-      <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
-        <button id="aiSeqGenerateBtn" class="btn btn-gold" onclick="generateMonthlySequence()">Generate Schedule</button>
-      </div>
-
-      <!-- Results area -->
-      <div id="aiSeqResults" style="display:none;margin-top:1.5rem;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem;">
-          <strong style="font-size:.9rem;color:var(--navy);">Proposed Schedule</strong>
-          <button id="aiSeqAcceptAllBtn" class="btn btn-gold btn-sm" onclick="acceptAllSequencePosts()">Accept All to Drafts</button>
-        </div>
-        <div id="aiSeqPostList" style="display:flex;flex-direction:column;gap:.75rem;"></div>
-      </div>
-
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════
-     MODAL: Newsletter Generator
-     ═══════════════════════════════════════ -->
-<div id="aiNewsletterModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAINewsletterModal()">
-  <div class="modal" style="max-width:720px;width:100%;max-height:92vh;overflow-y:auto;">
-    <div class="modal-header">
-      <span class="modal-title">📰 Generate Newsletter</span>
-      <button class="modal-close" onclick="closeAINewsletterModal()" aria-label="Close">&times;</button>
-    </div>
-    <div style="padding:1.5rem;">
-
-      <!-- Step indicator -->
-      <div id="aiNLStepIndicator" style="display:flex;gap:0;margin-bottom:1.5rem;">
-        <div class="ai-nl-step active" data-step="1" style="flex:1;text-align:center;padding:.4rem;font-size:.78rem;font-weight:600;border-bottom:2px solid var(--gold);color:var(--gold);">1 · Intake</div>
-        <div class="ai-nl-step" data-step="2" style="flex:1;text-align:center;padding:.4rem;font-size:.78rem;font-weight:600;border-bottom:2px solid var(--border);color:#999;">2 · Sections</div>
-        <div class="ai-nl-step" data-step="3" style="flex:1;text-align:center;padding:.4rem;font-size:.78rem;font-weight:600;border-bottom:2px solid var(--border);color:#999;">3 · Full Draft</div>
-      </div>
-
-      <!-- Step 1: Intake -->
-      <div id="aiNLStep1" style="display:block;">
-        <div style="display:flex;gap:1rem;flex-wrap:wrap;">
-          <div class="form-group" style="flex:1;min-width:140px;">
-            <label class="form-label" for="aiNLMonth">Issue Month</label>
-            <select id="aiNLMonth" class="form-input"></select>
-          </div>
-          <div class="form-group" style="flex:1;min-width:100px;">
-            <label class="form-label" for="aiNLYear">Year</label>
-            <input id="aiNLYear" class="form-input" type="number" min="2024" max="2035" />
-          </div>
-          <div class="form-group" style="flex:1;min-width:80px;">
-            <label class="form-label">Volume</label>
-            <input id="aiNLVolume" class="form-input" type="number" min="1" max="99" />
-          </div>
-          <div class="form-group" style="flex:1;min-width:80px;">
-            <label class="form-label">Issue #</label>
-            <input id="aiNLIssue" class="form-input" type="number" min="1" max="12" />
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Q&amp;A — Select from Queue</label>
-          <select id="aiNLQASelect" class="form-input" onchange="loadQAFromQueue(this.value)" style="margin-bottom:8px">
-            <option value="">— Select from Newsletter Queue —</option>
-          </select>
-          <div id="aiNLQAPreview" style="display:none;font-size:12px;color:var(--gray);margin-bottom:8px;padding:8px;background:#f9fafb;border-radius:6px;border:1px solid var(--border)"></div>
-          <div id="aiNLQAPairsSelect" style="display:none;margin-bottom:8px"></div>
-          <p style="font-size:.8rem;color:#666;margin:.15rem 0 .5rem;">Or paste/upload Q&amp;A text directly:</p>
-          <textarea id="aiNLQAText" class="form-textarea" rows="4" placeholder="Paste Q&A transcript here (or select from queue above)…"></textarea>
-          <div style="margin-top:.5rem;display:flex;align-items:center;gap:.75rem;">
-            <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0;">
-              Upload File
-              <input type="file" id="aiNLQAFile" accept=".txt,.doc,.docx" style="display:none;" onchange="handleNLQAFileUpload(event)" />
-            </label>
-            <span id="aiNLQAFileName" style="font-size:.8rem;color:#666;"></span>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Cancer Awareness Article — Select from Queue</label>
-          <select id="aiNLArticleSelect" class="form-input" onchange="loadArticleFromQueue(this.value)" style="margin-bottom:8px">
-            <option value="">— Select from Article Bank —</option>
-          </select>
-          <label class="form-label" style="margin-top:8px" for="aiNLArticleURL">Or enter article URL directly</label>
-          <input id="aiNLArticleURL" class="form-input" type="url" placeholder="https://…" />
-          <p style="font-size:.78rem;color:#666;margin:.25rem 0 0;">Claude will fetch and summarize this article.</p>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Upcoming Events <span style="font-weight:400;color:#666;">(confirm which to include)</span></label>
-          <div id="aiNLEventChecklist" style="display:flex;flex-direction:column;gap:.4rem;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:.65rem;background:var(--cream);"></div>
-        </div>
-
-        <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
-          <button class="btn btn-gold" onclick="startNewsletterGeneration()">Generate Section by Section →</button>
-        </div>
-      </div>
-
-      <!-- Step 2: Section review -->
-      <div id="aiNLStep2" style="display:none;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
-          <span id="aiNLSectionStatus" style="font-size:.85rem;color:#555;font-weight:600;">0 of 3 sections approved</span>
-          <button id="aiNLFullDraftBtn" class="btn btn-gold" onclick="generateFullNewsletter()" disabled style="opacity:.5;cursor:not-allowed;">Generate Full Newsletter →</button>
-        </div>
-
-        <!-- Section 1: Q&A -->
-        <div class="card" style="margin-bottom:1rem;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
-            <strong style="font-size:.875rem;color:var(--navy);">Section 1 — Q&amp;A with a Friend</strong>
-            <div style="display:flex;gap:.5rem;align-items:center;">
-              <span id="aiNLSec1Status" style="font-size:.78rem;padding:.2rem .55rem;border-radius:12px;background:#eee;color:#555;">Pending</span>
-              <button class="btn btn-outline btn-sm" onclick="generateNewsletterSection('qa')" id="aiNLSec1GenBtn">Generate</button>
-              <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('qa')" id="aiNLSec1AcceptBtn" disabled>Approve</button>
-            </div>
-          </div>
-          <textarea id="aiNLSec1Text" class="form-textarea" rows="14" placeholder="Generated Q&A will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
-        </div>
-
-        <!-- Section 2: Article summary -->
-        <div class="card" style="margin-bottom:1rem;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
-            <strong style="font-size:.875rem;color:var(--navy);">Section 2 — Cancer Awareness Article Summary</strong>
-            <div style="display:flex;gap:.5rem;align-items:center;">
-              <span id="aiNLSec2Status" style="font-size:.78rem;padding:.2rem .55rem;border-radius:12px;background:#eee;color:#555;">Pending</span>
-              <button class="btn btn-outline btn-sm" onclick="generateNewsletterSection('article')" id="aiNLSec2GenBtn">Generate</button>
-              <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('article')" id="aiNLSec2AcceptBtn" disabled>Approve</button>
-            </div>
-          </div>
-          <textarea id="aiNLSec2Text" class="form-textarea" rows="10" placeholder="Generated article summary will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
-        </div>
-
-        <!-- Section 3: Events calendar -->
-        <div class="card" style="margin-bottom:1rem;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
-            <strong style="font-size:.875rem;color:var(--navy);">Section 3 — Upcoming Events Calendar</strong>
-            <div style="display:flex;gap:.5rem;align-items:center;">
-              <span id="aiNLSec3Status" style="font-size:.78rem;padding:.2rem .55rem;border-radius:12px;background:#eee;color:#555;">Pending</span>
-              <button class="btn btn-outline btn-sm" onclick="generateNewsletterSection('events')" id="aiNLSec3GenBtn">Generate</button>
-              <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('events')" id="aiNLSec3AcceptBtn" disabled>Approve</button>
-            </div>
-          </div>
-          <textarea id="aiNLSec3Text" class="form-textarea" rows="8" placeholder="Generated events list will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
-        </div>
-      </div>
-
-      <!-- Step 3: Three copy blocks for Canva -->
-      <div id="aiNLStep3" style="display:none;">
-        <div style="background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#92400e">
-          &#128203; <strong>Ready to paste into Canva.</strong> Copy each block into the corresponding section. Text is formatted with bold questions and Open Sans 10pt styling notes below each block.
-        </div>
-
-        <!-- Block 1: Q&A -->
-        <div class="card" style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
-            <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9312; LEFT COLUMN — Q&amp;A WITH A FRIEND</div>
-            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock1')">&#128203; Copy Text</button>
-          </div>
-          <div id="nlBlock1Stats" style="font-size:11px;color:var(--gray);margin-bottom:6px"></div>
-          <div id="nlBlock1Warning" style="display:none;font-size:12px;color:#dc2626;background:#fef2f2;padding:6px 10px;border-radius:6px;margin-bottom:8px"></div>
-          <textarea id="aiNLBlock1" class="form-textarea" rows="14"
-            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
-            placeholder="Q&A block will appear here…"
-            oninput="updateNLBlockStats('aiNLBlock1','nlBlock1Stats','nlBlock1Warning',225,1300)"></textarea>
-          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Questions are BOLD, answers are regular text. Font: Open Sans 10pt, black, left-justified.</div>
-        </div>
-
-        <!-- Block 2: Article -->
-        <div class="card" style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
-            <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9313; RIGHT COLUMN — CANCER NEWS</div>
-            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock2')">&#128203; Copy Text</button>
-          </div>
-          <div id="nlBlock2Stats" style="font-size:11px;color:var(--gray);margin-bottom:6px"></div>
-          <div id="nlBlock2Warning" style="display:none;font-size:12px;color:#dc2626;background:#fef2f2;padding:6px 10px;border-radius:6px;margin-bottom:8px"></div>
-          <textarea id="aiNLBlock2" class="form-textarea" rows="12"
-            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
-            placeholder="Article summary will appear here…"
-            oninput="updateNLBlockStats('aiNLBlock2','nlBlock2Stats','nlBlock2Warning',200,1200)"></textarea>
-          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Title is BOLD, body text is regular. Font: Open Sans 10pt, black, left-justified.</div>
-        </div>
-
-        <!-- Block 3: Events -->
-        <div class="card" style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
-            <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9314; BOTTOM STRIP — UPCOMING EVENTS</div>
-            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock3')">&#128203; Copy Text</button>
-          </div>
-          <textarea id="aiNLBlock3" class="form-textarea" rows="6"
-            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
-            placeholder="Events list will appear here…"></textarea>
-          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Event name is BOLD, date is regular text. Font: Open Sans 10pt, black, left-justified. No times listed.</div>
-        </div>
-
-        <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:8px">
-          <button class="btn btn-outline" onclick="saveNewsletterAsDraft()">Save as Draft Record</button>
-        </div>
-      </div>
-
-    </div>
-  </div>
-</div>
-
-`;
-
 let _aiGen = {
   contentType: null,       // e.g. "Facebook", "Email"
   regenCount: 0,
@@ -11873,10 +11582,7 @@ let _aiNL = {
 // ─── Inject HTML into DOM (called once on page load) ──────────────────────────
 
 function initAIContentModule() {
-  if (document.getElementById('aiGenerateModal')) return; // already injected
-  const container = document.createElement('div');
-  container.innerHTML = AI_CONTENT_HTML;
-  document.getElementById('appShell').appendChild(container);
+  // AI modal HTML is now part of the main HTML — just initialize state
   _populateMonthSelects();
   _initSequenceDefaults();
 }
@@ -11977,8 +11683,8 @@ function openAIGenerateModal(contentType) {
   _aiGen.lastSubject = '';
 
   // Label
-  document.getElementById('aiGenContentTypeLabel').textContent =
-    `Generating: ${contentType} Post`;
+  const typeLabel = contentType === 'Facebook/Instagram' ? 'Social Post (Facebook/Instagram)' : `${contentType} Post`;
+  document.getElementById('aiGenContentTypeLabel').textContent = `Generating: ${typeLabel}`;
 
   // Length hint
   const lenHint = _LENGTH_HINTS[contentType] || _LENGTH_HINTS['default'];
@@ -12003,18 +11709,12 @@ function openAIGenerateModal(contentType) {
   document.getElementById('aiGenKeyDates').value = '';
   document.getElementById('aiGenRegenCount').textContent = '0 of 3 regenerations used';
 
-  document.getElementById('aiGenerateModal').style.display = 'flex';
+  openModal('aiGenerateModal');
 }
 
-function closeAIGenerateModal() {
-  const m = document.getElementById('aiGenerateModal');
-  if (m) m.style.display = 'none';
-}
+function closeAIGenerateModal() { closeModal('aiGenerateModal'); }
 
-function closeAIDraftPopup() {
-  const p = document.getElementById('aiDraftPopup');
-  if (p) p.style.display = 'none';
-}
+function closeAIDraftPopup() { closeModal('aiDraftPopup'); }
 
 function startOverAIGenerate() {
   closeAIDraftPopup();
@@ -12022,7 +11722,7 @@ function startOverAIGenerate() {
   _aiGen.lastDraft = '';
   _aiGen.lastSubject = '';
   document.getElementById('aiGenRegenCount').textContent = '0 of 3 regenerations used';
-  document.getElementById('aiGenerateModal').style.display = 'flex';
+  openModal('aiGenerateModal');
 }
 
 async function generateContentDraft() {
@@ -12167,7 +11867,7 @@ function _showDraftPopup(bodyText, subjectText) {
   // Populate reviewer checkboxes for Facebook/Email direct-save flow
   const revSection = document.getElementById('aiDraftReviewerSection');
   const revChecks  = document.getElementById('aiDraftReviewerChecks');
-  const isAIFirst  = ['Facebook','Email'].includes(_aiGen.contentType);
+  const isAIFirst  = ['Facebook','Facebook/Instagram','Instagram','Email'].includes(_aiGen.contentType);
   if (revSection) revSection.style.display = isAIFirst ? '' : 'none';
   if (revChecks && isAIFirst) {
     revChecks.innerHTML = APP_USERS.map(u => `
@@ -12177,7 +11877,7 @@ function _showDraftPopup(bodyText, subjectText) {
       </label>`).join('');
   }
 
-  document.getElementById('aiDraftPopup').style.display = 'flex';
+  openModal('aiDraftPopup');
 
   // Sync textarea edits to highlighted view live
   ta.oninput = () => {
@@ -12196,84 +11896,53 @@ async function acceptContentDraft() {
   const draftText = document.getElementById('aiDraftTextarea').value.trim();
   const subject   = document.getElementById('aiDraftSubjectField')?.value.trim() || '';
   const type      = _aiGen.contentType;
-
   if (!draftText) { showToast('No draft text to save.', 'error'); return; }
 
-  // For Facebook/Email — save directly to Supabase as In Review
-  if (['Facebook','Email'].includes(type)) {
-    const isAIFirst = true;
-    const topic  = document.getElementById('ctNewText')?.value.trim() || draftText.substring(0, 60);
-    const link   = document.getElementById('ctNewFileLink')?.value.trim() || null;
-    const event  = document.getElementById('ctNewEvent')?.value || null;
+  const aiFirstTypes = ['Facebook','Facebook/Instagram','Instagram','Email'];
+  if (aiFirstTypes.includes(type)) {
+    const topic    = document.getElementById('ctNewText')?.value.trim() || '';
+    const link     = document.getElementById('ctNewFileLink')?.value.trim() || null;
+    const event    = document.getElementById('ctNewEvent')?.value || null;
     const photoUrl = document.getElementById('ctPhotoUrl')?.value || null;
-
-    // Build content text
+    const channel  = (type==='Facebook'||type==='Instagram') ? 'Facebook/Instagram' : type;
     let contentText = draftText;
-    if (type === 'Email' && subject) {
-      contentText = `SUBJECT: ${subject}\n\n${draftText}`;
+    if (channel === 'Email' && subject) contentText = `SUBJECT: ${subject}\n\n${draftText}`;
+    let title = '';
+    if (channel === 'Email' && subject) {
+      title = subject.substring(0,80);
+    } else {
+      const fs = draftText.match(/^([^.!?\n]{10,60})[.!?\n]/)?.[1] || draftText.substring(0,60);
+      title = fs.trim() + (fs.length < draftText.length ? '…' : '');
     }
-
-    // Get selected reviewers from popup checkboxes
-    const checkedRevs = Array.from(
-      document.querySelectorAll('#aiDraftReviewerChecks input:checked')
-    ).map(c => c.value);
-
+    const titleFieldVal = document.getElementById('aiDraftTitleField')?.value.trim();
+    if (titleFieldVal) title = titleFieldVal;
+    const checkedRevs = Array.from(document.querySelectorAll('#aiDraftReviewerChecks input:checked')).map(c=>c.value);
     const now = new Date().toISOString();
-    const title = type === 'Email' && subject
-      ? subject.substring(0, 80)
-      : (topic.substring(0, 60) + (topic.length > 60 ? '…' : ''));
-
     const row = {
-      id: genId(),
-      channel: type,
-      title: title || `${type} Post`,
-      content_text: contentText,
-      file_link: link,
-      event_name: event,
-      photo_url: photoUrl,
+      id: genId(), channel, title: title||`${channel} Post`, content_text: contentText,
+      file_link: link, event_name: event, photo_url: photoUrl,
       status: checkedRevs.length > 0 ? 'In Review' : 'Draft',
-      reviewers: checkedRevs.join(', '),
-      version: 1,
-      created_by: currentUser?.displayName || '',
-      created_at: now,
-      updated_at: now,
-      ai_generated: true,
+      reviewers: checkedRevs.join(', '), version: 1,
+      created_by: currentUser?.displayName||'', created_at: now, updated_at: now, ai_generated: true,
     };
-
     try {
       await sbInsert('MyBFFContent', row);
       ALL_CONTENT.unshift(row);
-      // Add reviewer records
       for (const rev of checkedRevs) {
         const rRow = { id: genId(), content_id: row.id, reviewer: rev, status: 'pending', reviewed_at: null };
         try { await sbInsert('MyBFFContentReviewers', rRow); ALL_CONTENT_REVIEWERS.push(rRow); } catch(e) {}
       }
-      closeAIDraftPopup();
-      closeAIGenerateModal();
-      showToast(checkedRevs.length > 0 ? '✅ Sent to review!' : '✅ Saved as draft!');
-      showMktgTab('status');
-      renderStatusBoard();
-    } catch(e) {
-      showToast('Error saving: ' + e.message, 'error');
-    }
+      closeModal('aiDraftPopup'); closeModal('aiGenerateModal');
+      showToast(checkedRevs.length > 0 ? '✅ Sent for review!' : '✅ Saved as Draft!');
+      renderDashboardMarketingCard();
+      showMktgTab('status'); renderStatusBoard();
+    } catch(e) { showToast('Error saving: ' + e.message, 'error'); }
     return;
   }
-
-  // For other types — original behavior: populate the form fields
-  if (type === 'Email') {
-    const subEl  = document.getElementById('ctNewSubject');
-    const bodyEl = document.getElementById('ctNewBody');
-    if (subEl && subject) subEl.value = subject;
-    if (bodyEl) bodyEl.value = draftText;
-  } else if (type === 'Newsletter') {
-    const bodyEl = document.getElementById('ctNewBody');
-    if (bodyEl) bodyEl.value = draftText;
-  } else {
-    const textEl = document.getElementById('ctNewText');
-    if (textEl) textEl.value = draftText;
-  }
-  closeAIDraftPopup();
-  closeAIGenerateModal();
+  // Newsletter/Flyer/Other — populate form
+  if (type==='Newsletter') { const b=document.getElementById('ctNewBody'); if(b) b.value=draftText; }
+  else { const t=document.getElementById('ctNewText'); if(t) t.value=draftText; }
+  closeModal('aiDraftPopup'); closeModal('aiGenerateModal');
   showToast('Draft accepted and populated in the form.');
 }
 
@@ -12362,7 +12031,8 @@ function buildGenerationPrompt(contentType, formData, brandBrain) {
   // 4. CONTENT-TYPE SPECIFIC INSTRUCTIONS
   lines.push('');
   lines.push('=== CONTENT TYPE INSTRUCTIONS ===');
-  if (contentType === 'Facebook') {
+  const isSocial = contentType === 'Facebook' || contentType === 'Facebook/Instagram' || contentType === 'Instagram';
+  if (isSocial) {
     lines.push('FACEBOOK BEST PRACTICES:');
     lines.push('- Hook in the first 1-2 lines — Facebook truncates after ~125 characters before "See More". Lead with emotion or a specific detail that makes people stop scrolling.');
     lines.push('- Optimal length: 40-80 words for engagement posts, up to 150 for event announcements.');
@@ -12371,13 +12041,7 @@ function buildGenerationPrompt(contentType, formData, brandBrain) {
     lines.push('- Open with a person, moment, or specific detail — not an org announcement.');
     lines.push('- Avoid exclamation points doing emotional labor. Confidence over hype.');
     lines.push('- End with hashtags on their own line: always #MakeTodayCount #MyBFF + 2-4 contextual.');
-  } else if (contentType === 'Instagram') {
-    lines.push('INSTAGRAM BEST PRACTICES:');
-    lines.push('- First 3 words determine the scroll-stop. Never start with "We" or the org name.');
-    lines.push('- Optimal length: 40-60 words for the caption before hashtags.');
-    lines.push('- Use line breaks between short paragraphs for visual breathing room.');
-    lines.push('- Hashtags on their own line at the end. 5-10 targeted hashtags.');
-    lines.push('- Strong hook → brief context → CTA → hashtags.');
+    lines.push('- This post will be shared to both Facebook AND Instagram simultaneously.');
   } else if (contentType === 'Email') {
     lines.push('Subject line first on its own line labeled SUBJECT:. Then body. Professional but warm. Mission-driven without being heavy. Open with the most important information.');
   } else if (contentType === 'Flyer') {
@@ -12476,13 +12140,10 @@ function openAISequenceModal() {
         </label>`).join('');
   }
 
-  document.getElementById('aiSequenceModal').style.display = 'flex';
+  openModal('aiSequenceModal');
 }
 
-function closeAISequenceModal() {
-  const m = document.getElementById('aiSequenceModal');
-  if (m) m.style.display = 'none';
-}
+function closeAISequenceModal() { closeModal('aiSequenceModal'); }
 
 async function generateMonthlySequence() {
   const month = parseInt(document.getElementById('aiSeqMonth').value, 10);
@@ -12667,7 +12328,7 @@ async function acceptAllSequencePosts() {
   for (const post of toSave) {
     const record = {
       id:             genId(),
-      channel:        'Facebook',
+      channel:        'Facebook/Instagram',
       title:          `${post.date} — ${post.type}`,
       content_text:   post.draft || post.preview || '',
       status:         'Draft',
@@ -12699,7 +12360,8 @@ async function acceptAllSequencePosts() {
     } catch(e) { console.warn('Failed to mark idea used:', id); }
   }
   if (btn) { btn.disabled = false; btn.textContent = 'Accept All to Drafts'; }
-  closeAISequenceModal();
+  closeModal('aiSequenceModal');
+  renderDashboardMarketingCard();
   if (typeof renderStatusBoard === 'function') renderStatusBoard();
 }
 
@@ -12854,13 +12516,10 @@ function openAINewsletterModal() {
   }
 
   _buildNLEventChecklist();
-  document.getElementById('aiNewsletterModal').style.display = 'flex';
+  openModal('aiNewsletterModal');
 }
 
-function closeAINewsletterModal() {
-  const m = document.getElementById('aiNewsletterModal');
-  if (m) m.style.display = 'none';
-}
+function closeAINewsletterModal() { closeModal('aiNewsletterModal'); }
 
 function _nlGoToStep(step) {
   [1,2,3].forEach(s => {
@@ -13190,5 +12849,378 @@ if (document.readyState === 'loading') {
 
 
 </script>
+
+<!-- ═══ AI CONTENT MODALS (moved from JS template) ═══ -->
+
+<!-- ═══════════════════════════════════════
+     MODAL: AI Single Post Generator
+     ═══════════════════════════════════════ -->
+<div id="aiGenerateModal" class="modal-overlay" onclick="if(event.target===this)closeModal('aiGenerateModal')">
+  <div class="modal" style="max-width:600px;width:100%;max-height:90vh;overflow-y:auto;">
+    <div class="modal-header">
+      <span class="modal-title">✨ AI Draft Generator</span>
+      <button class="modal-close" onclick="closeModal('aiGenerateModal')" aria-label="Close">&times;</button>
+    </div>
+    <div style="padding:1.5rem;">
+
+      <p id="aiGenContentTypeLabel" style="font-size:.85rem;color:var(--navy);font-weight:600;margin:0 0 1rem;text-transform:uppercase;letter-spacing:.05em;"></p>
+
+      <div class="form-group">
+        <label class="form-label" for="aiGenEvent">Event / Campaign</label>
+        <input id="aiGenEvent" class="form-input" type="text" placeholder="e.g. 2026 Walk/Run, Volunteer Appreciation Week" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="aiGenTalkingPoints">Talking Points <span style="font-weight:400;color:#666;">(what to include)</span></label>
+        <textarea id="aiGenTalkingPoints" class="form-textarea" rows="3" placeholder="Key facts, stats, names, moments, goals…"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="aiGenExclude">Exclude <span style="font-weight:400;color:#666;">(what to leave out)</span></label>
+        <input id="aiGenExclude" class="form-input" type="text" placeholder="e.g. pricing details, specific sponsor names" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="aiGenTone">Tone Override</label>
+        <select id="aiGenTone" class="form-input">
+          <option value="standard">Standard MyBFF Voice</option>
+          <option value="urgent">More Urgent</option>
+          <option value="celebratory">More Celebratory</option>
+          <option value="emotional">More Emotional</option>
+          <option value="informational">More Informational</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="aiGenLength">Length Preference</label>
+        <input id="aiGenLength" class="form-input" type="text" readonly style="background:var(--cream);color:#555;" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="aiGenKeyDates">Key Dates</label>
+        <input id="aiGenKeyDates" class="form-input" type="text" placeholder="Event date, registration deadline, etc." />
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:1.25rem;gap:1rem;flex-wrap:wrap;">
+        <span id="aiGenRegenCount" style="font-size:.8rem;color:#666;">0 of 3 regenerations used</span>
+        <button id="aiGenSubmitBtn" class="btn btn-gold" onclick="generateContentDraft()">Generate Draft</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     POPUP: AI Draft Result
+     ═══════════════════════════════════════ -->
+<div id="aiDraftPopup" class="modal-overlay" onclick="if(event.target===this)closeModal('aiDraftPopup')">
+  <div class="modal" style="max-width:640px;width:100%;max-height:90vh;overflow-y:auto;">
+    <div class="modal-header">
+      <span class="modal-title">✨ Generated Draft</span>
+      <button class="modal-close" onclick="closeModal('aiDraftPopup')" aria-label="Close">&times;</button>
+    </div>
+    <div style="padding:1.5rem;">
+
+      <div id="aiDraftEmailSubjectRow" style="display:none;" class="form-group">
+        <label class="form-label">Generated Subject Line</label>
+        <input id="aiDraftSubjectField" class="form-input" type="text" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Generated Draft</label>
+        <div id="aiDraftHighlighted" style="background:var(--cream);border:1px solid var(--border);border-radius:6px;padding:.75rem;font-size:.9rem;line-height:1.6;min-height:100px;margin-bottom:.5rem;white-space:pre-wrap;word-break:break-word;"></div>
+        <textarea id="aiDraftTextarea" class="form-textarea" rows="8" style="font-size:.875rem;line-height:1.6;"></textarea>
+      </div>
+
+      <div id="aiDraftPlaceholderWarning" style="display:none;background:#fff8e1;border:1px solid #f0c040;border-radius:6px;padding:.65rem .9rem;font-size:.82rem;color:#7a5a00;margin-bottom:1rem;">
+        ⚠ This draft contains <strong id="aiDraftPlaceholderCount">0</strong> placeholder(s). Fill them in before publishing.
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="aiDraftFeedback">Notes for Regeneration <span style="font-weight:400;color:#666;">(optional)</span></label>
+        <input id="aiDraftFeedback" class="form-input" type="text" placeholder="e.g. Make it shorter, add urgency around the deadline…" />
+      </div>
+
+      <div id="aiDraftRegenMaxMsg" style="display:none;font-size:.82rem;color:var(--red);margin-bottom:.75rem;">
+        Maximum regenerations reached. Edit the draft above or start over.
+      </div>
+
+      <!-- Reviewer selection — shown above Accept button -->
+      <div id="aiDraftReviewerSection" style="margin:12px 0;padding:12px 14px;background:#f9fafb;border:1.5px solid var(--border);border-radius:8px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px">Select Reviewers</div>
+        <div id="aiDraftReviewerChecks" style="display:flex;flex-direction:column;gap:4px;max-height:100px;overflow-y:auto"></div>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-top:.5rem;">
+        <button class="btn" style="color:var(--navy);background:none;padding:0;text-decoration:underline;font-size:.85rem;" onclick="startOverAIGenerate()">Start Over</button>
+        <div style="display:flex;gap:.75rem;align-items:center;">
+          <span id="aiDraftRegenCountDisplay" style="font-size:.8rem;color:#666;"></span>
+          <button id="aiDraftRegenBtn" class="btn btn-outline" onclick="regenerateContentDraft()">Regenerate</button>
+          <button class="btn btn-gold" onclick="acceptContentDraft()">Accept &amp; Save to Review</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     MODAL: Monthly Sequence Generator
+     ═══════════════════════════════════════ -->
+<div id="aiSequenceModal" class="modal-overlay" onclick="if(event.target===this)closeModal('aiSequenceModal')">
+  <div class="modal" style="max-width:700px;width:100%;max-height:92vh;overflow-y:auto;">
+    <div class="modal-header">
+      <span class="modal-title">📅 Generate Monthly Post Schedule</span>
+      <button class="modal-close" onclick="closeModal('aiSequenceModal')" aria-label="Close">&times;</button>
+    </div>
+    <div style="padding:1.5rem;">
+
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+        <div class="form-group" style="flex:1;min-width:140px;">
+          <label class="form-label" for="aiSeqMonth">Month</label>
+          <select id="aiSeqMonth" class="form-input"></select>
+        </div>
+        <div class="form-group" style="flex:1;min-width:100px;">
+          <label class="form-label" for="aiSeqYear">Year</label>
+          <input id="aiSeqYear" class="form-input" type="number" min="2024" max="2035" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="aiSeqFocus">Monthly Focus</label>
+        <input id="aiSeqFocus" class="form-input" type="text" placeholder="e.g. Cancer Survivors Month, Walk/Run Promotion, Volunteer Appreciation" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Posting Schedule</label>
+        <div style="display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;margin-top:.25rem;">
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
+            <input type="checkbox" id="aiSeqMon" checked /> Mon
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
+            <input type="checkbox" id="aiSeqTue" /> Tue
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
+            <input type="checkbox" id="aiSeqWed" checked /> Wed
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
+            <input type="checkbox" id="aiSeqThu" checked /> Thu
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
+            <input type="checkbox" id="aiSeqFri" /> Fri
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
+            <input type="checkbox" id="aiSeqSat" /> Sat
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
+            <input type="checkbox" id="aiSeqSun" /> Sun
+          </label>
+        </div>
+      </div>
+
+      <!-- Post Ideas from queue -->
+      <div class="form-group" id="aiSeqIdeasSection" style="display:none">
+        <label class="form-label">Post Ideas to Include <span style="font-weight:400;font-size:11px;color:var(--gray)">from your idea queue — check which ones to weave in</span></label>
+        <div id="aiSeqIdeasList" style="border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:#f9fafb;max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
+        <button id="aiSeqGenerateBtn" class="btn btn-gold" onclick="generateMonthlySequence()">Generate Schedule</button>
+      </div>
+
+      <!-- Results area -->
+      <div id="aiSeqResults" style="display:none;margin-top:1.5rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem;">
+          <strong style="font-size:.9rem;color:var(--navy);">Proposed Schedule</strong>
+          <button id="aiSeqAcceptAllBtn" class="btn btn-gold btn-sm" onclick="acceptAllSequencePosts()">Accept All to Drafts</button>
+        </div>
+        <div id="aiSeqPostList" style="display:flex;flex-direction:column;gap:.75rem;"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     MODAL: Newsletter Generator
+     ═══════════════════════════════════════ -->
+<div id="aiNewsletterModal" class="modal-overlay" onclick="if(event.target===this)closeModal('aiNewsletterModal')">
+  <div class="modal" style="max-width:720px;width:100%;max-height:92vh;overflow-y:auto;">
+    <div class="modal-header">
+      <span class="modal-title">📰 Generate Newsletter</span>
+      <button class="modal-close" onclick="closeModal('aiNewsletterModal')" aria-label="Close">&times;</button>
+    </div>
+    <div style="padding:1.5rem;">
+
+      <!-- Step indicator -->
+      <div id="aiNLStepIndicator" style="display:flex;gap:0;margin-bottom:1.5rem;">
+        <div class="ai-nl-step active" data-step="1" style="flex:1;text-align:center;padding:.4rem;font-size:.78rem;font-weight:600;border-bottom:2px solid var(--gold);color:var(--gold);">1 · Intake</div>
+        <div class="ai-nl-step" data-step="2" style="flex:1;text-align:center;padding:.4rem;font-size:.78rem;font-weight:600;border-bottom:2px solid var(--border);color:#999;">2 · Sections</div>
+        <div class="ai-nl-step" data-step="3" style="flex:1;text-align:center;padding:.4rem;font-size:.78rem;font-weight:600;border-bottom:2px solid var(--border);color:#999;">3 · Full Draft</div>
+      </div>
+
+      <!-- Step 1: Intake -->
+      <div id="aiNLStep1" style="display:block;">
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+          <div class="form-group" style="flex:1;min-width:140px;">
+            <label class="form-label" for="aiNLMonth">Issue Month</label>
+            <select id="aiNLMonth" class="form-input"></select>
+          </div>
+          <div class="form-group" style="flex:1;min-width:100px;">
+            <label class="form-label" for="aiNLYear">Year</label>
+            <input id="aiNLYear" class="form-input" type="number" min="2024" max="2035" />
+          </div>
+          <div class="form-group" style="flex:1;min-width:80px;">
+            <label class="form-label">Volume</label>
+            <input id="aiNLVolume" class="form-input" type="number" min="1" max="99" />
+          </div>
+          <div class="form-group" style="flex:1;min-width:80px;">
+            <label class="form-label">Issue #</label>
+            <input id="aiNLIssue" class="form-input" type="number" min="1" max="12" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Q&amp;A — Select from Queue</label>
+          <select id="aiNLQASelect" class="form-input" onchange="loadQAFromQueue(this.value)" style="margin-bottom:8px">
+            <option value="">— Select from Newsletter Queue —</option>
+          </select>
+          <div id="aiNLQAPreview" style="display:none;font-size:12px;color:var(--gray);margin-bottom:8px;padding:8px;background:#f9fafb;border-radius:6px;border:1px solid var(--border)"></div>
+          <div id="aiNLQAPairsSelect" style="display:none;margin-bottom:8px"></div>
+          <p style="font-size:.8rem;color:#666;margin:.15rem 0 .5rem;">Or paste/upload Q&amp;A text directly:</p>
+          <textarea id="aiNLQAText" class="form-textarea" rows="4" placeholder="Paste Q&A transcript here (or select from queue above)…"></textarea>
+          <div style="margin-top:.5rem;display:flex;align-items:center;gap:.75rem;">
+            <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0;">
+              Upload File
+              <input type="file" id="aiNLQAFile" accept=".txt,.doc,.docx" style="display:none;" onchange="handleNLQAFileUpload(event)" />
+            </label>
+            <span id="aiNLQAFileName" style="font-size:.8rem;color:#666;"></span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Cancer Awareness Article — Select from Queue</label>
+          <select id="aiNLArticleSelect" class="form-input" onchange="loadArticleFromQueue(this.value)" style="margin-bottom:8px">
+            <option value="">— Select from Article Bank —</option>
+          </select>
+          <label class="form-label" style="margin-top:8px" for="aiNLArticleURL">Or enter article URL directly</label>
+          <input id="aiNLArticleURL" class="form-input" type="url" placeholder="https://…" />
+          <p style="font-size:.78rem;color:#666;margin:.25rem 0 0;">Claude will fetch and summarize this article.</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Upcoming Events <span style="font-weight:400;color:#666;">(confirm which to include)</span></label>
+          <div id="aiNLEventChecklist" style="display:flex;flex-direction:column;gap:.4rem;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:.65rem;background:var(--cream);"></div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
+          <button class="btn btn-gold" onclick="startNewsletterGeneration()">Generate Section by Section →</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Section review -->
+      <div id="aiNLStep2" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
+          <span id="aiNLSectionStatus" style="font-size:.85rem;color:#555;font-weight:600;">0 of 3 sections approved</span>
+          <button id="aiNLFullDraftBtn" class="btn btn-gold" onclick="generateFullNewsletter()" disabled style="opacity:.5;cursor:not-allowed;">Generate Full Newsletter →</button>
+        </div>
+
+        <!-- Section 1: Q&A -->
+        <div class="card" style="margin-bottom:1rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+            <strong style="font-size:.875rem;color:var(--navy);">Section 1 — Q&amp;A with a Friend</strong>
+            <div style="display:flex;gap:.5rem;align-items:center;">
+              <span id="aiNLSec1Status" style="font-size:.78rem;padding:.2rem .55rem;border-radius:12px;background:#eee;color:#555;">Pending</span>
+              <button class="btn btn-outline btn-sm" onclick="generateNewsletterSection('qa')" id="aiNLSec1GenBtn">Generate</button>
+              <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('qa')" id="aiNLSec1AcceptBtn" disabled>Approve</button>
+            </div>
+          </div>
+          <textarea id="aiNLSec1Text" class="form-textarea" rows="14" placeholder="Generated Q&A will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
+        </div>
+
+        <!-- Section 2: Article summary -->
+        <div class="card" style="margin-bottom:1rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+            <strong style="font-size:.875rem;color:var(--navy);">Section 2 — Cancer Awareness Article Summary</strong>
+            <div style="display:flex;gap:.5rem;align-items:center;">
+              <span id="aiNLSec2Status" style="font-size:.78rem;padding:.2rem .55rem;border-radius:12px;background:#eee;color:#555;">Pending</span>
+              <button class="btn btn-outline btn-sm" onclick="generateNewsletterSection('article')" id="aiNLSec2GenBtn">Generate</button>
+              <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('article')" id="aiNLSec2AcceptBtn" disabled>Approve</button>
+            </div>
+          </div>
+          <textarea id="aiNLSec2Text" class="form-textarea" rows="10" placeholder="Generated article summary will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
+        </div>
+
+        <!-- Section 3: Events calendar -->
+        <div class="card" style="margin-bottom:1rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+            <strong style="font-size:.875rem;color:var(--navy);">Section 3 — Upcoming Events Calendar</strong>
+            <div style="display:flex;gap:.5rem;align-items:center;">
+              <span id="aiNLSec3Status" style="font-size:.78rem;padding:.2rem .55rem;border-radius:12px;background:#eee;color:#555;">Pending</span>
+              <button class="btn btn-outline btn-sm" onclick="generateNewsletterSection('events')" id="aiNLSec3GenBtn">Generate</button>
+              <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('events')" id="aiNLSec3AcceptBtn" disabled>Approve</button>
+            </div>
+          </div>
+          <textarea id="aiNLSec3Text" class="form-textarea" rows="8" placeholder="Generated events list will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
+        </div>
+      </div>
+
+      <!-- Step 3: Three copy blocks for Canva -->
+      <div id="aiNLStep3" style="display:none;">
+        <div style="background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#92400e">
+          &#128203; <strong>Ready to paste into Canva.</strong> Copy each block into the corresponding section. Text is formatted with bold questions and Open Sans 10pt styling notes below each block.
+        </div>
+
+        <!-- Block 1: Q&A -->
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+            <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9312; LEFT COLUMN — Q&amp;A WITH A FRIEND</div>
+            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock1')">&#128203; Copy Text</button>
+          </div>
+          <div id="nlBlock1Stats" style="font-size:11px;color:var(--gray);margin-bottom:6px"></div>
+          <div id="nlBlock1Warning" style="display:none;font-size:12px;color:#dc2626;background:#fef2f2;padding:6px 10px;border-radius:6px;margin-bottom:8px"></div>
+          <textarea id="aiNLBlock1" class="form-textarea" rows="14"
+            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
+            placeholder="Q&A block will appear here…"
+            oninput="updateNLBlockStats('aiNLBlock1','nlBlock1Stats','nlBlock1Warning',225,1300)"></textarea>
+          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Questions are BOLD, answers are regular text. Font: Open Sans 10pt, black, left-justified.</div>
+        </div>
+
+        <!-- Block 2: Article -->
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+            <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9313; RIGHT COLUMN — CANCER NEWS</div>
+            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock2')">&#128203; Copy Text</button>
+          </div>
+          <div id="nlBlock2Stats" style="font-size:11px;color:var(--gray);margin-bottom:6px"></div>
+          <div id="nlBlock2Warning" style="display:none;font-size:12px;color:#dc2626;background:#fef2f2;padding:6px 10px;border-radius:6px;margin-bottom:8px"></div>
+          <textarea id="aiNLBlock2" class="form-textarea" rows="12"
+            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
+            placeholder="Article summary will appear here…"
+            oninput="updateNLBlockStats('aiNLBlock2','nlBlock2Stats','nlBlock2Warning',200,1200)"></textarea>
+          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Title is BOLD, body text is regular. Font: Open Sans 10pt, black, left-justified.</div>
+        </div>
+
+        <!-- Block 3: Events -->
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+            <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9314; BOTTOM STRIP — UPCOMING EVENTS</div>
+            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock3')">&#128203; Copy Text</button>
+          </div>
+          <textarea id="aiNLBlock3" class="form-textarea" rows="6"
+            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
+            placeholder="Events list will appear here…"></textarea>
+          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Event name is BOLD, date is regular text. Font: Open Sans 10pt, black, left-justified. No times listed.</div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:8px">
+          <button class="btn btn-outline" onclick="saveNewsletterAsDraft()">Save as Draft Record</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
