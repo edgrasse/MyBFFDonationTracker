@@ -627,7 +627,7 @@ if ('serviceWorker' in navigator) {
         <div class="card">
           <div class="filters">
             <input class="filter-input" id="donSearch" placeholder="&#128269; Search vendor, item, notes..." oninput="renderDonations()">
-            <select class="filter-select" id="donYear" onchange="renderDonations()">
+            <select class="filter-select" id="donYear" onchange="onDonYearChange(this.value)">
               <option value="">All Years</option>
               <option value="2024">2024</option>
               <option value="2025">2025</option>
@@ -716,6 +716,10 @@ if ('serviceWorker' in navigator) {
               <option value="Shopping">Shopping</option>
               <option value="Entertainment">Entertainment</option>
             </select>
+            <button id="rptLoadAllBtn" class="btn btn-outline btn-sm" onclick="loadAllYearsForReport()" style="font-size:12px">
+              📊 Load All Years
+            </button>
+            <span id="rptAllLoadedBadge" style="display:none;font-size:11px;color:var(--gold);font-weight:600">✓ All years loaded</span>
           </div>
           <div class="report-actions">
             <button class="btn btn-primary" onclick="printReport()">&#128438; Print Report</button>
@@ -788,7 +792,7 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- GRANT APPLICATION ASSISTANT MODAL -->
-    <div class="modal-overlay" id="grantAnswerModal" style="display:none" onclick="if(event.target===this)closeModal('grantAnswerModal')">
+    <div class="modal-overlay" id="grantAnswerModal" onclick="if(event.target===this)closeModal('grantAnswerModal')">
       <div class="modal" style="max-width:780px;max-height:90vh;overflow-y:auto">
         <div class="modal-header">
           <div class="modal-title">&#129302; Application Assistant</div>
@@ -832,7 +836,7 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- BULK GRANT IMPORT MODAL -->
-    <div class="modal-overlay" id="bulkGrantModal" style="display:none" onclick="if(event.target===this)closeModal('bulkGrantModal')">
+    <div class="modal-overlay" id="bulkGrantModal" onclick="if(event.target===this)closeModal('bulkGrantModal')">
       <div class="modal" style="max-width:720px;max-height:90vh;overflow-y:auto">
         <div class="modal-header">
           <div class="modal-title">&#128203; Import Grantors from URL</div>
@@ -856,7 +860,7 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- SPREADSHEET IMPORT MODAL -->
-    <div class="modal-overlay" id="sheetImportModal" style="display:none" onclick="if(event.target===this)closeModal('sheetImportModal')">
+    <div class="modal-overlay" id="sheetImportModal" onclick="if(event.target===this)closeModal('sheetImportModal')">
       <div class="modal" style="max-width:760px;max-height:90vh;overflow-y:auto">
         <div class="modal-header">
           <div class="modal-title">&#128229; Import Grantors from Spreadsheet</div>
@@ -882,7 +886,7 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- ASSET PICKER MODAL — for inserting assets into content creation -->
-    <div class="modal-overlay" id="assetPickerModal" style="display:none" onclick="if(event.target===this)closeModal('assetPickerModal')">
+    <div class="modal-overlay" id="assetPickerModal" onclick="if(event.target===this)closeModal('assetPickerModal')">
       <div class="modal" style="max-width:700px;max-height:85vh;overflow-y:auto">
         <div class="modal-header">
           <div class="modal-title">&#128193; Insert from Asset Library</div>
@@ -1071,7 +1075,7 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- ADD CUSTOM LINK MODAL -->
-    <div class="modal-overlay" id="customLinkModal" style="display:none" onclick="if(event.target===this)closeModal('customLinkModal')">
+    <div class="modal-overlay" id="customLinkModal" onclick="if(event.target===this)closeModal('customLinkModal')">
       <div class="modal" style="max-width:440px">
         <div class="modal-header">
           <div class="modal-title" id="customLinkModalTitle">Add Personal Link</div>
@@ -2492,7 +2496,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v6.0-DEV2 · Jul 02 2026";
+const BUILD_VERSION = "v6.1-DEV2-Phase1 · Jul 02 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -2539,11 +2543,14 @@ async function sbUpdateWhere(table, col, val, row) {
 // ═══════════════════════════════════════════════════════════
 let currentUser = null;
 let ALL_DONATIONS = [];
+let _donationsLoadedYear = null;
+let _donationsAllLoaded = false;
 let ALL_VENDORS = [];
 let ALL_EVENTS = []; // loaded from MyBFFEvents — no hardcoded fallback
 let ALL_EVENT_TYPES = []; // loaded from MyBFFEventTypes
 let ALL_DON_CATS = [];   // loaded from MyBFFDonationCategories
-let ALL_CONTENT = [];         // loaded from MyBFFContent
+let ALL_CONTENT = [];
+let ALL_USED_CONTENT = null; // null = not yet loaded, [] = loaded but empty         // loaded from MyBFFContent
 let ALL_CONTENT_COMMENTS = []; // loaded from MyBFFContentComments
 let ALL_CONTENT_REVIEWERS = []; // loaded from MyBFFContentReviewers
 let ALL_NL_QA = [];           // loaded from MyBFFNewsletterQA
@@ -2712,10 +2719,14 @@ async function loadAll() {
 // ═══════════════════════════════════════════════════════════
 // DATA LOADING
 // ═══════════════════════════════════════════════════════════
-async function loadDonations() {
+async function loadDonations(year) {
+  // Default to current year — only load what's needed
+  const loadYear = year || new Date().getFullYear();
   try {
-    const rows = await sbGet("MyBFFDonations", "order=saved_at.asc");
+    const rows = await sbGet("MyBFFDonations", `year=eq.${loadYear}&order=saved_at.asc`);
     ALL_DONATIONS = (rows || []).map(rowToDonation).filter(d => d.id && d.organization);
+    _donationsLoadedYear = loadYear;
+    _donationsAllLoaded = false;
   } catch(e) {
     console.error("loadDonations:", e);
     ALL_DONATIONS = [];
@@ -2723,39 +2734,51 @@ async function loadDonations() {
   }
 }
 
+async function loadAllDonations() {
+  // Used by Reports tab — loads all years
+  try {
+    const rows = await sbGet("MyBFFDonations", "order=saved_at.asc");
+    ALL_DONATIONS = (rows || []).map(rowToDonation).filter(d => d.id && d.organization);
+    _donationsLoadedYear = null;
+    _donationsAllLoaded = true;
+  } catch(e) {
+    console.error("loadAllDonations:", e);
+    showToast("Warning: could not load all donations — " + e.message, "error");
+  }
+}
+
 function rowToDonation(r) {
-  // Handles both snake_case (Supabase) and any legacy keys
-  function f(a, b) { return r[a] !== undefined ? r[a] : (r[b] !== undefined ? r[b] : ""); }
   return {
-    id: f("id","ID"),
-    year: f("year","Year"),
-    who: f("who","Who"),
-    event_requested: f("event_requested","EventRequested"),
-    used_for: f("used_for","UsedFor"),
-    type: f("type","Type"),
-    organization: f("organization","Organization"),
-    how: f("how","How"),
-    date_requested: f("date_requested","DateRequested"),
-    granted: f("granted","Granted"),
-    value: f("value","Value"),
-    item: f("item","Item"),
-    lead_time: f("lead_time","LeadTime"),
-    pickup_method: f("pickup_method","PickupMethod"),
-    pickup_assigned_to: f("pickup_assigned_to","PickupAssignedTo"),
-    notes: f("notes","Notes"),
-    reference_link: f("reference_link","ReferenceLink"),
-    saved_at: f("saved_at","SavedAt"),
-    edited_by: f("edited_by","LastEditedBy"),
-    edited_at: f("edited_at","LastEditedAt"),
-    event_instance_id: r.event_instance_id || "",
-    donation_category: r.donation_category || "",
-    follow_up: r.follow_up === true || r.follow_up === "true" || false,
-    follow_up_date: r.follow_up_date || null,
-    follow_up_assignee: r.follow_up_assignee || null,
-    follow_up_note: r.follow_up_note || null,
+    id:                  r.id                  || "",
+    year:                r.year                || "",
+    who:                 r.who                 || "",
+    event_requested:     r.event_requested     || "",
+    used_for:            r.used_for            || "",
+    type:                r.type                || "",
+    organization:        r.organization        || "",
+    how:                 r.how                 || "",
+    date_requested:      r.date_requested      || "",
+    granted:             r.granted             || "",
+    value:               r.value               || "",
+    item:                r.item                || "",
+    lead_time:           r.lead_time           || "",
+    pickup_method:       r.pickup_method       || "",
+    pickup_assigned_to:  r.pickup_assigned_to  || "",
+    notes:               r.notes               || "",
+    reference_link:      r.reference_link      || "",
+    saved_at:            r.saved_at            || "",
+    edited_by:           r.edited_by           || "",
+    edited_at:           r.edited_at           || "",
+    event_instance_id:   r.event_instance_id   || "",
+    donation_category:   r.donation_category   || "",
+    todo_assignee:       r.todo_assignee       || null,
+    follow_up:           r.follow_up === true || r.follow_up === "true" || false,
+    follow_up_date:      r.follow_up_date      || null,
+    follow_up_assignee:  r.follow_up_assignee  || null,
+    follow_up_note:      r.follow_up_note      || null,
     follow_up_assignee_2: r.follow_up_assignee_2 || null,
-    follow_up_date_2: r.follow_up_date_2 || null,
-    follow_up_note_2: r.follow_up_note_2 || null,
+    follow_up_date_2:    r.follow_up_date_2    || null,
+    follow_up_note_2:    r.follow_up_note_2    || null,
   };
 }
 
@@ -2944,11 +2967,17 @@ function taskStatusBadge(status) {
 // ═══════════════════════════════════════════════════════════
 // PHASE 1 — TASK CRUD
 // ═══════════════════════════════════════════════════════════
-function buildAssigneeChecks(selectedList) {
-  const names = [...new Set([...APP_USERS.map(u => u.displayName), ...PICKUP_PEOPLE])].filter(Boolean).sort();
-  const container = document.getElementById("tmAssigneeChecks");
+// ── Shared user checkbox builder ──────────────────────────
+function buildUserChecks(containerId, selectedList, includePickup = false) {
+  const container = document.getElementById(containerId);
   if (!container) return;
-  if (!names.length) { container.innerHTML = `<div style="color:var(--gray);font-size:13px">No team members found. Add users or pickup people in Admin.</div>`; return; }
+  const names = includePickup
+    ? [...new Set([...APP_USERS.map(u => u.displayName), ...PICKUP_PEOPLE])].filter(Boolean).sort()
+    : APP_USERS.map(u => u.displayName).filter(Boolean);
+  if (!names.length) {
+    container.innerHTML = `<div style="color:var(--gray);font-size:13px">No team members found.</div>`;
+    return;
+  }
   container.innerHTML = names.map(n => `
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;font-size:14px">
       <input type="checkbox" value="${esc(n)}" ${selectedList.includes(n) ? "checked" : ""} style="width:16px;height:16px;accent-color:var(--gold)">
@@ -2956,10 +2985,18 @@ function buildAssigneeChecks(selectedList) {
     </label>`).join("");
 }
 
-function getCheckedAssignees() {
-  const checks = document.querySelectorAll("#tmAssigneeChecks input[type=checkbox]:checked");
-  return Array.from(checks).map(c => c.value).join(", ");
+function getCheckedUsers(containerId) {
+  return Array.from(
+    document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)
+  ).map(c => c.value).join(", ");
 }
+
+// Backward-compatible wrappers (called throughout the codebase)
+function buildAssigneeChecks(selectedList) { buildUserChecks("tmAssigneeChecks", selectedList, true); }
+function getCheckedAssignees()              { return getCheckedUsers("tmAssigneeChecks"); }
+function buildReviewerChecks(selectedList)  { buildUserChecks("ctReviewerChecks", selectedList, false); }
+function getCheckedReviewers()              { return getCheckedUsers("ctReviewerChecks"); }
+
 
 function openAddTaskModal(presetEvent) {
   editingTaskId = null;
@@ -3783,99 +3820,85 @@ function updateActionSummary() {
   if (grantBadge) { grantBadge.textContent = grantFU; grantBadge.style.display = grantFU > 0 ? "" : "none"; }
 
   // Render in-tab follow-up banners
-  renderDonFollowUpBanner(donFU);
-  renderGrantFollowUpBanner(grantFU);
+  renderDonFollowUpBanner();
+  renderGrantFollowUpBanner();
 }
 
-function renderDonFollowUpBanner(count) {
-  const banner = document.getElementById("donFollowUpBanner");
-  const list   = document.getElementById("donFollowUpList");
+// ── Unified follow-up banner ──────────────────────────────
+function renderFollowUpBanner(config) {
+  const banner = document.getElementById(config.bannerId);
+  const list   = document.getElementById(config.listId);
   if (!banner || !list) return;
 
-  const myName = currentUser?.displayName || "";
-  const today  = new Date();
-
-  // Collect items for this user — may appear as slot 1, slot 2, or both
-  const items = [];
-  ALL_DONATIONS.filter(d => d.follow_up).forEach(d => {
-    if (!d.follow_up_assignee || d.follow_up_assignee === myName) {
-      items.push({ d, slot: 1, assignee: d.follow_up_assignee, date: d.follow_up_date, note: d.follow_up_note });
-    }
-    if (d.follow_up_assignee_2 && d.follow_up_assignee_2 === myName) {
-      items.push({ d, slot: 2, assignee: d.follow_up_assignee_2, date: d.follow_up_date_2, note: d.follow_up_note_2 });
-    }
-  });
-  items.sort((a,b) => {
-    if (!a.date && !b.date) return 0;
-    if (!a.date) return 1;
-    if (!b.date) return -1;
-    return new Date(a.date) - new Date(b.date);
-  });
-
+  const items = config.getItems();
   if (!items.length) { banner.style.display = "none"; return; }
 
-  list.innerHTML = items.slice(0,10).map(({ d, slot, date, note }) => {
-    const isPast = date && new Date(date) < today;
-    const dateLabel = date
-      ? `<span style="font-size:11px;font-weight:600;color:${isPast?"#dc2626":"#92400e"};white-space:nowrap">${isPast?"Overdue: ":"Due: "}${fmtDate(date)}</span>`
-      : "";
-    return `<div style="display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:6px;background:white;border:1px solid #fde68a;border-radius:8px;flex-wrap:wrap">
-      <div style="flex:1;min-width:150px">
-        <div style="font-weight:600;font-size:13px">${esc(d.organization)}</div>
-        ${note ? `<div style="font-size:12px;color:#92400e;margin-top:2px">&#128204; ${esc(note)}</div>` : ""}
-        ${d.event_requested ? `<div style="font-size:11px;color:var(--gray)">${esc(d.event_requested)}</div>` : ""}
-      </div>
-      ${dateLabel}
-      <div style="display:flex;gap:6px;flex-shrink:0">
-        <button onclick="openDonationForEdit('${esc(d.id)}')" class="btn btn-outline btn-sm" style="font-size:11px">&#9998; Edit</button>
-        <button onclick="clearDonFollowUp('${esc(d.id)}',${slot})" class="btn btn-sm" style="font-size:11px;background:#22c55e;color:white">&#10003; Done</button>
-      </div>
-    </div>`;
-  }).join("");
-
+  list.innerHTML = items.slice(0, 10).map(item => config.renderItem(item)).join("");
   banner.style.display = "";
 }
 
-function renderGrantFollowUpBanner(count) {
-  const banner = document.getElementById("grantFollowUpBanner");
-  const list   = document.getElementById("grantFollowUpList");
-  if (!banner || !list) return;
-
+function renderDonFollowUpBanner() {
   const myName = currentUser?.displayName || "";
   const today  = new Date();
+  renderFollowUpBanner({
+    bannerId: "donFollowUpBanner",
+    listId:   "donFollowUpList",
+    getItems: () => {
+      const items = [];
+      ALL_DONATIONS.filter(d => d.follow_up).forEach(d => {
+        if (!d.follow_up_assignee || d.follow_up_assignee === myName)
+          items.push({ d, slot:1, date: d.follow_up_date, note: d.follow_up_note });
+        if (d.follow_up_assignee_2 && d.follow_up_assignee_2 === myName)
+          items.push({ d, slot:2, date: d.follow_up_date_2, note: d.follow_up_note_2 });
+      });
+      return items.sort((a,b) => (!a.date&&!b.date)?0:!a.date?1:!b.date?-1:new Date(a.date)-new Date(b.date));
+    },
+    renderItem: ({ d, slot, date, note }) => {
+      const isPast = date && new Date(date) < today;
+      const dateLabel = date ? `<span style="font-size:11px;font-weight:600;color:${isPast?"#dc2626":"#92400e"};white-space:nowrap">${isPast?"Overdue: ":"Due: "}${fmtDate(date)}</span>` : "";
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:6px;background:white;border:1px solid #fde68a;border-radius:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:150px">
+          <div style="font-weight:600;font-size:13px">${esc(d.organization)}</div>
+          ${note ? `<div style="font-size:12px;color:#92400e;margin-top:2px">&#128204; ${esc(note)}</div>` : ""}
+          ${d.event_requested ? `<div style="font-size:11px;color:var(--gray)">${esc(d.event_requested)}</div>` : ""}
+        </div>
+        ${dateLabel}
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button data-id="${esc(d.id)}" onclick="openDonationForEdit(this.dataset.id)" class="btn btn-outline btn-sm" style="font-size:11px">&#9998; Edit</button>
+          <button data-id="${esc(d.id)}" data-slot="${slot}" onclick="clearDonFollowUp(this.dataset.id,this.dataset.slot)" class="btn btn-sm" style="font-size:11px;background:#22c55e;color:white">&#10003; Done</button>
+        </div>
+      </div>`;
+    }
+  });
+}
 
-  const items = ALL_GRANT_REQUESTS.filter(r =>
-    r.follow_up && (!r.follow_up_assignee || r.follow_up_assignee === myName)
-  ).sort((a,b) => {
-    if (!a.follow_up_date && !b.follow_up_date) return 0;
-    if (!a.follow_up_date) return 1;
-    if (!b.follow_up_date) return -1;
-    return new Date(a.follow_up_date) - new Date(b.follow_up_date);
-  }).slice(0, 10);
-
-  if (!items.length) { banner.style.display = "none"; return; }
-
-  list.innerHTML = items.map(r => {
-    const grant = ALL_GRANTS.find(g => g.id === r.grant_id);
-    const isPast = r.follow_up_date && new Date(r.follow_up_date) < today;
-    const dateLabel = r.follow_up_date
-      ? `<span style="font-size:11px;font-weight:600;color:${isPast?"#dc2626":"#166534"};white-space:nowrap">${isPast?"Overdue: ":"Due: "}${fmtDate(r.follow_up_date)}</span>`
-      : "";
-    return `<div style="display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:6px;background:white;border:1px solid #bbf7d0;border-radius:8px;flex-wrap:wrap">
-      <div style="flex:1;min-width:150px">
-        <div style="font-weight:600;font-size:13px">${esc(grant?.name||"Unknown Grantor")}</div>
-        ${r.follow_up_note ? `<div style="font-size:12px;color:#166534;margin-top:2px">&#128204; ${esc(r.follow_up_note)}</div>` : ""}
-        <div style="font-size:11px;color:var(--gray)">${r.status} · ${r.year||""}</div>
-      </div>
-      ${dateLabel}
-      <div style="display:flex;gap:6px;flex-shrink:0">
-        <button onclick="openGrantRequestModalEdit('${esc(r.id)}','${esc(r.grant_id)}')" class="btn btn-outline btn-sm" style="font-size:11px">&#9998; Edit</button>
-        <button onclick="clearGrantFollowUp('${esc(r.id)}')" class="btn btn-sm" style="font-size:11px;background:#22c55e;color:white">&#10003; Done</button>
-      </div>
-    </div>`;
-  }).join("");
-
-  banner.style.display = "";
+function renderGrantFollowUpBanner() {
+  const myName = currentUser?.displayName || "";
+  const today  = new Date();
+  renderFollowUpBanner({
+    bannerId: "grantFollowUpBanner",
+    listId:   "grantFollowUpList",
+    getItems: () => ALL_GRANT_REQUESTS.filter(r =>
+      r.follow_up && (!r.follow_up_assignee || r.follow_up_assignee === myName)
+    ).sort((a,b) => (!a.follow_up_date&&!b.follow_up_date)?0:!a.follow_up_date?1:!b.follow_up_date?-1:new Date(a.follow_up_date)-new Date(b.follow_up_date)),
+    renderItem: (r) => {
+      const grant = ALL_GRANTS.find(g => g.id === r.grant_id);
+      const isPast = r.follow_up_date && new Date(r.follow_up_date) < today;
+      const dateLabel = r.follow_up_date ? `<span style="font-size:11px;font-weight:600;color:${isPast?"#dc2626":"#166534"};white-space:nowrap">${isPast?"Overdue: ":"Due: "}${fmtDate(r.follow_up_date)}</span>` : "";
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:6px;background:white;border:1px solid #bbf7d0;border-radius:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:150px">
+          <div style="font-weight:600;font-size:13px">${esc(grant?.name||"Unknown Grantor")}</div>
+          ${r.follow_up_note ? `<div style="font-size:12px;color:#166534;margin-top:2px">&#128204; ${esc(r.follow_up_note)}</div>` : ""}
+          <div style="font-size:11px;color:var(--gray)">${r.status} · ${r.year||""}</div>
+        </div>
+        ${dateLabel}
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button data-id="${esc(r.id)}" data-gid="${esc(r.grant_id)}" onclick="openGrantRequestModalEdit(this.dataset.id,this.dataset.gid)" class="btn btn-outline btn-sm" style="font-size:11px">&#9998; Edit</button>
+          <button data-id="${esc(r.id)}" onclick="clearGrantFollowUp(this.dataset.id)" class="btn btn-sm" style="font-size:11px;background:#22c55e;color:white">&#10003; Done</button>
+        </div>
+      </div>`;
+    }
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -4492,6 +4515,17 @@ async function deleteEvent(name) {
 // ═══════════════════════════════════════════════════════════
 // DONATIONS PAGE
 // ═══════════════════════════════════════════════════════════
+async function onDonYearChange(year) {
+  const y = parseInt(year) || new Date().getFullYear();
+  if (_donationsLoadedYear !== y && !_donationsAllLoaded) {
+    // Show loading state
+    const tbody = document.getElementById("donTable");
+    if (tbody) tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--gray)">Loading ${y} donations…</td></tr>`;
+    await loadDonations(y);
+  }
+  renderDonations();
+}
+
 function renderDonations() {
   updateActionSummary();
   let data = filterDonations();
@@ -5057,6 +5091,17 @@ function renderTasks() {
 // ═══════════════════════════════════════════════════════════
 // REPORTS PAGE
 // ═══════════════════════════════════════════════════════════
+async function loadAllYearsForReport() {
+  const btn = document.getElementById("rptLoadAllBtn");
+  const badge = document.getElementById("rptAllLoadedBadge");
+  if (_donationsAllLoaded) { renderReport(); return; }
+  if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
+  await loadAllDonations();
+  if (btn) { btn.style.display = "none"; }
+  if (badge) badge.style.display = "";
+  renderReport();
+}
+
 function renderReport() {
   const year = document.getElementById("rptYear").value;
   const event = document.getElementById("rptEvent").value;
@@ -7174,9 +7219,19 @@ function insertAssetIntoContent(assetId) {
 // ── Data loading ─────────────────────────────────────────────
 async function loadContent() {
   try {
-    const rows = await sbGet("MyBFFContent", "order=created_at.desc");
+    // Exclude Used records from initial load — they're fetched lazily when expanded
+    const rows = await sbGet("MyBFFContent", "status=neq.Used&order=created_at.desc");
     ALL_CONTENT = (rows || []).filter(r => r.id);
+    ALL_USED_CONTENT = null; // reset lazy cache
   } catch(e) { console.warn("loadContent:", e.message); ALL_CONTENT = []; }
+}
+
+async function loadUsedContent() {
+  if (ALL_USED_CONTENT !== null) return; // already loaded
+  try {
+    const rows = await sbGet("MyBFFContent", "status=eq.Used&order=post_date.desc");
+    ALL_USED_CONTENT = (rows || []).filter(r => r.id);
+  } catch(e) { console.warn("loadUsedContent:", e.message); ALL_USED_CONTENT = []; }
 }
 async function loadContentComments() {
   try {
@@ -7300,6 +7355,50 @@ function renderMarketing() {
 }
 
 // ── STATUS BOARD ──────────────────────────────────────────────
+async function loadAndRenderUsedContent() {
+  const container = document.getElementById("sbUsedContent");
+  if (!container) return;
+  // Only load once
+  if (ALL_USED_CONTENT === null) {
+    container.innerHTML = `<div style="font-size:13px;color:var(--gray);padding:12px 4px">⏳ Loading used posts…</div>`;
+    await loadUsedContent();
+  }
+  if (!ALL_USED_CONTENT || ALL_USED_CONTENT.length === 0) {
+    container.innerHTML = `<div style="font-size:13px;color:var(--gray);padding:12px 4px">No used posts yet.</div>`;
+    return;
+  }
+  // Update summary badge in the details summary
+  const summary = document.querySelector("#sbUsedSection summary");
+  if (summary) summary.innerHTML = `✓ Used — ${ALL_USED_CONTENT.length} post${ALL_USED_CONTENT.length!==1?"s":""}`;
+
+  // Group by month-year using post_date
+  const groups = {};
+  ALL_USED_CONTENT.forEach(c => {
+    const d = c.post_date || c.updated_at?.split("T")[0] || "Unknown";
+    const key = d.length >= 7 ? d.substring(0,7) : "Unknown"; // YYYY-MM
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(c);
+  });
+
+  const MONTH_NAMES = ["","January","February","March","April","May","June","July","August","September","October","November","December"];
+  const html = Object.keys(groups).sort().reverse().map(key => {
+    const label = key === "Unknown" ? "Unknown Date" :
+      (() => { const [y,m] = key.split("-"); return `${MONTH_NAMES[parseInt(m)]} ${y}`; })();
+    const items = groups[key].map(c =>
+      contentCard(c, `<span style="background:#e5e7eb;color:#374151;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600">✓ Used ${c.post_date||""}</span>`)
+    ).join("");
+    return `
+      <div style="margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray);padding:6px 0;border-bottom:2px solid var(--border);margin-bottom:8px">
+          ${label} · ${groups[key].length} post${groups[key].length!==1?"s":""}
+        </div>
+        ${items}
+      </div>`;
+  }).join("");
+
+  container.innerHTML = html;
+}
+
 function renderStatusBoard() {
   const container = document.getElementById("mktgStatusBoard");
   if (!container) return;
@@ -7348,12 +7447,8 @@ function renderStatusBoard() {
     { key:"posted",   label:"🟣 Posted",                 items: allItems.filter(c => c.status === "Posted") },
   ];
 
-  // Used items — separate from main sections, shown collapsed at bottom
-  const usedItems = ALL_CONTENT
-    .filter(c => c.status === "Used")
-    .filter(c => !evFilter || c.event_name === evFilter)
-    .filter(c => !chFilter || c.channel === chFilter)
-    .sort((a, b) => (b.post_date||b.updated_at||"").localeCompare(a.post_date||a.updated_at||""));
+  // Used items are loaded lazily — filter them out of main sections
+  allItems = allItems.filter(c => c.status !== "Used");
 
   const draftItems = allItems.filter(c => c.status === "Draft");
   const bulkBar = draftItems.length > 0 ? `
@@ -7403,15 +7498,16 @@ function renderStatusBoard() {
             : `<div style="font-size:13px;color:var(--gray);padding:12px 4px">Nothing here yet.</div>`}
         </div>
       </div>`;
-  }).join("")) + (usedItems.length && !_activeSectionFilter ? `
-    <details style="margin-top:16px">
-      <summary style="font-size:14px;font-weight:700;color:var(--gray);cursor:pointer;padding:10px 14px;background:#f9fafb;border-radius:8px;border:1px solid var(--border)">
-        ✓ Used — ${usedItems.length} post${usedItems.length!==1?"s":""} (click to expand, sorted by date used)
+  }).join("")) + `
+    <details id="sbUsedSection" style="margin-top:16px">
+      <summary style="font-size:14px;font-weight:700;color:var(--gray);cursor:pointer;padding:10px 14px;background:#f9fafb;border-radius:8px;border:1px solid var(--border)"
+        onclick="loadAndRenderUsedContent()">
+        ✓ Used — click to expand
       </summary>
-      <div style="padding-top:8px">
-        ${usedItems.map(c => contentCard(c, `<span style="background:#e5e7eb;color:#374151;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600">✓ Used ${c.post_date||""}</span>`)).join("")}
+      <div id="sbUsedContent" style="padding-top:8px">
+        <div style="font-size:13px;color:var(--gray);padding:12px 4px">Click to load used posts…</div>
       </div>
-    </details>` : "") || `<div style="text-align:center;padding:40px;color:var(--gray)">No content yet. Go to <strong>Create Content</strong> to add the first piece.</div>`;
+    </details>` || `<div style="text-align:center;padding:40px;color:var(--gray)">No content yet. Go to <strong>Create Content</strong> to add the first piece.</div>`;
 }
 
 let _activeSectionFilter = null; // null = show all, else = section key
@@ -8221,19 +8317,6 @@ function clearContentPhoto() {
   document.getElementById("ctPhotoUrl").value = "";
   document.getElementById("ctPhotoPreview").style.display = "none";
 }
-function buildReviewerChecks(selectedList) {
-  const container = document.getElementById("ctReviewerChecks");
-  if (!container) return;
-  container.innerHTML = APP_USERS.map(u => `
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;font-size:14px">
-      <input type="checkbox" value="${esc(u.displayName)}" ${selectedList.includes(u.displayName)?"checked":""} style="width:16px;height:16px;accent-color:var(--gold)">
-      ${esc(u.displayName)}
-    </label>`).join("");
-}
-function getCheckedReviewers() {
-  return Array.from(document.querySelectorAll("#ctReviewerChecks input[type=checkbox]:checked")).map(c => c.value).join(", ");
-}
-
 async function saveContent(status) {
   const title = document.getElementById("ctTitle").value.trim();
   const channel = document.getElementById("ctChannel").value;
