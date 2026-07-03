@@ -550,7 +550,7 @@ if ('serviceWorker' in navigator) {
 
         <!-- Sub-tabs: Tasks / Donations / Assets -->
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto">
-          <button class="sub-tab active" id="evTab-tasks"     onclick="showEvDetailTab('tasks')">Tasks</button>
+          <button class="sub-tab active" id="evTab-tasks"     onclick="showEvDetailTab('tasks')">Checklist Items</button>
           <button class="sub-tab"        id="evTab-donations" onclick="showEvDetailTab('donations')">Donations</button>
           <button class="sub-tab"        id="evTab-assets"    onclick="showEvDetailTab('assets')">Assets &amp; Documents</button>
         </div>
@@ -568,7 +568,7 @@ if ('serviceWorker' in navigator) {
                 <option value="N/A">N/A</option>
               </select>
               <div id="evDetailAddTaskBtn" style="display:none">
-                <button class="btn btn-gold btn-sm" onclick="openAddTaskModalForEvent()">+ Add Task</button>
+                <button class="btn btn-gold btn-sm" onclick="openAddTaskModalForEvent()">+ Add Checklist Item</button>
               </div>
             </div>
           </div>
@@ -606,7 +606,6 @@ if ('serviceWorker' in navigator) {
         <div class="section-title" style="margin:0">Donations</div>
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn btn-outline btn-sm" onclick="openQuickTaskModal('Donation')">📋 Assign Task</button>
-          <button class="btn btn-gold btn-sm admin-import-btn" onclick="openImportModal()" style="display:none">&#128229; Import</button>
           <button class="btn btn-gold btn-sm" onclick="openDonationModal()">+ Add Donation</button>
         </div>
       </div>
@@ -1023,7 +1022,7 @@ if ('serviceWorker' in navigator) {
           <div style="font-weight:700;font-size:16px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
             Task Templates <button class="btn btn-gold btn-sm" onclick="openTemplateModal()">+ Add Template Task</button>
           </div>
-          <div style="font-size:13px;color:var(--gray);margin-bottom:16px">Build reusable task checklists per event type. Use <em>Generate Tasks</em> to create a live task list for a specific event from its template.</div>
+          <div style="font-size:13px;color:var(--gray);margin-bottom:16px">Build reusable task checklists per event type. Use <em>Generate Checklist</em> to create a live task list for a specific event from its template.</div>
           <div class="filters" style="margin-bottom:14px">
             <select class="filter-select" id="tmplEventTypeFilter" onchange="renderTemplates()">
               <option value="">All Event Types</option>
@@ -2496,7 +2495,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v6.1-DEV2-Phase1 · Jul 02 2026";
+const BUILD_VERSION = "v6.2-DEV2-Phase2 · Jul 02 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -2720,7 +2719,6 @@ async function loadAll() {
 // DATA LOADING
 // ═══════════════════════════════════════════════════════════
 async function loadDonations(year) {
-  // Default to current year — only load what's needed
   const loadYear = year || new Date().getFullYear();
   try {
     const rows = await sbGet("MyBFFDonations", `year=eq.${loadYear}&order=saved_at.asc`);
@@ -3000,7 +2998,7 @@ function getCheckedReviewers()              { return getCheckedUsers("ctReviewer
 
 function openAddTaskModal(presetEvent) {
   editingTaskId = null;
-  document.getElementById("taskModalTitle").textContent = "Add Task";
+  document.getElementById("taskModalTitle").textContent = "Add Checklist Item";
   document.getElementById("tmTaskId").value = "";
   document.getElementById("tmTaskName").value = "";
   document.getElementById("tmDueDate").value = "";
@@ -3018,7 +3016,7 @@ function openEditTaskModal(taskId) {
   const t = ALL_TASKS.find(x => x.id === taskId);
   if (!t) return;
   editingTaskId = taskId;
-  document.getElementById("taskModalTitle").textContent = "Edit Task";
+  document.getElementById("taskModalTitle").textContent = "Edit Checklist Item";
   document.getElementById("tmTaskId").value = taskId;
   document.getElementById("tmTaskName").value = t.task_name || "";
   document.getElementById("tmDueDate").value = t.due_date || "";
@@ -3319,7 +3317,7 @@ function previewGenerate() {
 
   preview.innerHTML = `
     <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px">
-      <strong>${matchingTemplates.length} tasks</strong> will be generated from the <em>${eventType}</em> template.
+      <strong>${matchingTemplates.length} checklist items</strong> will be generated from the <em>${eventType}</em> template.
       ${evDate ? `Due dates calculated from event date <strong>${evDate}</strong>.` : `<span style="color:#d97706">⚠️ No event date set — due dates will be blank. Set the event date in the Events section above.</span>`}
       ${existingCount ? `<br><span style="color:#6b7280;font-size:12px;margin-top:4px;display:block">Note: ${existingCount} existing task(s) for this event will not be affected.</span>` : ""}
     </div>`;
@@ -3372,7 +3370,7 @@ async function doGenerateTasks() {
       await sbInsert("MyBFFTasks", row);
     }
     closeModal("generateTasksModal");
-    showToast(`✅ ${rows.length} tasks generated for ${evName}!`);
+    showToast(`✅ ${rows.length} checklist items generated for ${evName}!`);
     await loadTasks();
     if (CURRENT_EVENT_VIEW === evName) renderEventDetailTasks();
     else renderEventsPage();
@@ -3501,7 +3499,7 @@ function renderDashboard() {
               <span style="font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.task_name)}</span>
               <span style="font-size:11px;color:var(--gray);flex-shrink:0">${esc(t.event_name || "")}</span>
             </div>`).join("") + (myEventTasks.length > 2 ? `<div onclick="openMyTasksModal()" style="font-size:12px;color:var(--gold);margin-top:4px;cursor:pointer;font-weight:600">+${myEventTasks.length-2} more → View All</div>` : "")
-        : `<div style="font-size:13px;color:var(--gray)">No open event tasks assigned to you</div>`}
+        : `<div style="font-size:13px;color:var(--gray)">No open checklist items assigned to you</div>`}
       ${myQuickTasks.length ? `
         <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:600;margin:8px 0 4px">Assigned Tasks</div>
         ${myQuickTasks.slice(0,2).map(t => `
@@ -3669,7 +3667,7 @@ function renderDashboardTasksCard() {
   if (subtitle) subtitle.textContent = `${totalOpen} open across team`;
 
   if (userSummaries.length === 0) {
-    container.innerHTML = `<div style="font-size:13px;color:var(--gray);text-align:center;padding:16px 0">🎉 No open tasks for the team right now.</div>`;
+    container.innerHTML = `<div style="font-size:13px;color:var(--gray);text-align:center;padding:16px 0">🎉 No open checklist items or tasks for the team right now.</div>`;
     return;
   }
 
@@ -3725,7 +3723,7 @@ function renderDashboardTasksCard() {
           <span style="font-size:20px;color:var(--gray);font-weight:300">›</span>
         </summary>
         <div style="padding:6px 0 4px 38px">
-          ${taskItems || `<div style="font-size:12px;color:var(--gray);padding:4px 0">No open tasks.</div>`}
+          ${taskItems || `<div style="font-size:12px;color:var(--gray);padding:4px 0">No open items.</div>`}
           ${u.done.length ? `
             <details style="margin-top:6px">
               <summary style="font-size:11px;color:var(--gray);cursor:pointer;padding:3px 0">Show ${u.done.length} completed task${u.done.length !== 1 ? "s" : ""}</summary>
@@ -4011,7 +4009,7 @@ function renderEventDetailTasks() {
 
   if (!tasks.length) {
     container.innerHTML = `<div style="color:var(--gray);font-size:14px;padding:16px 0;text-align:center">
-      No tasks yet.${isEditor() ? " Use <strong>+ Add Task</strong> to create the first one, or generate from a template in Admin." : ""}
+      No checklist items yet.${isEditor() ? " Use <strong>+ Add Checklist Item</strong> to create the first one, or generate from a template in Admin." : ""}
     </div>`;
     return;
   }
@@ -4306,8 +4304,8 @@ function renderEventsPage() {
               <div style="flex:1;height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden">
                 <div style="height:100%;width:${pct}%;background:var(--gold);border-radius:3px"></div>
               </div>
-              <span style="font-size:12px;color:var(--gray);white-space:nowrap">${done}/${tasks.length} tasks</span>
-            </div>` : `<div style="font-size:12px;color:var(--gray)">No tasks yet</div>`}
+              <span style="font-size:12px;color:var(--gray);white-space:nowrap">${done}/${tasks.length} checklist items</span>
+            </div>` : `<div style="font-size:12px;color:var(--gray)">No checklist items yet</div>`}
         </div>
         <div class="event-card-footer">
           <div style="font-size:12px;color:var(--gray);display:flex;flex-direction:column;gap:2px">
@@ -7898,6 +7896,7 @@ async function submitReview(action) {
     document.getElementById("cdChangesBtn").style.display = canStill ? "" : "none";
     renderStatusBoard();
     updateMktgBadge();
+    renderDashboardMarketingCard(); // refresh Marketing card independently
     const msg = action==="approve" ? "✅ Approved!" : action==="changes" ? "↩️ Changes requested" : "💬 Comment added";
     showToast(msg);
     if (action==="approve" || action==="changes") {
@@ -8272,6 +8271,7 @@ async function saveNewContent(type, status) {
       }
     }
     showToast(status === "Draft" ? "Saved as draft!" : "Submitted for review!");
+    renderDashboardMarketingCard(); // targeted refresh
     showMktgTab("status");
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
@@ -10565,7 +10565,7 @@ const HELP_DATA = [
       },
       {
         q: "How do I add a task manually?",
-        a: "Click <strong>+ Add Task</strong> on the Event Tasks page. Enter the task name, select the event, set an optional due date and assignee, and click Save Task."
+        a: "Click <strong>+ Add Checklist Item</strong> on the Event Tasks page. Enter the task name, select the event, set an optional due date and assignee, and click Save Task."
       },
       {
         q: "How do I mark a task as done?",
@@ -10749,13 +10749,13 @@ function openMyTasksModal() {
 
   if (myTasks.length === 0) {
     content.innerHTML = `<div style="text-align:center;padding:32px;color:var(--gray);font-size:14px">
-      🎉 No open tasks assigned to you right now.
+      🎉 No open checklist items or tasks assigned to you right now.
     </div>`;
   } else {
     content.innerHTML = `
       ${eventTasks.length ? `
         <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:700;margin-bottom:2px;padding-top:4px">
-          Event Tasks (${eventTasks.length})
+          Checklist Items (${eventTasks.length})
         </div>
         ${eventTasks.map(t => taskRow(t, true)).join("")}` : ""}
       ${quickTasks.length ? `
@@ -10779,8 +10779,7 @@ async function markMyTaskDone(taskId) {
     showToast("✓ Task marked done.");
     openMyTasksModal(); // refresh the modal
     updateActionSummary();
-    renderDashboard();
-    if (document.getElementById("dashTasksCard")) renderDashboardTasksCard();
+    renderDashboardTasksCard(); // targeted refresh — no need for full renderDashboard
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
@@ -10884,8 +10883,7 @@ async function saveQuickTask() {
     closeModal("quickTaskModal");
     showToast(`✅ Task assigned to ${assignTo}.`);
     updateActionSummary();
-    renderDashboard();
-    if (document.getElementById("dashTasksCard")) renderDashboardTasksCard();
+    renderDashboardTasksCard(); // targeted refresh
   } catch(e) {
     showToast("Error saving task: " + e.message, "error");
   }
