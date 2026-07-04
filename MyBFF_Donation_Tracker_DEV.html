@@ -1155,7 +1155,7 @@ if ('serviceWorker' in navigator) {
     <div class="modal-overlay" id="quickTaskModal" onclick="if(event.target===this)closeModal('quickTaskModal')">
       <div class="modal" style="max-width:480px;width:100%">
         <div class="modal-header">
-          <div class="modal-title">📋 Assign Task</div>
+          <div class="modal-title" id="qtModalTitle">📋 Assign Task</div>
           <button class="modal-close" onclick="closeModal('quickTaskModal')">&#x2715;</button>
         </div>
         <div style="display:flex;flex-direction:column;gap:14px">
@@ -1192,10 +1192,23 @@ if ('serviceWorker' in navigator) {
               <input type="date" class="form-input" id="qtDueDate">
             </div>
           </div>
+          <div class="form-group" id="qtStatusRow" style="margin:0;display:none">
+            <label class="form-label" for="qtStatus">Status</label>
+            <select class="form-input" id="qtStatus">
+              <option value="Not Started">Not Started</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Blocked">Blocked</option>
+              <option value="Done">Done</option>
+              <option value="N/A">N/A</option>
+            </select>
+          </div>
         </div>
-        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
-          <button class="btn btn-outline" onclick="closeModal('quickTaskModal')">Cancel</button>
-          <button class="btn btn-gold" onclick="saveQuickTask()">Assign Task</button>
+        <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;margin-top:20px">
+          <button class="btn btn-sm" id="qtDeleteBtn" style="display:none;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5" onclick="deleteQuickTaskFromModal()">🗑 Delete</button>
+          <div style="display:flex;gap:10px;margin-left:auto">
+            <button class="btn btn-outline" onclick="closeModal('quickTaskModal')">Cancel</button>
+            <button class="btn btn-gold" id="qtSaveBtn" onclick="saveQuickTask()">Assign Task</button>
+          </div>
         </div>
       </div>
     </div>
@@ -2513,7 +2526,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v6.2-DEV · Jul 04 2026";
+const BUILD_VERSION = "v6.3-DEV · Jul 04 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3664,7 +3677,7 @@ function renderDashboardAssignedByMeCard() {
     const isOverdue = t.due_date && t.due_date < today && t.status !== "Done" && t.status !== "N/A";
     const [sbg, sfg] = statusStyles[t.status] || statusStyles["Not Started"];
     return `
-      <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border)">
+      <div data-id="${esc(t.id)}" onclick="openAssignedTaskEditor(this.dataset.id)" style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background='#faf9f6'" onmouseout="this.style.background=''">
         <span style="font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.task_name)}">${esc(t.task_name)}</span>
         <span style="font-size:10px;color:var(--gray);white-space:nowrap;flex-shrink:0">${esc(t.assigned_to)}</span>
         <span style="background:${sbg};color:${sfg};font-size:9px;font-weight:700;padding:2px 8px;border-radius:9999px;white-space:nowrap;flex-shrink:0">${isOverdue?"⚠️ ":""}${t.status}</span>
@@ -10775,7 +10788,27 @@ async function markMyTaskDone(taskId) {
 // QUICK ASSIGN TASK
 // ═══════════════════════════════════════════════════════════
 
+function openAssignedTaskEditor(taskId) {
+  const t = ALL_TASKS.find(x => x.id === taskId);
+  if (!t) { showToast("Task not found — it may have been deleted.", "error"); return; }
+  // Checklist items (event-linked) use the event task editor; everything else
+  // (Donation/Grant/Marketing/General quick-assign tasks) uses the quick-task editor.
+  if (t.event_name && !t.linked_type) {
+    openEditTaskModal(taskId);
+  } else {
+    openEditQuickTaskModal(taskId);
+  }
+}
+
+let editingQuickTaskId = null;
+
 function openQuickTaskModal(defaultCategory = "Donation", linkedId = "", linkedName = "") {
+  editingQuickTaskId = null;
+  document.getElementById("qtModalTitle").textContent = "📋 Assign Task";
+  document.getElementById("qtSaveBtn").textContent = "Assign Task";
+  document.getElementById("qtDeleteBtn").style.display = "none";
+  document.getElementById("qtStatusRow").style.display = "none";
+
   // Set category
   const catSel = document.getElementById("qtCategory");
   if (catSel) catSel.value = defaultCategory;
@@ -10795,6 +10828,47 @@ function openQuickTaskModal(defaultCategory = "Donation", linkedId = "", linkedN
   updateQTLinkedOptions(linkedId, linkedName);
 
   openModal("quickTaskModal");
+}
+
+function openEditQuickTaskModal(taskId) {
+  const t = ALL_TASKS.find(x => x.id === taskId);
+  if (!t) return;
+  editingQuickTaskId = taskId;
+  document.getElementById("qtModalTitle").textContent = "📋 Edit Assigned Task";
+  document.getElementById("qtSaveBtn").textContent = "Save Changes";
+  document.getElementById("qtDeleteBtn").style.display = "";
+  document.getElementById("qtStatusRow").style.display = "";
+
+  const catSel = document.getElementById("qtCategory");
+  if (catSel) catSel.value = t.linked_type || "General";
+
+  document.getElementById("qtTaskName").value = t.task_name || "";
+  document.getElementById("qtDueDate").value = t.due_date || "";
+  document.getElementById("qtStatus").value = t.status || "Not Started";
+
+  const assignSel = document.getElementById("qtAssignTo");
+  if (assignSel) {
+    assignSel.innerHTML = '<option value="">— Select person —</option>' +
+      APP_USERS.map(u => `<option value="${esc(u.displayName)}" ${u.displayName===t.assigned_to?"selected":""}>${esc(u.displayName)}</option>`).join("");
+  }
+
+  updateQTLinkedOptions(t.linked_id || "", t.linked_name || "");
+  openModal("quickTaskModal");
+}
+
+async function deleteQuickTaskFromModal() {
+  if (!editingQuickTaskId) return;
+  if (!confirm("Delete this task? This cannot be undone.")) return;
+  try {
+    await sbDelete("MyBFFTasks", editingQuickTaskId, "id");
+    ALL_TASKS = ALL_TASKS.filter(t => t.id !== editingQuickTaskId);
+    closeModal("quickTaskModal");
+    showToast("Task deleted.");
+    updateActionSummary();
+    renderDashboardTasksCard(); renderDashboardAssignedByMeCard();
+  } catch(e) {
+    showToast("Error deleting task: " + e.message, "error");
+  }
 }
 
 function updateQTLinkedOptions(preId = "", preName = "") {
@@ -10838,6 +10912,7 @@ async function saveQuickTask() {
   const taskName = document.getElementById("qtTaskName").value.trim();
   const assignTo = document.getElementById("qtAssignTo").value;
   const dueDate  = document.getElementById("qtDueDate").value;
+  const status   = document.getElementById("qtStatus")?.value || "Not Started";
 
   if (!taskName) { showToast("Task description is required.", "error"); return; }
   if (!assignTo) { showToast("Please select who to assign this to.", "error"); return; }
@@ -10847,6 +10922,32 @@ async function saveQuickTask() {
   if (cat === "Grant" && linked) {
     const g = ALL_GRANTS?.find(g => g.id === ALL_GRANT_REQUESTS.find(r => r.id === linked)?.grant_id);
     if (g) linkedName = g.name;
+  }
+
+  if (editingQuickTaskId) {
+    // Update existing task — reassign, change due date, change status, etc.
+    const updates = {
+      task_name:   taskName,
+      assigned_to: assignTo,
+      due_date:    dueDate || null,
+      status:      status,
+      linked_type: cat === "General" ? null : cat,
+      linked_id:   linked || null,
+      linked_name: linkedName || null,
+      updated_at:  new Date().toISOString(),
+    };
+    try {
+      await sbUpdate("MyBFFTasks", editingQuickTaskId, updates, "id");
+      const idx = ALL_TASKS.findIndex(t => t.id === editingQuickTaskId);
+      if (idx >= 0) ALL_TASKS[idx] = { ...ALL_TASKS[idx], ...updates };
+      closeModal("quickTaskModal");
+      showToast("✅ Task updated.");
+      updateActionSummary();
+      renderDashboardTasksCard(); renderDashboardAssignedByMeCard();
+    } catch(e) {
+      showToast("Error updating task: " + e.message, "error");
+    }
+    return;
   }
 
   const row = {
