@@ -447,6 +447,8 @@ if ('serviceWorker' in navigator) {
     <div class="page active" id="page-dashboard">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
         <div class="section-title" style="margin:0">Dashboard</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="openQuickTaskModal()">📋 Assign Task</button>
         <div id="actionSummaryBar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-size:12px;color:var(--gray);font-weight:600;margin-right:4px">Your action items:</span>
           <button id="asBtnTasks"     onclick="openMyTasksModal()"    style="display:none;align-items:center;gap:5px;background:#fef3c7;color:#92400e;border:1.5px solid #f59e0b;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#9201; Tasks <span id="asCountTasks"    style="background:#f59e0b;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
@@ -454,6 +456,7 @@ if ('serviceWorker' in navigator) {
           <button id="asBtnToDo"      onclick="showPageNav('donations');setTimeout(()=>{const el=document.getElementById('donGranted');if(el){el.value='To Do';renderDonations();}},50)" style="display:none;align-items:center;gap:5px;background:#e0e7ff;color:#3730a3;border:1.5px solid #6366f1;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#9989; To Do <span id="asCountToDo"     style="background:#6366f1;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
           <button id="asBtnGrants"    onclick="showPageNav('grants')"    style="display:none;align-items:center;gap:5px;background:#f0fdf4;color:#166534;border:1.5px solid #22c55e;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#128204; Grants <span id="asCountGrants"    style="background:#22c55e;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
           <button id="asBtnMarketing" onclick="showPageNav('marketing')" style="display:none;align-items:center;gap:5px;background:#faf5ff;color:#6b21a8;border:1.5px solid #a855f7;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">&#128227; Marketing <span id="asCountMarketing" style="background:#a855f7;color:white;border-radius:9999px;padding:1px 6px;font-size:11px;margin-left:2px"></span></button>
+        </div>
         </div>
       </div>
       <!-- First row: main cards for everyone -->
@@ -503,8 +506,26 @@ if ('serviceWorker' in navigator) {
 
       </div>
 
-      <!-- Second row: Admin (admin only) + Follow-Ups (full width) -->
+      <!-- Second row: Follow-Ups + Assigned by You (compact) + Admin (admin only) -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px" id="dashCards2">
+
+        <!-- Follow-Ups Card -->
+        <div class="card" style="border-top:4px solid #f59e0b" id="dashFollowUpCardWrap">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div style="font-weight:700;font-size:16px">&#9201; Follow-Ups Needed</div>
+            <span style="font-size:12px;color:var(--gray)" id="dashFollowUpSubtitle"></span>
+          </div>
+          <div id="dashFollowUpCard"><div class="loading"><div class="spinner"></div></div></div>
+        </div>
+
+        <!-- Assigned by You Card -->
+        <div class="card" style="border-top:4px solid #7c3aed" id="dashAssignedByMeWrap">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div style="font-weight:700;font-size:16px">📋 Assigned by You</div>
+            <span style="font-size:12px;color:var(--gray)" id="dashAssignedByMeSubtitle"></span>
+          </div>
+          <div id="dashAssignedByMeCard"><div class="loading"><div class="spinner"></div></div></div>
+        </div>
 
         <!-- Admin Card (admin only) -->
         <div class="card admin-only" style="border-top:4px solid var(--red);cursor:pointer;display:none" onclick="showPageNav('admin')">
@@ -519,24 +540,6 @@ if ('serviceWorker' in navigator) {
               Pickup People: <strong id="dashPickupCount">—</strong>
             </div>
           </div>
-        </div>
-
-        <!-- Follow-Ups Card — full width -->
-        <div class="card" style="border-top:4px solid #f59e0b;grid-column:1/-1" id="dashFollowUpCardWrap">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-            <div style="font-weight:700;font-size:16px">&#9201; Follow-Ups Needed</div>
-            <span style="font-size:12px;color:var(--gray)" id="dashFollowUpSubtitle"></span>
-          </div>
-          <div id="dashFollowUpCard"><div class="loading"><div class="spinner"></div></div></div>
-        </div>
-
-        <!-- Assigned by You Card — full width -->
-        <div class="card" style="border-top:4px solid #7c3aed;grid-column:1/-1" id="dashAssignedByMeWrap">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-            <div style="font-weight:700;font-size:16px">📋 Assigned by You</div>
-            <span style="font-size:12px;color:var(--gray)" id="dashAssignedByMeSubtitle"></span>
-          </div>
-          <div id="dashAssignedByMeCard"><div class="loading"><div class="spinner"></div></div></div>
         </div>
 
       </div>
@@ -2510,7 +2513,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v6.1-DEV · Jul 04 2026";
+const BUILD_VERSION = "v6.2-DEV · Jul 04 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3575,87 +3578,47 @@ function renderDashboardFollowUps() {
 
   const today = new Date();
 
-  // Donations explicitly flagged for follow-up
-  const donFollowUps = ALL_DONATIONS.filter(d => d.follow_up)
-    .sort((a,b) => {
-      if (!a.follow_up_date && !b.follow_up_date) return 0;
-      if (!a.follow_up_date) return 1;
-      if (!b.follow_up_date) return -1;
-      return new Date(a.follow_up_date) - new Date(b.follow_up_date);
-    });
+  const donItems = ALL_DONATIONS.filter(d => d.follow_up).map(d => ({
+    kind: "DONATION", tagBg:"#fef3c7", tagFg:"#92400e",
+    name: d.organization, date: d.follow_up_date,
+    onclick: `openDonationForEdit('${esc(d.id)}')`
+  }));
+  const grantItems = ALL_GRANT_REQUESTS.filter(r => r.follow_up).map(r => {
+    const grant = ALL_GRANTS.find(g => g.id === r.grant_id);
+    return {
+      kind: "GRANT", tagBg:"#dbeafe", tagFg:"#1e40af",
+      name: grant?.name || "Unknown Grantor", date: r.follow_up_date,
+      onclick: `openGrantRequestModalEdit('${esc(r.id)}','${esc(r.grant_id)}')`
+    };
+  });
 
-  // Grant requests explicitly flagged for follow-up
-  const grantFollowUps = ALL_GRANT_REQUESTS.filter(r => r.follow_up)
-    .sort((a,b) => {
-      if (!a.follow_up_date && !b.follow_up_date) return 0;
-      if (!a.follow_up_date) return 1;
-      if (!b.follow_up_date) return -1;
-      return new Date(a.follow_up_date) - new Date(b.follow_up_date);
-    });
+  const all = [...donItems, ...grantItems].sort((a,b) => {
+    if (!a.date && !b.date) return 0;
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return new Date(a.date) - new Date(b.date);
+  });
 
-  const total = donFollowUps.length + grantFollowUps.length;
-
-  if (!total) {
+  if (!all.length) {
     if (wrap) wrap.style.display = "none";
     return;
   }
-
   if (wrap) wrap.style.display = "";
-  if (subtitle) subtitle.textContent = `${total} item${total!==1?"s":""} flagged for follow-up`;
+  if (subtitle) subtitle.textContent = `${all.length} item${all.length!==1?"s":""}`;
 
-  const donRows = donFollowUps.slice(0,5).map(d => {
-    const isPast = d.follow_up_date && new Date(d.follow_up_date) < today;
-    const dateLabel = d.follow_up_date ? `${isPast?"Overdue: ":"Due: "}${fmtDate(d.follow_up_date)}` : "No date set";
-    const slot2 = d.follow_up_assignee_2
-      ? `<div style="font-size:11px;color:#555;margin-top:3px;padding-top:3px;border-top:1px dashed #fde68a">
-           &#128100; ${esc(d.follow_up_assignee_2)}${d.follow_up_date_2?` · Due: ${fmtDate(d.follow_up_date_2)}`:""}
-           ${d.follow_up_note_2?`<br>&#128204; ${esc(d.follow_up_note_2)}`:""}
-         </div>` : "";
-    return `<div onclick="openDonationForEdit('${esc(d.id)}')" style="display:flex;align-items:flex-start;gap:10px;padding:8px 6px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px" onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background=''">
-      <span style="background:#fef3c7;color:#92400e;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;white-space:nowrap;margin-top:2px">DONATION</span>
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.organization)}</div>
-        <div style="font-size:11px;color:var(--gray)">${d.event_requested||"No event"} · ${d.type||""}</div>
-        ${d.follow_up_assignee ? `<div style="font-size:11px;color:var(--navy);margin-top:2px">&#128100; ${esc(d.follow_up_assignee)}${d.follow_up_note?` · &#128204; ${esc(d.follow_up_note)}`:"" }</div>` : ""}
-        ${slot2}
-      </div>
-      <div style="text-align:right;white-space:nowrap;flex-shrink:0">
-        <div style="font-size:11px;color:${isPast?"#dc2626":"#92400e"};font-weight:600">${dateLabel}</div>
-      </div><span style="color:var(--gray);font-size:18px;font-weight:300;flex-shrink:0;align-self:center">›</span>
+  const rows = all.slice(0, 4).map(item => {
+    const isPast = item.date && new Date(item.date) < today;
+    const dateLabel = item.date ? `${isPast?"Overdue: ":"Due: "}${fmtDate(item.date)}` : "No date";
+    return `<div onclick="${item.onclick}" style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background='#faf9f6'" onmouseout="this.style.background=''">
+      <span style="background:${item.tagBg};color:${item.tagFg};font-size:9px;padding:2px 6px;border-radius:20px;font-weight:700;white-space:nowrap;flex-shrink:0">${item.kind}</span>
+      <span style="font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.name)}</span>
+      <span style="font-size:10px;color:${isPast?"#dc2626":"var(--gray)"};font-weight:600;white-space:nowrap;flex-shrink:0">${dateLabel}</span>
     </div>`;
   }).join("");
 
-  const grantRows = grantFollowUps.slice(0,5).map(r => {
-    const grant = ALL_GRANTS.find(g => g.id === r.grant_id);
-    const isPast = r.follow_up_date && new Date(r.follow_up_date) < today;
-    const dateLabel = r.follow_up_date ? `${isPast?"Overdue: ":"Due: "}${fmtDate(r.follow_up_date)}` : "No date set";
-    return `<div onclick="openGrantRequestModalEdit('${esc(r.id)}','${esc(r.grant_id)}')" style="display:flex;align-items:flex-start;gap:10px;padding:8px 6px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background=''">
-      <span style="background:#dbeafe;color:#1e40af;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;white-space:nowrap;margin-top:2px">GRANT</span>
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(grant?.name||"Unknown Grantor")}</div>
-        <div style="font-size:11px;color:var(--gray)">${r.status} · ${r.year||""}</div>
-        ${r.follow_up_assignee ? `<div style="font-size:11px;color:var(--navy);margin-top:2px">&#128100; ${esc(r.follow_up_assignee)}</div>` : ""}
-        ${r.follow_up_note ? `<div style="font-size:11px;color:#1e40af;margin-top:1px">&#128204; ${esc(r.follow_up_note)}</div>` : ""}
-      </div>
-      <div style="text-align:right;white-space:nowrap;flex-shrink:0">
-        <div style="font-size:11px;color:${isPast?"#dc2626":"#1e40af"};font-weight:600">${dateLabel}</div>
-      </div><span style="color:var(--gray);font-size:18px;font-weight:300;flex-shrink:0;align-self:center">›</span>
-    </div>`;
-  }).join("");
-
-  card.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px">
-      ${donFollowUps.length ? `<div>
-        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:700;margin-bottom:8px">Donations</div>
-        ${donRows}
-        ${donFollowUps.length > 5 ? `<div style="font-size:12px;color:var(--gray);margin-top:6px;cursor:pointer" onclick="showPageNav('donations')">+${donFollowUps.length-5} more → View Donations</div>` : ""}
-      </div>` : ""}
-      ${grantFollowUps.length ? `<div>
-        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:700;margin-bottom:8px">Grants</div>
-        ${grantRows}
-        ${grantFollowUps.length > 5 ? `<div style="font-size:12px;color:var(--gray);margin-top:6px;cursor:pointer" onclick="showPageNav('grants')">+${grantFollowUps.length-5} more → View Grants</div>` : ""}
-      </div>` : ""}
-    </div>`;
+  card.innerHTML = rows + (all.length > 4
+    ? `<div style="font-size:12px;color:var(--gold);margin-top:8px;cursor:pointer;font-weight:600;text-align:center" onclick="showPageNav('donations')">+${all.length-4} more →</div>`
+    : "");
 }
 
 function renderDashboardAssignedByMeCard() {
@@ -3697,33 +3660,16 @@ function renderDashboardAssignedByMeCard() {
     "N/A":         ["#f3f4f6","#9ca3af"],
   };
 
-  card.innerHTML = mine.slice(0, 12).map(t => {
+  card.innerHTML = mine.slice(0, 4).map(t => {
     const isOverdue = t.due_date && t.due_date < today && t.status !== "Done" && t.status !== "N/A";
     const [sbg, sfg] = statusStyles[t.status] || statusStyles["Not Started"];
-    const linked = t.linked_name || t.event_name || "";
-    const typeTag = t.linked_type
-      ? `<span style="font-size:10px;background:#e0e7ff;color:#3730a3;border-radius:9999px;padding:1px 6px">${esc(t.linked_type)}</span>`
-      : t.event_name
-      ? `<span style="font-size:10px;background:#fef3c7;color:#92400e;border-radius:9999px;padding:1px 6px">Checklist</span>`
-      : "";
     return `
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--border);flex-wrap:wrap">
-        <div style="width:26px;height:26px;border-radius:50%;background:#7c3aed;color:white;font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          ${esc((t.assigned_to||"?").charAt(0))}
-        </div>
-        <div style="flex:1;min-width:180px">
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            ${typeTag}
-            <span style="font-size:13px;font-weight:600">${esc(t.task_name)}</span>
-          </div>
-          <div style="font-size:11px;color:var(--gray);margin-top:2px">
-            Assigned to <strong>${esc(t.assigned_to)}</strong>${linked ? ` · ${esc(linked)}` : ""}
-          </div>
-        </div>
-        ${t.due_date ? `<span style="font-size:11px;color:${isOverdue?"#dc2626":"#888"};white-space:nowrap">${isOverdue?"⚠️ Overdue: ":"Due: "}${fmtDate(t.due_date)}</span>` : ""}
-        <span style="background:${sbg};color:${sfg};font-size:11px;font-weight:700;padding:2px 10px;border-radius:9999px;white-space:nowrap">${t.status}</span>
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border)">
+        <span style="font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.task_name)}">${esc(t.task_name)}</span>
+        <span style="font-size:10px;color:var(--gray);white-space:nowrap;flex-shrink:0">${esc(t.assigned_to)}</span>
+        <span style="background:${sbg};color:${sfg};font-size:9px;font-weight:700;padding:2px 8px;border-radius:9999px;white-space:nowrap;flex-shrink:0">${isOverdue?"⚠️ ":""}${t.status}</span>
       </div>`;
-  }).join("") + (mine.length > 12 ? `<div style="font-size:12px;color:var(--gray);margin-top:8px;text-align:center">+ ${mine.length-12} more</div>` : "");
+  }).join("") + (mine.length > 4 ? `<div style="font-size:12px;color:var(--gold);margin-top:8px;cursor:pointer;font-weight:600;text-align:center" onclick="openMyTasksModal()">+${mine.length-4} more →</div>` : "");
 }
 
 function renderDashboardTasksCard() {
