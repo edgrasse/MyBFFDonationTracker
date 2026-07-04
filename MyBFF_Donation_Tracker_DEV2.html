@@ -145,7 +145,7 @@ tr:last-child td { border-bottom: none; }
 .btn-primary:hover { background: #2d4070; }
 .btn-gold { background: var(--gold); color: white; }
 .btn-gold:hover { background: var(--gold-light); }
-.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn-sm { padding: 7px 14px; font-size: 12px; }
 .btn-danger { background: var(--red); color: white; }
 .btn-danger:hover { background: #a93226; }
 .btn-outline { background: transparent; border: 2px solid var(--navy); color: var(--navy); }
@@ -276,6 +276,23 @@ a:hover { text-decoration: underline; }
   header { padding: 0 12px; }
   nav { padding: 0 12px; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.admin-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+@media (max-width:600px){ .admin-grid { grid-template-columns:1fr; } }
+
+.card [onclick]:active { background:#f3f0e9 !important; }
+
+.nav-wrap { position:relative; background:white; }
+@media (max-width:768px){
+  .nav-wrap::after { content:''; position:absolute; right:0; top:0; bottom:0; width:36px;
+    background:linear-gradient(to left, white, rgba(255,255,255,0)); pointer-events:none; }
+}
+
+#donCardList { display:none; }
+@media (max-width:600px){
+  #donTableWrap { display:none; }
+  #donCardList { display:block; }
 }
 
 /* ── HELP PAGE ── */
@@ -415,7 +432,7 @@ if ('serviceWorker' in navigator) {
       <button class="btn-logout" onclick="doLogout()">Sign Out</button>
     </div>
   </header>
-  <nav id="mainNav">
+  <div class="nav-wrap"><nav id="mainNav">
     <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
     <button class="nav-tab" onclick="showPage('events')">Events</button>
     <button class="nav-tab" onclick="showPage('donations')">Donations <span id="donNavBadge" style="display:none;background:#dc2626;color:white;border-radius:9999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:2px"></span></button>
@@ -423,7 +440,7 @@ if ('serviceWorker' in navigator) {
     <button class="nav-tab marketing-tab" onclick="showPage('marketing')" style="display:none">Marketing <span id="mktgBadge" style="display:none;background:#dc2626;color:white;border-radius:9999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px"></span></button>
     <button class="nav-tab admin-only" onclick="showPage('admin')" style="display:none">Admin</button>
     <button class="nav-tab" onclick="showPage('links')" id="navLinksTab">&#127758; MyBFF Sites</button>
-  </nav>
+  </nav></div>
   <main>
 
     <!-- DASHBOARD -->
@@ -656,7 +673,7 @@ if ('serviceWorker' in navigator) {
             <button class="btn btn-outline btn-sm" onclick="clearDonationFilters()">Clear</button>
           </div>
           <div class="count-label" id="donCount"></div>
-          <div class="table-wrap" style="margin-top:12px">
+          <div class="table-wrap" id="donTableWrap" style="margin-top:12px">
             <table>
               <thead>
                 <tr>
@@ -667,6 +684,7 @@ if ('serviceWorker' in navigator) {
               <tbody id="donTable"></tbody>
             </table>
           </div>
+          <div id="donCardList" style="margin-top:12px"></div>
         </div>
       </div>
 
@@ -979,7 +997,7 @@ if ('serviceWorker' in navigator) {
     <div class="page" id="page-help">
       <div class="page-header">
         <div class="section-title" style="margin:0">Help &amp; FAQ</div>
-        <input class="filter-input" id="helpSearch" placeholder="&#128269; Search help topics..." oninput="filterHelp()" style="min-width:260px">
+        <input class="filter-input" id="helpSearch" placeholder="&#128269; Search help topics..." oninput="filterHelp()" style="width:100%;max-width:300px">
       </div>
       <div id="helpContent"></div>
     </div>
@@ -987,7 +1005,7 @@ if ('serviceWorker' in navigator) {
     <!-- ADMIN -->
     <div class="page" id="page-admin">
       <div class="section-title">Admin Panel</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div class="admin-grid">
         <!-- Users -->
         <div class="card" style="grid-column:1/-1">
           <div style="font-weight:700;font-size:16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
@@ -1131,7 +1149,7 @@ if ('serviceWorker' in navigator) {
         <div style="display:flex;flex-direction:column;gap:14px">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
             <div class="form-group" style="margin:0">
-              <label class="form-label">Category <span class="req">*</span></label>
+              <label class="form-label" for="qtCategory">Category <span class="req">*</span></label>
               <select class="form-input" id="qtCategory" onchange="updateQTLinkedOptions()">
                 <option value="Donation">Donation</option>
                 <option value="Grant">Grant</option>
@@ -1140,25 +1158,25 @@ if ('serviceWorker' in navigator) {
               </select>
             </div>
             <div class="form-group" id="qtLinkedRow" style="margin:0">
-              <label class="form-label">Linked To</label>
+              <label class="form-label" for="qtLinked">Linked To</label>
               <select class="form-input" id="qtLinked">
                 <option value="">— Select record —</option>
               </select>
             </div>
           </div>
           <div class="form-group" style="margin:0">
-            <label class="form-label">Task <span class="req">*</span></label>
+            <label class="form-label" for="qtTaskName">Task <span class="req">*</span></label>
             <textarea class="form-input form-textarea" id="qtTaskName" rows="3" placeholder="What needs to be done?"></textarea>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
             <div class="form-group" style="margin:0">
-              <label class="form-label">Assign To <span class="req">*</span></label>
+              <label class="form-label" for="qtAssignTo">Assign To <span class="req">*</span></label>
               <select class="form-input" id="qtAssignTo">
                 <option value="">— Select person —</option>
               </select>
             </div>
             <div class="form-group" style="margin:0">
-              <label class="form-label">Due Date</label>
+              <label class="form-label" for="qtDueDate">Due Date</label>
               <input type="date" class="form-input" id="qtDueDate">
             </div>
           </div>
@@ -1311,18 +1329,18 @@ if ('serviceWorker' in navigator) {
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Type</label>
+        <label class="form-label" for="donType2">Type</label>
         <select class="form-select" id="donType2">
           <option value="">Select...</option>
           <option>Restaurant</option><option>Shopping</option><option>Entertainment</option><option>Other</option>
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Requested By</label>
+        <label class="form-label" for="donWho">Requested By</label>
         <select class="form-select" id="donWho"></select>
       </div>
       <div class="form-group">
-        <label class="form-label">Year</label>
+        <label class="form-label" for="donYearField">Year</label>
         <select class="form-select" id="donYearField">
           <option value="2024">2024</option>
           <option value="2025">2025</option>
@@ -1330,31 +1348,31 @@ if ('serviceWorker' in navigator) {
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Event Type</label>
+        <label class="form-label" for="donEventReq">Event Type</label>
         <select class="form-select" id="donEventReq"></select>
       </div>
       <div class="form-group">
-        <label class="form-label">Assign to Specific Event <span style="font-size:11px;color:var(--gray);font-weight:400">(optional)</span></label>
+        <label class="form-label" for="donEventInstance">Assign to Specific Event <span style="font-size:11px;color:var(--gray);font-weight:400">(optional)</span></label>
         <select class="form-select" id="donEventInstance">
           <option value="">— Not assigned to a specific event —</option>
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Used For</label>
+        <label class="form-label" for="donUsedFor">Used For</label>
         <select class="form-select" id="donUsedFor"></select>
       </div>
       <div class="form-group">
-        <label class="form-label">Donation Category</label>
+        <label class="form-label" for="donCategory">Donation Category</label>
         <select class="form-select" id="donCategory" onchange="toggleDonCategoryOther()">
           <option value="">— Category —</option>
         </select>
       </div>
       <div class="form-group full" id="donCategoryOtherRow" style="display:none">
-        <label class="form-label">Specify Category</label>
+        <label class="form-label" for="donCategoryOther">Specify Category</label>
         <input type="text" class="form-input" id="donCategoryOther" placeholder="Describe how this donation will be used">
       </div>
       <div class="form-group">
-        <label class="form-label">How Contacted</label>
+        <label class="form-label" for="donHow">How Contacted</label>
         <select class="form-select" id="donHow" onchange="toggleHowField()">
           <option value="">Select...</option>
           <option>Online</option><option>Online Form</option><option>Email</option>
@@ -1370,15 +1388,15 @@ if ('serviceWorker' in navigator) {
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Date Requested</label>
+        <label class="form-label" for="donDate">Date Requested</label>
         <input type="date" class="form-input" id="donDate">
       </div>
       <div class="form-group">
-        <label class="form-label">Lead Time</label>
+        <label class="form-label" for="donLeadTime">Lead Time</label>
         <input type="text" class="form-input" id="donLeadTime" placeholder="e.g. 6 weeks, 30 days">
       </div>
       <div class="form-group">
-        <label class="form-label">Granted?</label>
+        <label class="form-label" for="donGranted2">Granted?</label>
         <select class="form-select" id="donGranted2" onchange="toggleGrantedFields()">
           <option value="">Pending / No Response</option>
           <option value="Yes">Yes</option>
@@ -1389,7 +1407,7 @@ if ('serviceWorker' in navigator) {
       </div>
       <!-- To Do assignee — shown only when To Do is selected -->
       <div class="form-group" id="donTodoAssignRow" style="display:none">
-        <label class="form-label">Assign To Do To</label>
+        <label class="form-label" for="donTodoAssignee">Assign To Do To</label>
         <select class="form-select" id="donTodoAssignee">
           <option value="">— Select person —</option>
         </select>
@@ -1400,16 +1418,16 @@ if ('serviceWorker' in navigator) {
         <div class="form-grid">
           <div class="form-section" style="margin-top:0">Donation Details</div>
           <div class="form-group">
-            <label class="form-label">Item / What They're Donating</label>
+            <label class="form-label" for="donItem">Item / What They're Donating</label>
             <input type="text" class="form-input" id="donItem" placeholder="e.g. $50 gift card">
           </div>
           <div class="form-group">
-            <label class="form-label">Estimated Value ($)</label>
+            <label class="form-label" for="donValue">Estimated Value ($)</label>
             <input type="number" class="form-input" id="donValue" placeholder="0.00" step="0.01">
           </div>
           <div class="form-section">Pickup / Delivery</div>
           <div class="form-group">
-            <label class="form-label">How Are We Getting It?</label>
+            <label class="form-label" for="donPickupMethod">How Are We Getting It?</label>
             <select class="form-select" id="donPickupMethod" onchange="togglePickupAssign()">
               <option value="">Select...</option>
               <option>Mail</option><option>Pick Up</option>
@@ -1426,11 +1444,11 @@ if ('serviceWorker' in navigator) {
         </div>
       </div>
       <div class="form-group full">
-        <label class="form-label">Notes (contact info, details, etc.)</label>
+        <label class="form-label" for="donNotes">Notes (contact info, details, etc.)</label>
         <textarea class="form-textarea" id="donNotes" placeholder="Contact name, phone, address, details..."></textarea>
       </div>
       <div class="form-group full">
-        <label class="form-label">Reference Link / URL</label>
+        <label class="form-label" for="donRefLink">Reference Link / URL</label>
         <input type="text" class="form-input" id="donRefLink" placeholder="https://...  or donation form name">
       </div>
       <div class="form-group full" style="background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px;padding:12px 14px">
@@ -1441,15 +1459,15 @@ if ('serviceWorker' in navigator) {
         <!-- Slot 1 -->
         <div id="donFollowUpDateRow" style="display:none;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group" style="margin:0">
-            <label class="form-label" style="font-size:12px">Assigned To</label>
+            <label class="form-label" for="donFollowUpAssignee" style="font-size:12px">Assigned To</label>
             <select class="form-input" id="donFollowUpAssignee" style="font-size:13px"></select>
           </div>
           <div class="form-group" style="margin:0">
-            <label class="form-label" style="font-size:12px">Follow-Up Date <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+            <label class="form-label" for="donFollowUpDate" style="font-size:12px">Follow-Up Date <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
             <input type="date" class="form-input" id="donFollowUpDate">
           </div>
           <div class="form-group" style="margin:0;grid-column:1/-1">
-            <label class="form-label" style="font-size:12px">Next Step / Note</label>
+            <label class="form-label" for="donFollowUpNote" style="font-size:12px">Next Step / Note</label>
             <input type="text" class="form-input" id="donFollowUpNote" placeholder="e.g. Call Jeremy after the 15th — he said check back then">
           </div>
           <!-- Add second follow-up button -->
@@ -1461,15 +1479,15 @@ if ('serviceWorker' in navigator) {
         <div id="donFollowUp2Row" style="display:none;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;padding-top:12px;border-top:1px dashed #f59e0b">
           <div style="grid-column:1/-1;font-size:12px;font-weight:600;color:#92400e">Second Follow-Up</div>
           <div class="form-group" style="margin:0">
-            <label class="form-label" style="font-size:12px">Assigned To</label>
+            <label class="form-label" for="donFollowUpAssignee2" style="font-size:12px">Assigned To</label>
             <select class="form-input" id="donFollowUpAssignee2" style="font-size:13px"></select>
           </div>
           <div class="form-group" style="margin:0">
-            <label class="form-label" style="font-size:12px">Follow-Up Date <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+            <label class="form-label" for="donFollowUpDate2" style="font-size:12px">Follow-Up Date <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
             <input type="date" class="form-input" id="donFollowUpDate2">
           </div>
           <div class="form-group" style="margin:0;grid-column:1/-1">
-            <label class="form-label" style="font-size:12px">Next Step / Note</label>
+            <label class="form-label" for="donFollowUpNote2" style="font-size:12px">Next Step / Note</label>
             <input type="text" class="form-input" id="donFollowUpNote2" placeholder="e.g. Kris to pick up item by June 1">
           </div>
           <div style="grid-column:1/-1">
@@ -1732,29 +1750,6 @@ if ('serviceWorker' in navigator) {
 
 
 <!-- IMPORT DATA MODAL -->
-<div class="modal-overlay" id="importModal">
-  <div class="modal import-modal">
-    <button class="modal-close" onclick="closeModal('importModal')">&#10005;</button>
-    <div class="modal-title">&#128229; Import Data from Google Sheets Export</div>
-    <p style="font-size:14px;color:var(--gray);margin-bottom:16px">
-      Select the <strong>MyBFF_FullBackup_[date].json</strong> file exported from the Google Sheets version.
-      Duplicate records (matched by ID) will be skipped automatically.
-    </p>
-    <div class="form-group">
-      <label class="form-label">Select JSON Backup File</label>
-      <input type="file" id="importFile" accept=".json" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px">
-    </div>
-    <div style="background:#fffbeb;border-left:3px solid var(--gold);padding:10px 14px;border-radius:0 6px 6px 0;font-size:13px;color:#78350f;margin:12px 0">
-      ⚠️ <strong>Before importing:</strong> Verify that Row Level Security is <strong>disabled</strong> on all MyBFF tables in Supabase. If RLS is enabled, the import will silently save 0 records.
-    </div>
-    <div class="form-actions">
-      <button class="btn btn-outline" onclick="closeModal('importModal')">Cancel</button>
-      <button class="btn btn-gold" onclick="runImport()">&#9654; Run Import</button>
-    </div>
-    <div id="importStatus"></div>
-  </div>
-</div>
-
 <div id="toast"></div>
 
 <!-- TASK MODAL -->
@@ -1764,11 +1759,11 @@ if ('serviceWorker' in navigator) {
     <div class="modal-title" id="taskModalTitle">Add Task</div>
     <div class="form-grid">
       <div class="form-group">
-        <label class="form-label">Task Name <span class="req">*</span></label>
+        <label class="form-label" for="tmTaskName">Task Name <span class="req">*</span></label>
         <input class="form-input" id="tmTaskName" placeholder="e.g. Confirm venue booking">
       </div>
       <div class="form-group">
-        <label class="form-label">Event <span class="req">*</span></label>
+        <label class="form-label" for="tmEventName">Event <span class="req">*</span></label>
         <select class="form-input" id="tmEventName"></select>
       </div>
       <div class="form-group" style="grid-column:1/-1">
@@ -1776,11 +1771,11 @@ if ('serviceWorker' in navigator) {
         <div id="tmAssigneeChecks" style="border:2px solid var(--border);border-radius:7px;padding:8px 12px;max-height:140px;overflow-y:auto;background:white;display:flex;flex-direction:column;gap:4px"></div>
       </div>
       <div class="form-group">
-        <label class="form-label">Due Date</label>
+        <label class="form-label" for="tmDueDate">Due Date</label>
         <input class="form-input" type="date" id="tmDueDate">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Status</label>
+        <label class="form-label" for="tmStatus">Status</label>
         <select class="form-input" id="tmStatus">
           <option value="Not Started">Not Started</option>
           <option value="In Progress">In Progress</option>
@@ -2506,7 +2501,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v6.3-DEV2-Phase3 · Jul 03 2026";
+const BUILD_VERSION = "v6.4-DEV2-UIUX · Jul 04 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3614,7 +3609,7 @@ function renderDashboardFollowUps() {
       </div>
       <div style="text-align:right;white-space:nowrap;flex-shrink:0">
         <div style="font-size:11px;color:${isPast?"#dc2626":"#92400e"};font-weight:600">${dateLabel}</div>
-      </div>
+      </div><span style="color:var(--gray);font-size:18px;font-weight:300;flex-shrink:0;align-self:center">›</span>
     </div>`;
   }).join("");
 
@@ -3632,7 +3627,7 @@ function renderDashboardFollowUps() {
       </div>
       <div style="text-align:right;white-space:nowrap;flex-shrink:0">
         <div style="font-size:11px;color:${isPast?"#dc2626":"#1e40af"};font-weight:600">${dateLabel}</div>
-      </div>
+      </div><span style="color:var(--gray);font-size:18px;font-weight:300;flex-shrink:0;align-self:center">›</span>
     </div>`;
   }).join("");
 
@@ -3943,25 +3938,17 @@ function showEvDetailTab(tab) {
 }
 
 function showEventDetail(eventName) {
-  console.log("[showEventDetail] called with:", JSON.stringify(eventName));
-  console.log("[showEventDetail] ALL_EVENTS_DATA names:", ALL_EVENTS_DATA.map(e=>e.name));
+
   CURRENT_EVENT_VIEW = eventName;
   try {
     document.getElementById("evListView").style.display = "none";
     document.getElementById("evDetailView").style.display = "";
-    console.log("[showEventDetail] list hidden, detail shown");
     const ev = ALL_EVENTS_DATA.find(e => e.name === eventName) || { name: eventName };
-    console.log("[showEventDetail] ev found:", ev ? ev.name : "FALLBACK");
     renderEventDetailCard(ev);
-    console.log("[showEventDetail] renderEventDetailCard done");
     showEvDetailTab("tasks");
-    console.log("[showEventDetail] showEvDetailTab done");
     renderEventDetailTasks();
-    console.log("[showEventDetail] renderEventDetailTasks done");
     renderEventDetailDonations();
-    console.log("[showEventDetail] renderEventDetailDonations done");
     renderEventDetailAssets();
-    console.log("[showEventDetail] renderEventDetailAssets done");
   } catch(err) {
     console.error("[showEventDetail] CRASHED:", err.message, err.stack);
     showToast("Error opening event: " + err.message, "error");
@@ -4540,7 +4527,7 @@ function renderDonations() {
   let data = filterDonations();
   document.getElementById("donCount").textContent = `Showing ${data.length} of ${ALL_DONATIONS.length} records`;
   const tbody = document.getElementById("donTable");
-  if (!data.length) { tbody.innerHTML = `<tr><td colspan="10" class="empty-state">No donations match your filters.</td></tr>`; return; }
+  if (!data.length) { tbody.innerHTML = `<tr><td colspan="11" class="empty-state">No donations match your filters.</td></tr>`; const cl=document.getElementById("donCardList"); if(cl) cl.innerHTML=`<div style="text-align:center;padding:24px;color:var(--gray)">No donations match your filters.</div>`; return; }
   tbody.innerHTML = data.map(d => {
     // Year mismatch indicator
     const reqYear = d.year ? String(d.year) : "";
@@ -4577,6 +4564,27 @@ function renderDonations() {
       </td>
     </tr>`;
   }).join("");
+
+  // Mobile card view — same data, stacked cards (shown < 600px via CSS)
+  const cardList = document.getElementById("donCardList");
+  if (cardList) {
+    cardList.innerHTML = data.map(d => `
+      <div class="card" data-id="${esc(d.id)}" onclick="viewDonation(this.dataset.id)"
+           style="margin-bottom:10px;padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:12px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.organization)}</div>
+          <div style="font-size:12px;color:var(--gray);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            ${d.event_requested ? esc(d.event_requested) : "—"}${d.item ? " · " + esc(d.item) : ""}
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">
+            <span class="badge ${grantedBadge(d.granted)}" style="font-size:11px">${d.granted || "Pending"}</span>
+            ${d.value ? `<span style="font-size:12px;font-weight:600">$${parseFloat(d.value).toLocaleString()}</span>` : ""}
+            <span style="font-size:11px;color:var(--gray)">${fmtDate(d.date_requested)}</span>
+          </div>
+        </div>
+        <span style="color:var(--gray);font-size:20px;font-weight:300;flex-shrink:0">›</span>
+      </div>`).join("");
+  }
 }
 
 function filterDonations() {
@@ -4619,15 +4627,12 @@ function clearDonationFilters() {
 }
 
 function viewDonation(id) {
-  console.log("[viewDonation] called with id:", id, "| ALL_DONATIONS length:", ALL_DONATIONS.length);
   let d = ALL_DONATIONS.find(x => x.id === id);
-  console.log("[viewDonation] exact ID match:", d);
   // Fallback: quick-assign tasks store the organization name as linked_id
   // since donations are grouped by vendor, not a single record. If no exact
   // ID match, treat the id as an organization name and find the most recent record.
   if (!d) {
     const matches = ALL_DONATIONS.filter(x => x.organization === id);
-    console.log("[viewDonation] org-name fallback matches:", matches.length, matches);
     if (matches.length) {
       d = matches.sort((a, b) => (b.date_requested || "").localeCompare(a.date_requested || ""))[0];
     }
@@ -4637,9 +4642,7 @@ function viewDonation(id) {
     showToast("Donation record not found — it may have been deleted.", "error");
     return;
   }
-  console.log("[viewDonation] rendering modal for:", d.organization);
   const donDetailEl = document.getElementById("donDetailContent");
-  console.log("[viewDonation] donDetailContent element found:", !!donDetailEl);
   const vend = ALL_VENDORS.find(v => v.name === d.organization);
   const vendHistory = ALL_DONATIONS.filter(x => x.organization === d.organization && x.id !== id);
   document.getElementById("donDetailContent").innerHTML = `
@@ -5464,144 +5467,6 @@ async function deletePickup(pid) {
 // ═══════════════════════════════════════════════════════════
 // IMPORT JSON DATA (migration from Google Sheets export)
 // ═══════════════════════════════════════════════════════════
-function openImportModal() { openModal("importModal"); document.getElementById("importStatus").innerHTML = ""; document.getElementById("importFile").value = ""; }
-
-async function runImport() {
-  const file = document.getElementById("importFile").files[0];
-  if (!file) { showToast("Please select a JSON file.", "error"); return; }
-  const statusEl = document.getElementById("importStatus");
-  statusEl.innerHTML = `<div style="color:var(--gray)">Reading file…</div>`;
-  try {
-    const text = await file.text();
-    const data = JSON.parse(text);
-    const results = { donations: 0, donSkip: 0, vendors: 0, vendSkip: 0, users: 0, userSkip: 0, events: 0, pickups: 0, errors: [] };
-
-    // Helper: normalize field names (camelCase → snake_case)
-    function norm(r) {
-      const map = {
-        ID:"id", Year:"year", Who:"who", EventRequested:"event_requested", UsedFor:"used_for",
-        Type:"type", Organization:"organization", How:"how", DateRequested:"date_requested",
-        Granted:"granted", Value:"value", Item:"item", LeadTime:"lead_time",
-        PickupMethod:"pickup_method", PickupAssignedTo:"pickup_assigned_to",
-        Notes:"notes", ReferenceLink:"reference_link", SavedAt:"saved_at",
-        LastEditedBy:"edited_by", LastEditedAt:"edited_at",
-        display_name:"display_name", displayName:"display_name"
-      };
-      const out = {};
-      for (const k in r) { out[map[k] || k] = r[k]; }
-      return out;
-    }
-
-    // Donations
-    const donations = data.donations || [];
-    const existingIds = new Set(ALL_DONATIONS.map(d => d.id));
-    for (const raw of donations) {
-      const r = norm(raw);
-      if (!r.id) r.id = genId();
-      if (existingIds.has(r.id)) { results.donSkip++; continue; }
-      try {
-        const row = {
-          id: r.id, year: parseInt(r.year) || null, who: r.who || "", event_requested: r.event_requested || "",
-          used_for: r.used_for || "", type: r.type || "", organization: r.organization || "",
-          how: r.how || "", date_requested: r.date_requested || "", granted: r.granted || "",
-          value: parseFloat(r.value) || null, item: r.item || "", lead_time: r.lead_time || "",
-          pickup_method: r.pickup_method || "", pickup_assigned_to: r.pickup_assigned_to || "",
-          notes: r.notes || "", reference_link: r.reference_link || "",
-          saved_at: r.saved_at || new Date().toISOString(), edited_by: r.edited_by || "", edited_at: r.edited_at || ""
-        };
-        await sbInsert("MyBFFDonations", row);
-        existingIds.add(r.id);
-        results.donations++;
-      } catch(e) { results.errors.push("Donation " + r.id + ": " + e.message); }
-    }
-
-    // Vendors (only real cards, skip auto_)
-    const vendors = (data.vendors || []).filter(v => {
-      const r = norm(v);
-      return r.id && !String(r.id).startsWith("auto_");
-    });
-    const existingVendIds = new Set(ALL_VENDORS.filter(v=>!v.id.startsWith("auto_")).map(v=>v.id));
-    for (const raw of vendors) {
-      const r = norm(raw);
-      if (!r.id) r.id = genId();
-      if (existingVendIds.has(r.id)) { results.vendSkip++; continue; }
-      try {
-        await sbInsert("MyBFFVendors", {
-          id: r.id, name: r.name || "", type: r.type || "", address: r.address || "",
-          phone: r.phone || "", email: r.email || "", website: r.website || "",
-          contact1_name: r.contact1_name || "", contact1_phone: r.contact1_phone || "", contact1_email: r.contact1_email || "",
-          contact2_name: r.contact2_name || "", contact2_phone: r.contact2_phone || "", contact2_email: r.contact2_email || "",
-          notes: r.notes || "", reference_link: r.reference_link || "", created_at: new Date().toISOString()
-        });
-        results.vendors++;
-      } catch(e) { results.errors.push("Vendor " + r.name + ": " + e.message); }
-    }
-
-    // Users
-    const users = data.users || [];
-    const existingUsernames = new Set(APP_USERS.map(u => u.username));
-    for (const raw of users) {
-      const r = norm(raw);
-      if (!r.username || existingUsernames.has(r.username)) { results.userSkip++; continue; }
-      try {
-        await sbInsert("MyBFFUsers", { username: r.username, password: r.password || "changeme", role: r.role || "standard", display_name: r.display_name || r.username });
-        results.users++;
-      } catch(e) { results.errors.push("User " + r.username + ": " + e.message); }
-    }
-
-    // Events
-    const events = data.events || [];
-    for (const raw of events) {
-      const r = norm(raw);
-      if (!r.name || ALL_EVENTS.includes(r.name)) continue;
-      try {
-        await sbUpsert("MyBFFEvents", { name: r.name }, "name");
-        ALL_EVENTS.push(r.name);
-        results.events++;
-      } catch(e) {}
-    }
-
-    // Pickups
-    const pickups = data.pickups || [];
-    for (const raw of pickups) {
-      const r = norm(raw);
-      if (!r.name || PICKUP_PEOPLE.includes(r.name)) continue;
-      try {
-        await sbInsert("MyBFFPickups", { id: genId(), name: r.name, phone: r.phone || "", email: r.email || "" });
-        PICKUP_PEOPLE.push(r.name);
-        results.pickups++;
-      } catch(e) {}
-    }
-
-    // Reload all data
-    await loadAll();
-    renderDashboard();
-
-    const errHtml = results.errors.length ? `<div style="margin-top:8px;color:var(--red);font-size:12px">${results.errors.slice(0,5).join("<br>")}</div>` : "";
-    statusEl.innerHTML = `
-      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin-top:12px">
-        <div style="font-weight:700;color:#166534;margin-bottom:8px">✅ Import Complete</div>
-        <div style="font-size:13px;color:#166534">
-          Donations imported: <strong>${results.donations}</strong> (${results.donSkip} duplicates skipped)<br>
-          Vendor cards imported: <strong>${results.vendors}</strong> (${results.vendSkip} duplicates skipped)<br>
-          Users imported: <strong>${results.users}</strong><br>
-          Events added: <strong>${results.events}</strong><br>
-          Pickup people added: <strong>${results.pickups}</strong>
-        </div>
-        ${errHtml}
-        <div style="margin-top:10px;font-size:12px;color:#166534">
-          Verify in Supabase Table Editor that row counts match your export.
-        </div>
-      </div>`;
-  } catch(e) {
-    statusEl.innerHTML = `<div style="color:var(--red);margin-top:12px;padding:12px;background:#fef2f2;border-radius:8px">
-      <strong>Error:</strong> ${e.message}<br><small>Is this a valid JSON export file?</small></div>`;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-// TYPEAHEAD
-// ═══════════════════════════════════════════════════════════
 function typeahead(input, listId, data) {
   const q = input.value.toLowerCase();
   const list = document.getElementById(listId);
@@ -5752,7 +5617,10 @@ function showToast(msg, type) {
   const t = document.getElementById("toast");
   t.textContent = msg;
   t.className = "toast-show" + (type === "error" ? " toast-error" : type === "success" ? " toast-success" : "");
-  setTimeout(() => t.className = "", 3000);
+  t.style.cursor = "pointer";
+  t.onclick = () => { t.className = ""; };
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.className = "", type === "error" ? 6000 : 3000);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -7318,7 +7186,7 @@ function showMktgTab(tab) {
 function ctStatusClass(s) { return "ct-" + (s||"draft").toLowerCase().replace(/\s+/g,"-").replace(/[^a-z-]/g,""); }
 function ctChannelClass(ch) { return "ct-" + (ch||"other").toLowerCase().replace(/\s+/g,"-"); }
 function ctStatusBadge(s) { return `<span class="badge ${ctStatusClass(s)}" style="font-size:11px">${s||"Draft"}</span>`; }
-function ctChannelBadge(ch) { return `<span class="badge ${ctChannelClass(ch)}" style="font-size:11px">${ch||"Other"}</span>`; }
+function ctChannelBadge(ch) { const d = (ch==="Facebook"||ch==="Instagram"||ch==="Facebook/Instagram") ? "Facebook/Instagram" : (ch||"Other"); return `<span class="badge ${ctChannelClass(ch)}" style="font-size:11px">${d}</span>`; }
 
 function getMyReviewStatus(contentId) {
   const myName = currentUser?.displayName || "";
@@ -8092,105 +7960,105 @@ function buildContentTypeForm(type) {
   const typeFields = {
     "Facebook/Instagram": `
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">What should this post be about? <span class="req">*</span></label>
+        <label class="form-label" for="ctNewText">What should this post be about? <span class="req">*</span></label>
         <textarea class="form-input form-textarea" id="ctNewText" rows="4"
           placeholder="Describe what you want to say — the AI will write the post from this. e.g. Promote the Walk/Run on August 8 at Judson University. Emphasize all paces welcome, virtual option available."></textarea>
       </div>
       <div class="form-group">
-        <label class="form-label">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <label class="form-label" for="ctNewEvent">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
         <select class="form-input" id="ctNewEvent">${evOpts}</select>
       </div>
       <div class="form-group">
-        <label class="form-label">Link / URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <label class="form-label" for="ctNewFileLink">Link / URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
         <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — uploads immediately</span></label>
+        <label class="form-label" for="ctNewPhoto">Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — uploads immediately</span></label>
         <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px" onchange="handleSimplePhotoUpload(this)">
         <div id="ctPhotoStatus" style="font-size:12px;color:var(--gray);margin-top:4px"></div>
         <input type="hidden" id="ctPhotoUrl" value="">
       </div>`,
     Facebook: `
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">What should this post be about? <span class="req">*</span></label>
+        <label class="form-label" for="ctNewText">What should this post be about? <span class="req">*</span></label>
         <textarea class="form-input form-textarea" id="ctNewText" rows="4"
           placeholder="Describe what you want to say — the AI will write the post from this."></textarea>
       </div>
       <div class="form-group">
-        <label class="form-label">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <label class="form-label" for="ctNewEvent">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
         <select class="form-input" id="ctNewEvent">${evOpts}</select>
       </div>
       <div class="form-group">
-        <label class="form-label">Link / URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <label class="form-label" for="ctNewFileLink">Link / URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
         <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — uploads immediately</span></label>
+        <label class="form-label" for="ctNewPhoto">Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — uploads immediately</span></label>
         <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px" onchange="handleSimplePhotoUpload(this)">
         <div id="ctPhotoStatus" style="font-size:12px;color:var(--gray);margin-top:4px"></div>
         <input type="hidden" id="ctPhotoUrl" value="">
       </div>`,
     Instagram: `
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Caption <span style="font-size:11px;color:var(--gray)">(under 2,200 characters)</span></label>
+        <label class="form-label" for="ctNewText">Caption <span style="font-size:11px;color:var(--gray)">(under 2,200 characters)</span></label>
         <textarea class="form-input form-textarea" id="ctNewText" rows="5" placeholder="Write the Instagram caption here..." oninput="updateCharCount(this,'ctNewCharCount',2200)"></textarea>
         <div id="ctNewCharCount" style="font-size:11px;color:var(--gray);margin-top:4px;text-align:right"></div>
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Hashtags</label>
+        <label class="form-label" for="ctNewHashtags">Hashtags</label>
         <textarea class="form-input form-textarea" id="ctNewHashtags" rows="2" placeholder="#MyBFF #TriviaForGood #Cornhole2026"></textarea>
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Photo / Image <span class="req">*</span></label>
+        <label class="form-label" for="ctNewPhoto">Photo / Image <span class="req">*</span></label>
         <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Alt Text</label>
+        <label class="form-label" for="ctNewAltText">Alt Text</label>
         <input type="text" class="form-input" id="ctNewAltText" placeholder="e.g. Team playing cornhole at Mikerphone Brewing">
       </div>`,
     Email: `
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">What should this email be about? <span class="req">*</span></label>
+        <label class="form-label" for="ctNewText">What should this email be about? <span class="req">*</span></label>
         <textarea class="form-input form-textarea" id="ctNewText" rows="4"
           placeholder="Describe what you want to say — the AI will write the subject and body. e.g. Invite past attendees to register for Walk/Run Aug 8. Include early bird pricing ends July 1."></textarea>
       </div>
       <div class="form-group">
-        <label class="form-label">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <label class="form-label" for="ctNewEvent">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
         <select class="form-input" id="ctNewEvent">${evOpts}</select>
       </div>
       <div class="form-group">
-        <label class="form-label">Link / URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <label class="form-label" for="ctNewFileLink">Link / URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
         <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — uploads immediately</span></label>
+        <label class="form-label" for="ctNewPhoto">Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — uploads immediately</span></label>
         <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px" onchange="handleSimplePhotoUpload(this)">
         <div id="ctPhotoStatus" style="font-size:12px;color:var(--gray);margin-top:4px"></div>
         <input type="hidden" id="ctPhotoUrl" value="">
       </div>`,
     Newsletter: `
       <div class="form-group">
-        <label class="form-label">Issue / Edition <span class="req">*</span></label>
+        <label class="form-label" for="ctNewSubject">Issue / Edition <span class="req">*</span></label>
         <input type="text" class="form-input" id="ctNewSubject" placeholder="e.g. May 2026 — Making Today Count">
       </div>
       <div class="form-group">
-        <label class="form-label">Volume / Issue # <span style="font-size:11px;color:var(--gray)">optional</span></label>
+        <label class="form-label" for="ctNewPreview">Volume / Issue # <span style="font-size:11px;color:var(--gray)">optional</span></label>
         <input type="text" class="form-input" id="ctNewPreview" placeholder="e.g. Vol. 3, Issue 5">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Lead Story / Theme</label>
+        <label class="form-label" for="ctNewHeadline">Lead Story / Theme</label>
         <input type="text" class="form-input" id="ctNewHeadline" placeholder="e.g. Cornhole Tournament Recap, Volunteer Spotlight">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Sections / Content Outline</label>
+        <label class="form-label" for="ctNewText">Sections / Content Outline</label>
         <textarea class="form-input form-textarea" id="ctNewText" rows="5" placeholder="List the sections or key stories for this issue&#10;e.g.&#10;- Lead story: 2026 Walk/Run event recap&#10;- Member spotlight: [name]&#10;- Upcoming events&#10;- Donation thank-yous"></textarea>
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Full Body Draft <span style="font-size:11px;color:var(--gray)">paste here when ready for review</span></label>
+        <label class="form-label" for="ctNewBody">Full Body Draft <span style="font-size:11px;color:var(--gray)">paste here when ready for review</span></label>
         <textarea class="form-input form-textarea" id="ctNewBody" rows="6" placeholder="Paste the full newsletter draft here for review..."></textarea>
       </div>
       <div class="form-group">
-        <label class="form-label">Distribution Method</label>
+        <label class="form-label" for="ctNewAudience">Distribution Method</label>
         <select class="form-input" id="ctNewAudience">
           <option value="">— Select —</option>
           <option>Email (Mailchimp)</option>
@@ -8201,61 +8069,61 @@ function buildContentTypeForm(type) {
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Estimated Recipients</label>
+        <label class="form-label" for="ctNewSendCount">Estimated Recipients</label>
         <input type="number" class="form-input" id="ctNewSendCount" placeholder="e.g. 450">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Upload File <span style="font-size:11px;color:var(--gray)">finished PDF or Word doc</span></label>
+        <label class="form-label" for="ctNewPhoto">Upload File <span style="font-size:11px;color:var(--gray)">finished PDF or Word doc</span></label>
         <input type="file" class="form-input" id="ctNewPhoto" accept=".pdf,.docx,.doc" style="padding:6px">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">File Link <span style="font-size:11px;color:var(--gray)">Google Drive, Canva, or public URL</span></label>
+        <label class="form-label" for="ctNewFileLink">File Link <span style="font-size:11px;color:var(--gray)">Google Drive, Canva, or public URL</span></label>
         <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
       </div>`,
     Flyer: `
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Headline</label>
+        <label class="form-label" for="ctNewHeadline">Headline</label>
         <input type="text" class="form-input" id="ctNewHeadline" placeholder="e.g. 5th Annual MyBFF Cornhole Tournament">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Key Details (date, time, location, price)</label>
+        <label class="form-label" for="ctNewText">Key Details (date, time, location, price)</label>
         <textarea class="form-input form-textarea" id="ctNewText" rows="4" placeholder="June 13, 2026 · 12:00 PM&#10;Mikerphone Brewing, Evergreen Park IL&#10;$40/team entry"></textarea>
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Body Copy</label>
+        <label class="form-label" for="ctNewBody">Body Copy</label>
         <textarea class="form-input form-textarea" id="ctNewBody" rows="3" placeholder="All proceeds benefit My Best Friends Foundation..."></textarea>
       </div>
       <div class="form-group">
-        <label class="form-label">Call to Action</label>
+        <label class="form-label" for="ctNewCTA">Call to Action</label>
         <input type="text" class="form-input" id="ctNewCTA" placeholder="e.g. Register at mybff.org/cornhole">
       </div>
       <div class="form-group">
-        <label class="form-label">Due to Printer / Designer</label>
+        <label class="form-label" for="ctNewPrinterDate">Due to Printer / Designer</label>
         <input type="date" class="form-input" id="ctNewPrinterDate">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Upload Design File <span style="font-size:11px;color:var(--gray)">or paste Canva link below</span></label>
+        <label class="form-label" for="ctNewPhoto">Upload Design File <span style="font-size:11px;color:var(--gray)">or paste Canva link below</span></label>
         <input type="file" class="form-input" id="ctNewPhoto" accept="image/*,.pdf" style="padding:6px">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Canva / Design Link</label>
+        <label class="form-label" for="ctNewFileLink">Canva / Design Link</label>
         <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://canva.com/...">
       </div>
       <div class="form-group">
-        <label class="form-label">Print Specs <span style="font-size:11px;color:var(--gray)">optional</span></label>
+        <label class="form-label" for="ctNewPrintSpecs">Print Specs <span style="font-size:11px;color:var(--gray)">optional</span></label>
         <input type="text" class="form-input" id="ctNewPrintSpecs" placeholder="e.g. 8.5x11, full bleed">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Distribution Notes</label>
+        <label class="form-label" for="ctNewDistrib">Distribution Notes</label>
         <input type="text" class="form-input" id="ctNewDistrib" placeholder="e.g. Post at Mikerphone, distribute at Walk event">
       </div>`,
     Other: `
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Description / Content</label>
+        <label class="form-label" for="ctNewText">Description / Content</label>
         <textarea class="form-input form-textarea" id="ctNewText" rows="5" placeholder="Describe this content item..."></textarea>
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">File Link</label>
+        <label class="form-label" for="ctNewFileLink">File Link</label>
         <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
       </div>`
   };
@@ -8281,7 +8149,7 @@ function buildContentTypeForm(type) {
         <div style="border:2px solid var(--border);border-radius:7px;padding:8px 12px;max-height:120px;overflow-y:auto;background:white;display:flex;flex-direction:column;gap:4px">${reviewerChecks}</div>
       </div>
       <div class="form-group full" style="grid-column:1/-1">
-        <label class="form-label">Additional Notes</label>
+        <label class="form-label" for="ctNewNotes">Additional Notes</label>
         <textarea class="form-input form-textarea" id="ctNewNotes" rows="2" placeholder="Any additional context..."></textarea>
       </div>`}
     </div>
@@ -9079,33 +8947,33 @@ function renderAISettings() {
         <div style="font-size:12px;color:var(--gray);margin-bottom:16px">Who you are — facts the AI should always know</div>
         <div class="form-grid">
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Organization Name & Tagline</label>
+            <label class="form-label" for="ai_name">Organization Name & Tagline</label>
             <input type="text" class="form-input" id="ai_name" value="${esc(c.org_name||"")}" placeholder="My Best Friends Foundation — Supporting Animals in Need">
             ${campaignCheckbox("org_name")}
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Mission Statement</label>
+            <label class="form-label" for="ai_mission">Mission Statement</label>
             <textarea class="form-input form-textarea" id="ai_mission" rows="3" placeholder="Paste your official mission statement here...">${esc(c.mission||"")}</textarea>
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">History & Background</label>
+            <label class="form-label" for="ai_history">History & Background</label>
             <textarea class="form-input form-textarea" id="ai_history" rows="3" placeholder="Founding year, key milestones, what makes you different...">${esc(c.history||"")}</textarea>
           </div>
           <div class="form-group">
-            <label class="form-label">Years in Operation</label>
+            <label class="form-label" for="ai_years">Years in Operation</label>
             <input type="text" class="form-input" id="ai_years" value="${esc(c.years||"")}" placeholder="e.g. Since 2015">
           </div>
           <div class="form-group">
-            <label class="form-label">Geographic Area Served</label>
+            <label class="form-label" for="ai_geography">Geographic Area Served</label>
             <input type="text" class="form-input" id="ai_geography" value="${esc(c.geography||"")}" placeholder="e.g. Chicagoland southwest suburbs">
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Key Impact Statistics</label>
+            <label class="form-label" for="ai_stats">Key Impact Statistics</label>
             <textarea class="form-input form-textarea" id="ai_stats" rows="2" placeholder="Animals helped, funds raised, families served...">${esc(c.stats||"")}</textarea>
             ${campaignCheckbox("stats")}
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Key People to Reference</label>
+            <label class="form-label" for="ai_people">Key People to Reference</label>
             <input type="text" class="form-input" id="ai_people" value="${esc(c.people||"")}" placeholder="e.g. Ed Grasse (Founder), Kris Grasse (Co-Founder)">
           </div>
         </div>
@@ -9133,25 +9001,25 @@ function renderAISettings() {
             </div>
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Personality Words <span style="font-size:11px;color:var(--gray);font-weight:400">comma-separated</span></label>
+            <label class="form-label" for="ai_personality">Personality Words <span style="font-size:11px;color:var(--gray);font-weight:400">comma-separated</span></label>
             <input type="text" class="form-input" id="ai_personality" value="${esc(c.personality||"")}" placeholder="e.g. warm, community-focused, passionate, approachable">
           </div>
           <div class="form-group">
-            <label class="form-label">Words / Phrases to Always Use</label>
+            <label class="form-label" for="ai_use_words">Words / Phrases to Always Use</label>
             <textarea class="form-input form-textarea" id="ai_use_words" rows="3" placeholder="e.g. animals in need, community, My Best Friends Foundation...">${esc(c.use_words||"")}</textarea>
           </div>
           <div class="form-group">
-            <label class="form-label">Words / Phrases to Never Use</label>
+            <label class="form-label" for="ai_avoid_words">Words / Phrases to Never Use</label>
             <textarea class="form-input form-textarea" id="ai_avoid_words" rows="3" placeholder="e.g. charity (prefer foundation), cheap, crisis...">${esc(c.avoid_words||"")}</textarea>
           </div>
           <div class="form-group">
-            <label class="form-label">Emoji Usage</label>
+            <label class="form-label" for="ai_emoji">Emoji Usage</label>
             <select class="form-input" id="ai_emoji">
               ${["Always — they match our brand","Sometimes — sparingly for emphasis","Rarely — only for events","Never"].map(o=>`<option ${(c.emoji||"Sometimes — sparingly for emphasis")===o?"selected":""}>${o}</option>`).join("")}
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Standard Hashtags</label>
+            <label class="form-label" for="ai_hashtags">Standard Hashtags</label>
             <input type="text" class="form-input" id="ai_hashtags" value="${esc(c.hashtags||"")}" placeholder="#MyBFF #MyBestFriendsFoundation">
           </div>
         </div>
@@ -9166,23 +9034,23 @@ function renderAISettings() {
         </div>
         <div class="form-grid">
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Current Focus / Urgency</label>
+            <label class="form-label" for="ai_current_focus">Current Focus / Urgency</label>
             <textarea class="form-input form-textarea" id="ai_current_focus" rows="2"
               placeholder="e.g. We are in Cornhole registration season. Emphasize urgency — tickets are selling fast. Price is $40/team.">${esc(c.current_focus||"")}</textarea>
           </div>
           <div class="form-group">
-            <label class="form-label">Active Event</label>
+            <label class="form-label" for="ai_active_event">Active Event</label>
             <select class="form-input" id="ai_active_event">
               <option value="">— None —</option>
               ${ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}" ${c.active_event===e.name?"selected":""}>${esc(e.name)}</option>`).join("")}
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Campaign Expires</label>
+            <label class="form-label" for="ai_campaign_expires">Campaign Expires</label>
             <input type="date" class="form-input" id="ai_campaign_expires" value="${esc(c.campaign_expires||"")}">
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Key Messages This Campaign</label>
+            <label class="form-label" for="ai_campaign_messages">Key Messages This Campaign</label>
             <textarea class="form-input form-textarea" id="ai_campaign_messages" rows="2"
               placeholder="e.g. This is our 5th annual event. Last year we raised $12,000. Spot filling up fast.">${esc(c.campaign_messages||"")}</textarea>
           </div>
@@ -9197,7 +9065,7 @@ function renderAISettings() {
           ${["General Public","Past Attendees","Donors","Sponsors","Volunteers"].map(seg => {
             const key = seg.toLowerCase().replace(/\s+/g,"_");
             return `<div class="form-group">
-              <label class="form-label">${seg}</label>
+              <label class="form-label" for="ai_audience_${key}">${seg}</label>
               <textarea class="form-input form-textarea" id="ai_audience_${key}" rows="2"
                 placeholder="How to speak to this audience...">${esc(c["audience_"+key]||"")}</textarea>
             </div>`;
@@ -9212,7 +9080,7 @@ function renderAISettings() {
         <div class="form-grid">
           ${["Facebook","Instagram","Email","Flyer"].map(ch => `
             <div class="form-group" style="grid-column:1/-1">
-              <label class="form-label">${ch}</label>
+              <label class="form-label" for="ai_channel_${ch.toLowerCase()}">${ch}</label>
               <textarea class="form-input form-textarea" id="ai_channel_${ch.toLowerCase()}" rows="2"
                 placeholder="e.g. Keep under 200 words. Always end with CTA link.">${esc(c["channel_"+ch.toLowerCase()]||"")}</textarea>
             </div>`).join("")}
@@ -9227,7 +9095,7 @@ function renderAISettings() {
           ${["Cornhole","Trivia","Walk/Run","Golf","Super Bowl Squares"].map(ev => {
             const key = ev.toLowerCase().replace(/[^a-z]/g,"_");
             return `<div class="form-group" style="grid-column:1/-1">
-              <label class="form-label">${ev}</label>
+              <label class="form-label" for="ai_event_${key}">${ev}</label>
               <textarea class="form-input form-textarea" id="ai_event_${key}" rows="3"
                 placeholder="Standard description, key facts, past results, approved phrases...">${esc(c["event_"+key]||"")}</textarea>
               ${campaignCheckbox("event_"+key)}
@@ -9242,15 +9110,15 @@ function renderAISettings() {
         <div style="font-size:12px;color:var(--gray);margin-bottom:16px">What the AI must always include or never say</div>
         <div class="form-grid">
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Required Disclosures</label>
+            <label class="form-label" for="ai_disclosures">Required Disclosures</label>
             <textarea class="form-input form-textarea" id="ai_disclosures" rows="2" placeholder="e.g. 501(c)(3) language, donation tax notes...">${esc(c.disclosures||"")}</textarea>
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Claims to Avoid</label>
+            <label class="form-label" for="ai_avoid_claims">Claims to Avoid</label>
             <textarea class="form-input form-textarea" id="ai_avoid_claims" rows="2" placeholder="e.g. Don't make specific financial projections...">${esc(c.avoid_claims||"")}</textarea>
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Privacy Rules</label>
+            <label class="form-label" for="ai_privacy">Privacy Rules</label>
             <textarea class="form-input form-textarea" id="ai_privacy" rows="2" placeholder="e.g. Don't name specific donors without approval...">${esc(c.privacy||"")}</textarea>
           </div>
         </div>
@@ -10721,21 +10589,17 @@ function filterHelp() {
 // ═══════════════════════════════════════════════════════════
 
 function navigateToMyTaskDonation(linkedId) {
-  console.log("[navigateToMyTaskDonation] called with:", linkedId);
   closeModal("myTasksModal");
   showPageNav("donations");
   setTimeout(() => {
-    console.log("[navigateToMyTaskDonation] setTimeout firing, calling viewDonation");
     viewDonation(linkedId);
   }, 150);
 }
 
 function navigateToMyTaskDonationByName(linkedName) {
-  console.log("[navigateToMyTaskDonationByName] called with:", linkedName);
   closeModal("myTasksModal");
   showPageNav("donations");
   setTimeout(() => {
-    console.log("[navigateToMyTaskDonationByName] setTimeout firing, calling viewDonation");
     viewDonation(linkedName);
   }, 150);
 }
