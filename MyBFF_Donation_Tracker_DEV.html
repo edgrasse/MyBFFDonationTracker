@@ -530,6 +530,15 @@ if ('serviceWorker' in navigator) {
           <div id="dashFollowUpCard"><div class="loading"><div class="spinner"></div></div></div>
         </div>
 
+        <!-- Assigned by You Card — full width -->
+        <div class="card" style="border-top:4px solid #7c3aed;grid-column:1/-1" id="dashAssignedByMeWrap">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div style="font-weight:700;font-size:16px">📋 Assigned by You</div>
+            <span style="font-size:12px;color:var(--gray)" id="dashAssignedByMeSubtitle"></span>
+          </div>
+          <div id="dashAssignedByMeCard"><div class="loading"><div class="spinner"></div></div></div>
+        </div>
+
       </div>
     </div>
 
@@ -2501,7 +2510,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v6.0-DEV · Jul 04 2026";
+const BUILD_VERSION = "v6.1-DEV · Jul 04 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -3054,6 +3063,7 @@ async function saveTask() {
     status:      document.getElementById("tmStatus").value || "Not Started",
     updated_at:  new Date().toISOString()
   };
+  if (!editingTaskId) row.created_by = currentUser?.displayName || null; // preserve original creator on edits
 
   try {
     if (editingTaskId) {
@@ -3363,6 +3373,7 @@ async function doGenerateTasks() {
       event_year:  year,
       task_name:   tmpl.task_name,
       assigned_to: tmpl.default_role || "",
+      created_by: currentUser?.displayName || null,
       due_date:    dueDate,
       status:      "Not Started",
       sort_order:  tmpl.sort_order || null,
@@ -3549,6 +3560,7 @@ function renderDashboard() {
 
   // ── Follow-Ups card ──────────────────────────────────────
   renderDashboardFollowUps();
+  renderDashboardAssignedByMeCard();
   renderDashboardAdminCard();
   renderDashboardTasksCard();
   renderDashboardMarketingCard();
@@ -3646,12 +3658,94 @@ function renderDashboardFollowUps() {
     </div>`;
 }
 
+function renderDashboardAssignedByMeCard() {
+  const card = document.getElementById("dashAssignedByMeCard");
+  const subtitle = document.getElementById("dashAssignedByMeSubtitle");
+  const wrap = document.getElementById("dashAssignedByMeWrap");
+  if (!card) return;
+
+  const myName = currentUser?.displayName || "";
+  const today = (d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)(new Date());
+
+  // Tasks/checklist items this user assigned to someone else, not yet done
+  const mine = ALL_TASKS.filter(t => t.created_by === myName && t.assigned_to)
+    .sort((a, b) => {
+      // Not-done first, then by due date soonest
+      const aDone = a.status === "Done" || a.status === "N/A";
+      const bDone = b.status === "Done" || b.status === "N/A";
+      if (aDone !== bDone) return aDone ? 1 : -1;
+      if (!a.due_date && !b.due_date) return 0;
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      return a.due_date.localeCompare(b.due_date);
+    });
+
+  if (!mine.length) {
+    if (wrap) wrap.style.display = "none";
+    return;
+  }
+  if (wrap) wrap.style.display = "";
+
+  const openCount = mine.filter(t => t.status !== "Done" && t.status !== "N/A").length;
+  if (subtitle) subtitle.textContent = `${openCount} open of ${mine.length} total`;
+
+  const statusStyles = {
+    "Not Started": ["#f3f4f6","#374151"],
+    "In Progress": ["#dbeafe","#1d4ed8"],
+    "Done":        ["#d1fae5","#065f46"],
+    "Blocked":     ["#fee2e2","#991b1b"],
+    "N/A":         ["#f3f4f6","#9ca3af"],
+  };
+
+  card.innerHTML = mine.slice(0, 12).map(t => {
+    const isOverdue = t.due_date && t.due_date < today && t.status !== "Done" && t.status !== "N/A";
+    const [sbg, sfg] = statusStyles[t.status] || statusStyles["Not Started"];
+    const linked = t.linked_name || t.event_name || "";
+    const typeTag = t.linked_type
+      ? `<span style="font-size:10px;background:#e0e7ff;color:#3730a3;border-radius:9999px;padding:1px 6px">${esc(t.linked_type)}</span>`
+      : t.event_name
+      ? `<span style="font-size:10px;background:#fef3c7;color:#92400e;border-radius:9999px;padding:1px 6px">Checklist</span>`
+      : "";
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+        <div style="width:26px;height:26px;border-radius:50%;background:#7c3aed;color:white;font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          ${esc((t.assigned_to||"?").charAt(0))}
+        </div>
+        <div style="flex:1;min-width:180px">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            ${typeTag}
+            <span style="font-size:13px;font-weight:600">${esc(t.task_name)}</span>
+          </div>
+          <div style="font-size:11px;color:var(--gray);margin-top:2px">
+            Assigned to <strong>${esc(t.assigned_to)}</strong>${linked ? ` · ${esc(linked)}` : ""}
+          </div>
+        </div>
+        ${t.due_date ? `<span style="font-size:11px;color:${isOverdue?"#dc2626":"#888"};white-space:nowrap">${isOverdue?"⚠️ Overdue: ":"Due: "}${fmtDate(t.due_date)}</span>` : ""}
+        <span style="background:${sbg};color:${sfg};font-size:11px;font-weight:700;padding:2px 10px;border-radius:9999px;white-space:nowrap">${t.status}</span>
+      </div>`;
+  }).join("") + (mine.length > 12 ? `<div style="font-size:12px;color:var(--gray);margin-top:8px;text-align:center">+ ${mine.length-12} more</div>` : "");
+}
+
 function renderDashboardTasksCard() {
   const container = document.getElementById("dashTasksCard");
   const subtitle  = document.getElementById("dashTasksSubtitle");
   if (!container) return;
 
   const today = (d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)(new Date());
+
+  // DIAGNOSTIC — temporary, checking for name-matching mismatches between
+  // APP_USERS.displayName and task.assigned_to values
+  const knownNames = APP_USERS.map(u => u.displayName);
+  const unmatchedAssignees = new Set();
+  ALL_TASKS.forEach(t => {
+    (t.assigned_to || "").split(",").map(a => a.trim()).filter(Boolean).forEach(name => {
+      if (!knownNames.includes(name)) unmatchedAssignees.add(name);
+    });
+  });
+  if (unmatchedAssignees.size > 0) {
+    console.warn("[Team Tasks] Task assignees that don't match any current user's displayName:", [...unmatchedAssignees]);
+    console.warn("[Team Tasks] Current known display names:", knownNames);
+  }
 
   // Build per-user task summaries across all users
   const userSummaries = APP_USERS.map(u => {
@@ -4469,6 +4563,7 @@ async function generateReflectionTasks(eventName) {
       event_year: new Date().getFullYear(),
       task_name: taskName,
       assigned_to: user.displayName,
+      created_by: currentUser?.displayName || null,
       due_date: dueDateStr,
       status: "Not Started",
       sort_order: 999,
@@ -10726,7 +10821,7 @@ async function markMyTaskDone(taskId) {
     showToast("✓ Task marked done.");
     openMyTasksModal(); // refresh the modal
     updateActionSummary();
-    renderDashboardTasksCard(); // targeted refresh — no need for full renderDashboard
+    renderDashboardTasksCard(); renderDashboardAssignedByMeCard(); // targeted refresh — no need for full renderDashboard
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
@@ -10814,6 +10909,7 @@ async function saveQuickTask() {
     event_name:   null,
     event_year:   new Date().getFullYear(),
     assigned_to:  assignTo,
+    created_by:   currentUser?.displayName || null,
     due_date:     dueDate || null,
     status:       "Not Started",
     linked_type:  cat,
@@ -10830,7 +10926,7 @@ async function saveQuickTask() {
     closeModal("quickTaskModal");
     showToast(`✅ Task assigned to ${assignTo}.`);
     updateActionSummary();
-    renderDashboardTasksCard(); // targeted refresh
+    renderDashboardTasksCard(); renderDashboardAssignedByMeCard(); // targeted refresh
   } catch(e) {
     showToast("Error saving task: " + e.message, "error");
   }
