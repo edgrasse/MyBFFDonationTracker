@@ -1,43 +1,39 @@
-// sw.js — MyBFF Donation Tracker Service Worker
-// v5.5-DEV — iOS-optimized: HTML always network-first, never cached
-const CACHE_VERSION = "mybff-v5.16a-DEV-Jun29-2026";
+const CACHE_VERSION = "mybff-v6.0-DEV-Jul04-2026";
 const CACHE_NAME = `mybff-cache-${CACHE_VERSION}`;
 
-self.addEventListener("install", event => {
-  self.skipWaiting();
+self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(() => {}));
+  self.skipWaiting();
 });
 
-self.addEventListener("activate", event => {
+self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
-      .then(() => self.clients.claim())
   );
+  self.clients.claim();
 });
 
-self.addEventListener("fetch", event => {
+self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
-  const isHTML = url.pathname.endsWith(".html") || url.pathname === "/";
-  const isSameOrigin = url.origin === self.location.origin;
-  if (!isSameOrigin) return;
-  if (isHTML) {
+  if (event.request.method !== 'GET') return;
+  if (url.origin !== location.origin) return;
+  // Network first for HTML, cache first for everything else
+  if (event.request.destination === 'document') {
     event.respondWith(
-      fetch(event.request, { cache: "no-store" })
-        .catch(() => caches.match(event.request))
+      fetch(event.request).then(r => {
+        const clone = r.clone();
+        caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+        return r;
+      }).catch(() => caches.match(event.request))
     );
   } else {
     event.respondWith(
-      caches.match(event.request).then(cached => {
-        if (cached) return cached;
-        return fetch(event.request).then(response => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
-          }
-          return response;
-        });
-      })
+      caches.match(event.request).then(r => r || fetch(event.request).then(res => {
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+        return res;
+      }))
     );
   }
 });

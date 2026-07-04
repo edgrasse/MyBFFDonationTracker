@@ -145,7 +145,7 @@ tr:last-child td { border-bottom: none; }
 .btn-primary:hover { background: #2d4070; }
 .btn-gold { background: var(--gold); color: white; }
 .btn-gold:hover { background: var(--gold-light); }
-.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn-sm { padding: 7px 14px; font-size: 12px; }
 .btn-danger { background: var(--red); color: white; }
 .btn-danger:hover { background: #a93226; }
 .btn-outline { background: transparent; border: 2px solid var(--navy); color: var(--navy); }
@@ -276,6 +276,23 @@ a:hover { text-decoration: underline; }
   header { padding: 0 12px; }
   nav { padding: 0 12px; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.admin-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+@media (max-width:600px){ .admin-grid { grid-template-columns:1fr; } }
+
+.card [onclick]:active { background:#f3f0e9 !important; }
+
+.nav-wrap { position:relative; background:white; }
+@media (max-width:768px){
+  .nav-wrap::after { content:''; position:absolute; right:0; top:0; bottom:0; width:36px;
+    background:linear-gradient(to left, white, rgba(255,255,255,0)); pointer-events:none; }
+}
+
+#donCardList { display:none; }
+@media (max-width:600px){
+  #donTableWrap { display:none; }
+  #donCardList { display:block; }
 }
 
 /* ── HELP PAGE ── */
@@ -415,7 +432,7 @@ if ('serviceWorker' in navigator) {
       <button class="btn-logout" onclick="doLogout()">Sign Out</button>
     </div>
   </header>
-  <nav id="mainNav">
+  <div class="nav-wrap"><nav id="mainNav">
     <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
     <button class="nav-tab" onclick="showPage('events')">Events</button>
     <button class="nav-tab" onclick="showPage('donations')">Donations <span id="donNavBadge" style="display:none;background:#dc2626;color:white;border-radius:9999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:2px"></span></button>
@@ -423,7 +440,7 @@ if ('serviceWorker' in navigator) {
     <button class="nav-tab marketing-tab" onclick="showPage('marketing')" style="display:none">Marketing <span id="mktgBadge" style="display:none;background:#dc2626;color:white;border-radius:9999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px"></span></button>
     <button class="nav-tab admin-only" onclick="showPage('admin')" style="display:none">Admin</button>
     <button class="nav-tab" onclick="showPage('links')" id="navLinksTab">&#127758; MyBFF Sites</button>
-  </nav>
+  </nav></div>
   <main>
 
     <!-- DASHBOARD -->
@@ -550,7 +567,7 @@ if ('serviceWorker' in navigator) {
 
         <!-- Sub-tabs: Tasks / Donations / Assets -->
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto">
-          <button class="sub-tab active" id="evTab-tasks"     onclick="showEvDetailTab('tasks')">Tasks</button>
+          <button class="sub-tab active" id="evTab-tasks"     onclick="showEvDetailTab('tasks')">Checklist Items</button>
           <button class="sub-tab"        id="evTab-donations" onclick="showEvDetailTab('donations')">Donations</button>
           <button class="sub-tab"        id="evTab-assets"    onclick="showEvDetailTab('assets')">Assets &amp; Documents</button>
         </div>
@@ -568,7 +585,7 @@ if ('serviceWorker' in navigator) {
                 <option value="N/A">N/A</option>
               </select>
               <div id="evDetailAddTaskBtn" style="display:none">
-                <button class="btn btn-gold btn-sm" onclick="openAddTaskModalForEvent()">+ Add Task</button>
+                <button class="btn btn-gold btn-sm" onclick="openAddTaskModalForEvent()">+ Add Checklist Item</button>
               </div>
             </div>
           </div>
@@ -606,7 +623,6 @@ if ('serviceWorker' in navigator) {
         <div class="section-title" style="margin:0">Donations</div>
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn btn-outline btn-sm" onclick="openQuickTaskModal('Donation')">📋 Assign Task</button>
-          <button class="btn btn-gold btn-sm admin-import-btn" onclick="openImportModal()" style="display:none">&#128229; Import</button>
           <button class="btn btn-gold btn-sm" onclick="openDonationModal()">+ Add Donation</button>
         </div>
       </div>
@@ -627,7 +643,7 @@ if ('serviceWorker' in navigator) {
         <div class="card">
           <div class="filters">
             <input class="filter-input" id="donSearch" placeholder="&#128269; Search vendor, item, notes..." oninput="renderDonations()">
-            <select class="filter-select" id="donYear" onchange="renderDonations()">
+            <select class="filter-select" id="donYear" onchange="onDonYearChange(this.value)">
               <option value="">All Years</option>
               <option value="2024">2024</option>
               <option value="2025">2025</option>
@@ -657,7 +673,7 @@ if ('serviceWorker' in navigator) {
             <button class="btn btn-outline btn-sm" onclick="clearDonationFilters()">Clear</button>
           </div>
           <div class="count-label" id="donCount"></div>
-          <div class="table-wrap" style="margin-top:12px">
+          <div class="table-wrap" id="donTableWrap" style="margin-top:12px">
             <table>
               <thead>
                 <tr>
@@ -668,6 +684,7 @@ if ('serviceWorker' in navigator) {
               <tbody id="donTable"></tbody>
             </table>
           </div>
+          <div id="donCardList" style="margin-top:12px"></div>
         </div>
       </div>
 
@@ -716,6 +733,10 @@ if ('serviceWorker' in navigator) {
               <option value="Shopping">Shopping</option>
               <option value="Entertainment">Entertainment</option>
             </select>
+            <button id="rptLoadAllBtn" class="btn btn-outline btn-sm" onclick="loadAllYearsForReport()" style="font-size:12px">
+              📊 Load All Years
+            </button>
+            <span id="rptAllLoadedBadge" style="display:none;font-size:11px;color:var(--gold);font-weight:600">✓ All years loaded</span>
           </div>
           <div class="report-actions">
             <button class="btn btn-primary" onclick="printReport()">&#128438; Print Report</button>
@@ -788,7 +809,7 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- GRANT APPLICATION ASSISTANT MODAL -->
-    <div class="modal-overlay" id="grantAnswerModal" style="display:none" onclick="if(event.target===this)closeModal('grantAnswerModal')">
+    <div class="modal-overlay" id="grantAnswerModal" onclick="if(event.target===this)closeModal('grantAnswerModal')">
       <div class="modal" style="max-width:780px;max-height:90vh;overflow-y:auto">
         <div class="modal-header">
           <div class="modal-title">&#129302; Application Assistant</div>
@@ -832,7 +853,7 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- BULK GRANT IMPORT MODAL -->
-    <div class="modal-overlay" id="bulkGrantModal" style="display:none" onclick="if(event.target===this)closeModal('bulkGrantModal')">
+    <div class="modal-overlay" id="bulkGrantModal" onclick="if(event.target===this)closeModal('bulkGrantModal')">
       <div class="modal" style="max-width:720px;max-height:90vh;overflow-y:auto">
         <div class="modal-header">
           <div class="modal-title">&#128203; Import Grantors from URL</div>
@@ -856,7 +877,7 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- SPREADSHEET IMPORT MODAL -->
-    <div class="modal-overlay" id="sheetImportModal" style="display:none" onclick="if(event.target===this)closeModal('sheetImportModal')">
+    <div class="modal-overlay" id="sheetImportModal" onclick="if(event.target===this)closeModal('sheetImportModal')">
       <div class="modal" style="max-width:760px;max-height:90vh;overflow-y:auto">
         <div class="modal-header">
           <div class="modal-title">&#128229; Import Grantors from Spreadsheet</div>
@@ -882,7 +903,7 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- ASSET PICKER MODAL — for inserting assets into content creation -->
-    <div class="modal-overlay" id="assetPickerModal" style="display:none" onclick="if(event.target===this)closeModal('assetPickerModal')">
+    <div class="modal-overlay" id="assetPickerModal" onclick="if(event.target===this)closeModal('assetPickerModal')">
       <div class="modal" style="max-width:700px;max-height:85vh;overflow-y:auto">
         <div class="modal-header">
           <div class="modal-title">&#128193; Insert from Asset Library</div>
@@ -923,12 +944,23 @@ if ('serviceWorker' in navigator) {
           </select>
           <select class="filter-select" id="mktgChannelFilter" onchange="renderStatusBoard()">
             <option value="">All Channels</option>
-            <option>Facebook</option><option>Instagram</option>
-            <option>Email</option><option>Newsletter</option><option>Flyer</option><option>Other</option>
+            <option value="Facebook/Instagram">Facebook/Instagram</option>
+            <option value="Email">Email</option>
+            <option value="Newsletter">Newsletter</option>
+            <option value="Flyer">Flyer</option>
+            <option value="Other">Other</option>
+          </select>
+          <select class="filter-select" id="mktgStatusFilter" onchange="renderStatusBoard()">
+            <option value="">All Statuses</option>
+            <option value="Draft">Draft</option>
+            <option value="In Review">In Review</option>
+            <option value="Needs Changes">Needs Changes</option>
+            <option value="Approved">Approved</option>
+            <option value="Posted">Posted</option>
           </select>
           <select class="filter-select" id="mktgSortOrder" onchange="renderStatusBoard()">
-            <option value="asc">Date ↑ (oldest first)</option>
-            <option value="desc" selected>Date ↓ (newest first)</option>
+            <option value="asc" selected>Date ↑ (soonest first)</option>
+            <option value="desc">Date ↓ (newest first)</option>
             <option value="created">Created date</option>
           </select>
         </div>
@@ -965,7 +997,7 @@ if ('serviceWorker' in navigator) {
     <div class="page" id="page-help">
       <div class="page-header">
         <div class="section-title" style="margin:0">Help &amp; FAQ</div>
-        <input class="filter-input" id="helpSearch" placeholder="&#128269; Search help topics..." oninput="filterHelp()" style="min-width:260px">
+        <input class="filter-input" id="helpSearch" placeholder="&#128269; Search help topics..." oninput="filterHelp()" style="width:100%;max-width:300px">
       </div>
       <div id="helpContent"></div>
     </div>
@@ -973,7 +1005,7 @@ if ('serviceWorker' in navigator) {
     <!-- ADMIN -->
     <div class="page" id="page-admin">
       <div class="section-title">Admin Panel</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div class="admin-grid">
         <!-- Users -->
         <div class="card" style="grid-column:1/-1">
           <div style="font-weight:700;font-size:16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
@@ -1019,7 +1051,7 @@ if ('serviceWorker' in navigator) {
           <div style="font-weight:700;font-size:16px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
             Task Templates <button class="btn btn-gold btn-sm" onclick="openTemplateModal()">+ Add Template Task</button>
           </div>
-          <div style="font-size:13px;color:var(--gray);margin-bottom:16px">Build reusable task checklists per event type. Use <em>Generate Tasks</em> to create a live task list for a specific event from its template.</div>
+          <div style="font-size:13px;color:var(--gray);margin-bottom:16px">Build reusable task checklists per event type. Use <em>Generate Checklist</em> to create a live task list for a specific event from its template.</div>
           <div class="filters" style="margin-bottom:14px">
             <select class="filter-select" id="tmplEventTypeFilter" onchange="renderTemplates()">
               <option value="">All Event Types</option>
@@ -1071,7 +1103,7 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- ADD CUSTOM LINK MODAL -->
-    <div class="modal-overlay" id="customLinkModal" style="display:none" onclick="if(event.target===this)closeModal('customLinkModal')">
+    <div class="modal-overlay" id="customLinkModal" onclick="if(event.target===this)closeModal('customLinkModal')">
       <div class="modal" style="max-width:440px">
         <div class="modal-header">
           <div class="modal-title" id="customLinkModalTitle">Add Personal Link</div>
@@ -1117,7 +1149,7 @@ if ('serviceWorker' in navigator) {
         <div style="display:flex;flex-direction:column;gap:14px">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
             <div class="form-group" style="margin:0">
-              <label class="form-label">Category <span class="req">*</span></label>
+              <label class="form-label" for="qtCategory">Category <span class="req">*</span></label>
               <select class="form-input" id="qtCategory" onchange="updateQTLinkedOptions()">
                 <option value="Donation">Donation</option>
                 <option value="Grant">Grant</option>
@@ -1126,25 +1158,25 @@ if ('serviceWorker' in navigator) {
               </select>
             </div>
             <div class="form-group" id="qtLinkedRow" style="margin:0">
-              <label class="form-label">Linked To</label>
+              <label class="form-label" for="qtLinked">Linked To</label>
               <select class="form-input" id="qtLinked">
                 <option value="">— Select record —</option>
               </select>
             </div>
           </div>
           <div class="form-group" style="margin:0">
-            <label class="form-label">Task <span class="req">*</span></label>
+            <label class="form-label" for="qtTaskName">Task <span class="req">*</span></label>
             <textarea class="form-input form-textarea" id="qtTaskName" rows="3" placeholder="What needs to be done?"></textarea>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
             <div class="form-group" style="margin:0">
-              <label class="form-label">Assign To <span class="req">*</span></label>
+              <label class="form-label" for="qtAssignTo">Assign To <span class="req">*</span></label>
               <select class="form-input" id="qtAssignTo">
                 <option value="">— Select person —</option>
               </select>
             </div>
             <div class="form-group" style="margin:0">
-              <label class="form-label">Due Date</label>
+              <label class="form-label" for="qtDueDate">Due Date</label>
               <input type="date" class="form-input" id="qtDueDate">
             </div>
           </div>
@@ -1297,18 +1329,18 @@ if ('serviceWorker' in navigator) {
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Type</label>
+        <label class="form-label" for="donType2">Type</label>
         <select class="form-select" id="donType2">
           <option value="">Select...</option>
           <option>Restaurant</option><option>Shopping</option><option>Entertainment</option><option>Other</option>
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Requested By</label>
+        <label class="form-label" for="donWho">Requested By</label>
         <select class="form-select" id="donWho"></select>
       </div>
       <div class="form-group">
-        <label class="form-label">Year</label>
+        <label class="form-label" for="donYearField">Year</label>
         <select class="form-select" id="donYearField">
           <option value="2024">2024</option>
           <option value="2025">2025</option>
@@ -1316,31 +1348,31 @@ if ('serviceWorker' in navigator) {
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Event Type</label>
+        <label class="form-label" for="donEventReq">Event Type</label>
         <select class="form-select" id="donEventReq"></select>
       </div>
       <div class="form-group">
-        <label class="form-label">Assign to Specific Event <span style="font-size:11px;color:var(--gray);font-weight:400">(optional)</span></label>
+        <label class="form-label" for="donEventInstance">Assign to Specific Event <span style="font-size:11px;color:var(--gray);font-weight:400">(optional)</span></label>
         <select class="form-select" id="donEventInstance">
           <option value="">— Not assigned to a specific event —</option>
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Used For</label>
+        <label class="form-label" for="donUsedFor">Used For</label>
         <select class="form-select" id="donUsedFor"></select>
       </div>
       <div class="form-group">
-        <label class="form-label">Donation Category</label>
+        <label class="form-label" for="donCategory">Donation Category</label>
         <select class="form-select" id="donCategory" onchange="toggleDonCategoryOther()">
           <option value="">— Category —</option>
         </select>
       </div>
       <div class="form-group full" id="donCategoryOtherRow" style="display:none">
-        <label class="form-label">Specify Category</label>
+        <label class="form-label" for="donCategoryOther">Specify Category</label>
         <input type="text" class="form-input" id="donCategoryOther" placeholder="Describe how this donation will be used">
       </div>
       <div class="form-group">
-        <label class="form-label">How Contacted</label>
+        <label class="form-label" for="donHow">How Contacted</label>
         <select class="form-select" id="donHow" onchange="toggleHowField()">
           <option value="">Select...</option>
           <option>Online</option><option>Online Form</option><option>Email</option>
@@ -1356,15 +1388,15 @@ if ('serviceWorker' in navigator) {
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Date Requested</label>
+        <label class="form-label" for="donDate">Date Requested</label>
         <input type="date" class="form-input" id="donDate">
       </div>
       <div class="form-group">
-        <label class="form-label">Lead Time</label>
+        <label class="form-label" for="donLeadTime">Lead Time</label>
         <input type="text" class="form-input" id="donLeadTime" placeholder="e.g. 6 weeks, 30 days">
       </div>
       <div class="form-group">
-        <label class="form-label">Granted?</label>
+        <label class="form-label" for="donGranted2">Granted?</label>
         <select class="form-select" id="donGranted2" onchange="toggleGrantedFields()">
           <option value="">Pending / No Response</option>
           <option value="Yes">Yes</option>
@@ -1375,7 +1407,7 @@ if ('serviceWorker' in navigator) {
       </div>
       <!-- To Do assignee — shown only when To Do is selected -->
       <div class="form-group" id="donTodoAssignRow" style="display:none">
-        <label class="form-label">Assign To Do To</label>
+        <label class="form-label" for="donTodoAssignee">Assign To Do To</label>
         <select class="form-select" id="donTodoAssignee">
           <option value="">— Select person —</option>
         </select>
@@ -1386,16 +1418,16 @@ if ('serviceWorker' in navigator) {
         <div class="form-grid">
           <div class="form-section" style="margin-top:0">Donation Details</div>
           <div class="form-group">
-            <label class="form-label">Item / What They're Donating</label>
+            <label class="form-label" for="donItem">Item / What They're Donating</label>
             <input type="text" class="form-input" id="donItem" placeholder="e.g. $50 gift card">
           </div>
           <div class="form-group">
-            <label class="form-label">Estimated Value ($)</label>
+            <label class="form-label" for="donValue">Estimated Value ($)</label>
             <input type="number" class="form-input" id="donValue" placeholder="0.00" step="0.01">
           </div>
           <div class="form-section">Pickup / Delivery</div>
           <div class="form-group">
-            <label class="form-label">How Are We Getting It?</label>
+            <label class="form-label" for="donPickupMethod">How Are We Getting It?</label>
             <select class="form-select" id="donPickupMethod" onchange="togglePickupAssign()">
               <option value="">Select...</option>
               <option>Mail</option><option>Pick Up</option>
@@ -1412,11 +1444,11 @@ if ('serviceWorker' in navigator) {
         </div>
       </div>
       <div class="form-group full">
-        <label class="form-label">Notes (contact info, details, etc.)</label>
+        <label class="form-label" for="donNotes">Notes (contact info, details, etc.)</label>
         <textarea class="form-textarea" id="donNotes" placeholder="Contact name, phone, address, details..."></textarea>
       </div>
       <div class="form-group full">
-        <label class="form-label">Reference Link / URL</label>
+        <label class="form-label" for="donRefLink">Reference Link / URL</label>
         <input type="text" class="form-input" id="donRefLink" placeholder="https://...  or donation form name">
       </div>
       <div class="form-group full" style="background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px;padding:12px 14px">
@@ -1427,15 +1459,15 @@ if ('serviceWorker' in navigator) {
         <!-- Slot 1 -->
         <div id="donFollowUpDateRow" style="display:none;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group" style="margin:0">
-            <label class="form-label" style="font-size:12px">Assigned To</label>
+            <label class="form-label" for="donFollowUpAssignee" style="font-size:12px">Assigned To</label>
             <select class="form-input" id="donFollowUpAssignee" style="font-size:13px"></select>
           </div>
           <div class="form-group" style="margin:0">
-            <label class="form-label" style="font-size:12px">Follow-Up Date <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+            <label class="form-label" for="donFollowUpDate" style="font-size:12px">Follow-Up Date <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
             <input type="date" class="form-input" id="donFollowUpDate">
           </div>
           <div class="form-group" style="margin:0;grid-column:1/-1">
-            <label class="form-label" style="font-size:12px">Next Step / Note</label>
+            <label class="form-label" for="donFollowUpNote" style="font-size:12px">Next Step / Note</label>
             <input type="text" class="form-input" id="donFollowUpNote" placeholder="e.g. Call Jeremy after the 15th — he said check back then">
           </div>
           <!-- Add second follow-up button -->
@@ -1447,15 +1479,15 @@ if ('serviceWorker' in navigator) {
         <div id="donFollowUp2Row" style="display:none;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;padding-top:12px;border-top:1px dashed #f59e0b">
           <div style="grid-column:1/-1;font-size:12px;font-weight:600;color:#92400e">Second Follow-Up</div>
           <div class="form-group" style="margin:0">
-            <label class="form-label" style="font-size:12px">Assigned To</label>
+            <label class="form-label" for="donFollowUpAssignee2" style="font-size:12px">Assigned To</label>
             <select class="form-input" id="donFollowUpAssignee2" style="font-size:13px"></select>
           </div>
           <div class="form-group" style="margin:0">
-            <label class="form-label" style="font-size:12px">Follow-Up Date <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+            <label class="form-label" for="donFollowUpDate2" style="font-size:12px">Follow-Up Date <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
             <input type="date" class="form-input" id="donFollowUpDate2">
           </div>
           <div class="form-group" style="margin:0;grid-column:1/-1">
-            <label class="form-label" style="font-size:12px">Next Step / Note</label>
+            <label class="form-label" for="donFollowUpNote2" style="font-size:12px">Next Step / Note</label>
             <input type="text" class="form-input" id="donFollowUpNote2" placeholder="e.g. Kris to pick up item by June 1">
           </div>
           <div style="grid-column:1/-1">
@@ -1718,29 +1750,6 @@ if ('serviceWorker' in navigator) {
 
 
 <!-- IMPORT DATA MODAL -->
-<div class="modal-overlay" id="importModal">
-  <div class="modal import-modal">
-    <button class="modal-close" onclick="closeModal('importModal')">&#10005;</button>
-    <div class="modal-title">&#128229; Import Data from Google Sheets Export</div>
-    <p style="font-size:14px;color:var(--gray);margin-bottom:16px">
-      Select the <strong>MyBFF_FullBackup_[date].json</strong> file exported from the Google Sheets version.
-      Duplicate records (matched by ID) will be skipped automatically.
-    </p>
-    <div class="form-group">
-      <label class="form-label">Select JSON Backup File</label>
-      <input type="file" id="importFile" accept=".json" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px">
-    </div>
-    <div style="background:#fffbeb;border-left:3px solid var(--gold);padding:10px 14px;border-radius:0 6px 6px 0;font-size:13px;color:#78350f;margin:12px 0">
-      ⚠️ <strong>Before importing:</strong> Verify that Row Level Security is <strong>disabled</strong> on all MyBFF tables in Supabase. If RLS is enabled, the import will silently save 0 records.
-    </div>
-    <div class="form-actions">
-      <button class="btn btn-outline" onclick="closeModal('importModal')">Cancel</button>
-      <button class="btn btn-gold" onclick="runImport()">&#9654; Run Import</button>
-    </div>
-    <div id="importStatus"></div>
-  </div>
-</div>
-
 <div id="toast"></div>
 
 <!-- TASK MODAL -->
@@ -1750,11 +1759,11 @@ if ('serviceWorker' in navigator) {
     <div class="modal-title" id="taskModalTitle">Add Task</div>
     <div class="form-grid">
       <div class="form-group">
-        <label class="form-label">Task Name <span class="req">*</span></label>
+        <label class="form-label" for="tmTaskName">Task Name <span class="req">*</span></label>
         <input class="form-input" id="tmTaskName" placeholder="e.g. Confirm venue booking">
       </div>
       <div class="form-group">
-        <label class="form-label">Event <span class="req">*</span></label>
+        <label class="form-label" for="tmEventName">Event <span class="req">*</span></label>
         <select class="form-input" id="tmEventName"></select>
       </div>
       <div class="form-group" style="grid-column:1/-1">
@@ -1762,11 +1771,11 @@ if ('serviceWorker' in navigator) {
         <div id="tmAssigneeChecks" style="border:2px solid var(--border);border-radius:7px;padding:8px 12px;max-height:140px;overflow-y:auto;background:white;display:flex;flex-direction:column;gap:4px"></div>
       </div>
       <div class="form-group">
-        <label class="form-label">Due Date</label>
+        <label class="form-label" for="tmDueDate">Due Date</label>
         <input class="form-input" type="date" id="tmDueDate">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Status</label>
+        <label class="form-label" for="tmStatus">Status</label>
         <select class="form-input" id="tmStatus">
           <option value="Not Started">Not Started</option>
           <option value="In Progress">In Progress</option>
@@ -2492,7 +2501,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v5.16l-DEV · Jun 30 2026";
+const BUILD_VERSION = "v6.0-DEV · Jul 04 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -2539,11 +2548,14 @@ async function sbUpdateWhere(table, col, val, row) {
 // ═══════════════════════════════════════════════════════════
 let currentUser = null;
 let ALL_DONATIONS = [];
+let _donationsLoadedYear = null;
+let _donationsAllLoaded = false;
 let ALL_VENDORS = [];
 let ALL_EVENTS = []; // loaded from MyBFFEvents — no hardcoded fallback
 let ALL_EVENT_TYPES = []; // loaded from MyBFFEventTypes
 let ALL_DON_CATS = [];   // loaded from MyBFFDonationCategories
-let ALL_CONTENT = [];         // loaded from MyBFFContent
+let ALL_CONTENT = [];
+let ALL_USED_CONTENT = null; // null = not yet loaded, [] = loaded but empty         // loaded from MyBFFContent
 let ALL_CONTENT_COMMENTS = []; // loaded from MyBFFContentComments
 let ALL_CONTENT_REVIEWERS = []; // loaded from MyBFFContentReviewers
 let ALL_NL_QA = [];           // loaded from MyBFFNewsletterQA
@@ -2712,10 +2724,13 @@ async function loadAll() {
 // ═══════════════════════════════════════════════════════════
 // DATA LOADING
 // ═══════════════════════════════════════════════════════════
-async function loadDonations() {
+async function loadDonations(year) {
+  const loadYear = year || new Date().getFullYear();
   try {
-    const rows = await sbGet("MyBFFDonations", "order=saved_at.asc");
+    const rows = await sbGet("MyBFFDonations", `year=eq.${loadYear}&order=saved_at.asc`);
     ALL_DONATIONS = (rows || []).map(rowToDonation).filter(d => d.id && d.organization);
+    _donationsLoadedYear = loadYear;
+    _donationsAllLoaded = false;
   } catch(e) {
     console.error("loadDonations:", e);
     ALL_DONATIONS = [];
@@ -2723,39 +2738,51 @@ async function loadDonations() {
   }
 }
 
+async function loadAllDonations() {
+  // Used by Reports tab — loads all years
+  try {
+    const rows = await sbGet("MyBFFDonations", "order=saved_at.asc");
+    ALL_DONATIONS = (rows || []).map(rowToDonation).filter(d => d.id && d.organization);
+    _donationsLoadedYear = null;
+    _donationsAllLoaded = true;
+  } catch(e) {
+    console.error("loadAllDonations:", e);
+    showToast("Warning: could not load all donations — " + e.message, "error");
+  }
+}
+
 function rowToDonation(r) {
-  // Handles both snake_case (Supabase) and any legacy keys
-  function f(a, b) { return r[a] !== undefined ? r[a] : (r[b] !== undefined ? r[b] : ""); }
   return {
-    id: f("id","ID"),
-    year: f("year","Year"),
-    who: f("who","Who"),
-    event_requested: f("event_requested","EventRequested"),
-    used_for: f("used_for","UsedFor"),
-    type: f("type","Type"),
-    organization: f("organization","Organization"),
-    how: f("how","How"),
-    date_requested: f("date_requested","DateRequested"),
-    granted: f("granted","Granted"),
-    value: f("value","Value"),
-    item: f("item","Item"),
-    lead_time: f("lead_time","LeadTime"),
-    pickup_method: f("pickup_method","PickupMethod"),
-    pickup_assigned_to: f("pickup_assigned_to","PickupAssignedTo"),
-    notes: f("notes","Notes"),
-    reference_link: f("reference_link","ReferenceLink"),
-    saved_at: f("saved_at","SavedAt"),
-    edited_by: f("edited_by","LastEditedBy"),
-    edited_at: f("edited_at","LastEditedAt"),
-    event_instance_id: r.event_instance_id || "",
-    donation_category: r.donation_category || "",
-    follow_up: r.follow_up === true || r.follow_up === "true" || false,
-    follow_up_date: r.follow_up_date || null,
-    follow_up_assignee: r.follow_up_assignee || null,
-    follow_up_note: r.follow_up_note || null,
+    id:                  r.id                  || "",
+    year:                r.year                || "",
+    who:                 r.who                 || "",
+    event_requested:     r.event_requested     || "",
+    used_for:            r.used_for            || "",
+    type:                r.type                || "",
+    organization:        r.organization        || "",
+    how:                 r.how                 || "",
+    date_requested:      r.date_requested      || "",
+    granted:             r.granted             || "",
+    value:               r.value               || "",
+    item:                r.item                || "",
+    lead_time:           r.lead_time           || "",
+    pickup_method:       r.pickup_method       || "",
+    pickup_assigned_to:  r.pickup_assigned_to  || "",
+    notes:               r.notes               || "",
+    reference_link:      r.reference_link      || "",
+    saved_at:            r.saved_at            || "",
+    edited_by:           r.edited_by           || "",
+    edited_at:           r.edited_at           || "",
+    event_instance_id:   r.event_instance_id   || "",
+    donation_category:   r.donation_category   || "",
+    todo_assignee:       r.todo_assignee       || null,
+    follow_up:           r.follow_up === true || r.follow_up === "true" || false,
+    follow_up_date:      r.follow_up_date      || null,
+    follow_up_assignee:  r.follow_up_assignee  || null,
+    follow_up_note:      r.follow_up_note      || null,
     follow_up_assignee_2: r.follow_up_assignee_2 || null,
-    follow_up_date_2: r.follow_up_date_2 || null,
-    follow_up_note_2: r.follow_up_note_2 || null,
+    follow_up_date_2:    r.follow_up_date_2    || null,
+    follow_up_note_2:    r.follow_up_note_2    || null,
   };
 }
 
@@ -2944,11 +2971,17 @@ function taskStatusBadge(status) {
 // ═══════════════════════════════════════════════════════════
 // PHASE 1 — TASK CRUD
 // ═══════════════════════════════════════════════════════════
-function buildAssigneeChecks(selectedList) {
-  const names = [...new Set([...APP_USERS.map(u => u.displayName), ...PICKUP_PEOPLE])].filter(Boolean).sort();
-  const container = document.getElementById("tmAssigneeChecks");
+// ── Shared user checkbox builder ──────────────────────────
+function buildUserChecks(containerId, selectedList, includePickup = false) {
+  const container = document.getElementById(containerId);
   if (!container) return;
-  if (!names.length) { container.innerHTML = `<div style="color:var(--gray);font-size:13px">No team members found. Add users or pickup people in Admin.</div>`; return; }
+  const names = includePickup
+    ? [...new Set([...APP_USERS.map(u => u.displayName), ...PICKUP_PEOPLE])].filter(Boolean).sort()
+    : APP_USERS.map(u => u.displayName).filter(Boolean);
+  if (!names.length) {
+    container.innerHTML = `<div style="color:var(--gray);font-size:13px">No team members found.</div>`;
+    return;
+  }
   container.innerHTML = names.map(n => `
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;font-size:14px">
       <input type="checkbox" value="${esc(n)}" ${selectedList.includes(n) ? "checked" : ""} style="width:16px;height:16px;accent-color:var(--gold)">
@@ -2956,14 +2989,22 @@ function buildAssigneeChecks(selectedList) {
     </label>`).join("");
 }
 
-function getCheckedAssignees() {
-  const checks = document.querySelectorAll("#tmAssigneeChecks input[type=checkbox]:checked");
-  return Array.from(checks).map(c => c.value).join(", ");
+function getCheckedUsers(containerId) {
+  return Array.from(
+    document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)
+  ).map(c => c.value).join(", ");
 }
+
+// Backward-compatible wrappers (called throughout the codebase)
+function buildAssigneeChecks(selectedList) { buildUserChecks("tmAssigneeChecks", selectedList, true); }
+function getCheckedAssignees()              { return getCheckedUsers("tmAssigneeChecks"); }
+function buildReviewerChecks(selectedList)  { buildUserChecks("ctReviewerChecks", selectedList, false); }
+function getCheckedReviewers()              { return getCheckedUsers("ctReviewerChecks"); }
+
 
 function openAddTaskModal(presetEvent) {
   editingTaskId = null;
-  document.getElementById("taskModalTitle").textContent = "Add Task";
+  document.getElementById("taskModalTitle").textContent = "Add Checklist Item";
   document.getElementById("tmTaskId").value = "";
   document.getElementById("tmTaskName").value = "";
   document.getElementById("tmDueDate").value = "";
@@ -2981,7 +3022,7 @@ function openEditTaskModal(taskId) {
   const t = ALL_TASKS.find(x => x.id === taskId);
   if (!t) return;
   editingTaskId = taskId;
-  document.getElementById("taskModalTitle").textContent = "Edit Task";
+  document.getElementById("taskModalTitle").textContent = "Edit Checklist Item";
   document.getElementById("tmTaskId").value = taskId;
   document.getElementById("tmTaskName").value = t.task_name || "";
   document.getElementById("tmDueDate").value = t.due_date || "";
@@ -3282,7 +3323,7 @@ function previewGenerate() {
 
   preview.innerHTML = `
     <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px">
-      <strong>${matchingTemplates.length} tasks</strong> will be generated from the <em>${eventType}</em> template.
+      <strong>${matchingTemplates.length} checklist items</strong> will be generated from the <em>${eventType}</em> template.
       ${evDate ? `Due dates calculated from event date <strong>${evDate}</strong>.` : `<span style="color:#d97706">⚠️ No event date set — due dates will be blank. Set the event date in the Events section above.</span>`}
       ${existingCount ? `<br><span style="color:#6b7280;font-size:12px;margin-top:4px;display:block">Note: ${existingCount} existing task(s) for this event will not be affected.</span>` : ""}
     </div>`;
@@ -3335,7 +3376,7 @@ async function doGenerateTasks() {
       await sbInsert("MyBFFTasks", row);
     }
     closeModal("generateTasksModal");
-    showToast(`✅ ${rows.length} tasks generated for ${evName}!`);
+    showToast(`✅ ${rows.length} checklist items generated for ${evName}!`);
     await loadTasks();
     if (CURRENT_EVENT_VIEW === evName) renderEventDetailTasks();
     else renderEventsPage();
@@ -3464,7 +3505,7 @@ function renderDashboard() {
               <span style="font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.task_name)}</span>
               <span style="font-size:11px;color:var(--gray);flex-shrink:0">${esc(t.event_name || "")}</span>
             </div>`).join("") + (myEventTasks.length > 2 ? `<div onclick="openMyTasksModal()" style="font-size:12px;color:var(--gold);margin-top:4px;cursor:pointer;font-weight:600">+${myEventTasks.length-2} more → View All</div>` : "")
-        : `<div style="font-size:13px;color:var(--gray)">No open event tasks assigned to you</div>`}
+        : `<div style="font-size:13px;color:var(--gray)">No open checklist items assigned to you</div>`}
       ${myQuickTasks.length ? `
         <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:600;margin:8px 0 4px">Assigned Tasks</div>
         ${myQuickTasks.slice(0,2).map(t => `
@@ -3568,7 +3609,7 @@ function renderDashboardFollowUps() {
       </div>
       <div style="text-align:right;white-space:nowrap;flex-shrink:0">
         <div style="font-size:11px;color:${isPast?"#dc2626":"#92400e"};font-weight:600">${dateLabel}</div>
-      </div>
+      </div><span style="color:var(--gray);font-size:18px;font-weight:300;flex-shrink:0;align-self:center">›</span>
     </div>`;
   }).join("");
 
@@ -3586,7 +3627,7 @@ function renderDashboardFollowUps() {
       </div>
       <div style="text-align:right;white-space:nowrap;flex-shrink:0">
         <div style="font-size:11px;color:${isPast?"#dc2626":"#1e40af"};font-weight:600">${dateLabel}</div>
-      </div>
+      </div><span style="color:var(--gray);font-size:18px;font-weight:300;flex-shrink:0;align-self:center">›</span>
     </div>`;
   }).join("");
 
@@ -3632,7 +3673,7 @@ function renderDashboardTasksCard() {
   if (subtitle) subtitle.textContent = `${totalOpen} open across team`;
 
   if (userSummaries.length === 0) {
-    container.innerHTML = `<div style="font-size:13px;color:var(--gray);text-align:center;padding:16px 0">🎉 No open tasks for the team right now.</div>`;
+    container.innerHTML = `<div style="font-size:13px;color:var(--gray);text-align:center;padding:16px 0">🎉 No open checklist items or tasks for the team right now.</div>`;
     return;
   }
 
@@ -3688,7 +3729,7 @@ function renderDashboardTasksCard() {
           <span style="font-size:20px;color:var(--gray);font-weight:300">›</span>
         </summary>
         <div style="padding:6px 0 4px 38px">
-          ${taskItems || `<div style="font-size:12px;color:var(--gray);padding:4px 0">No open tasks.</div>`}
+          ${taskItems || `<div style="font-size:12px;color:var(--gray);padding:4px 0">No open items.</div>`}
           ${u.done.length ? `
             <details style="margin-top:6px">
               <summary style="font-size:11px;color:var(--gray);cursor:pointer;padding:3px 0">Show ${u.done.length} completed task${u.done.length !== 1 ? "s" : ""}</summary>
@@ -3783,99 +3824,85 @@ function updateActionSummary() {
   if (grantBadge) { grantBadge.textContent = grantFU; grantBadge.style.display = grantFU > 0 ? "" : "none"; }
 
   // Render in-tab follow-up banners
-  renderDonFollowUpBanner(donFU);
-  renderGrantFollowUpBanner(grantFU);
+  renderDonFollowUpBanner();
+  renderGrantFollowUpBanner();
 }
 
-function renderDonFollowUpBanner(count) {
-  const banner = document.getElementById("donFollowUpBanner");
-  const list   = document.getElementById("donFollowUpList");
+// ── Unified follow-up banner ──────────────────────────────
+function renderFollowUpBanner(config) {
+  const banner = document.getElementById(config.bannerId);
+  const list   = document.getElementById(config.listId);
   if (!banner || !list) return;
 
-  const myName = currentUser?.displayName || "";
-  const today  = new Date();
-
-  // Collect items for this user — may appear as slot 1, slot 2, or both
-  const items = [];
-  ALL_DONATIONS.filter(d => d.follow_up).forEach(d => {
-    if (!d.follow_up_assignee || d.follow_up_assignee === myName) {
-      items.push({ d, slot: 1, assignee: d.follow_up_assignee, date: d.follow_up_date, note: d.follow_up_note });
-    }
-    if (d.follow_up_assignee_2 && d.follow_up_assignee_2 === myName) {
-      items.push({ d, slot: 2, assignee: d.follow_up_assignee_2, date: d.follow_up_date_2, note: d.follow_up_note_2 });
-    }
-  });
-  items.sort((a,b) => {
-    if (!a.date && !b.date) return 0;
-    if (!a.date) return 1;
-    if (!b.date) return -1;
-    return new Date(a.date) - new Date(b.date);
-  });
-
+  const items = config.getItems();
   if (!items.length) { banner.style.display = "none"; return; }
 
-  list.innerHTML = items.slice(0,10).map(({ d, slot, date, note }) => {
-    const isPast = date && new Date(date) < today;
-    const dateLabel = date
-      ? `<span style="font-size:11px;font-weight:600;color:${isPast?"#dc2626":"#92400e"};white-space:nowrap">${isPast?"Overdue: ":"Due: "}${fmtDate(date)}</span>`
-      : "";
-    return `<div style="display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:6px;background:white;border:1px solid #fde68a;border-radius:8px;flex-wrap:wrap">
-      <div style="flex:1;min-width:150px">
-        <div style="font-weight:600;font-size:13px">${esc(d.organization)}</div>
-        ${note ? `<div style="font-size:12px;color:#92400e;margin-top:2px">&#128204; ${esc(note)}</div>` : ""}
-        ${d.event_requested ? `<div style="font-size:11px;color:var(--gray)">${esc(d.event_requested)}</div>` : ""}
-      </div>
-      ${dateLabel}
-      <div style="display:flex;gap:6px;flex-shrink:0">
-        <button onclick="openDonationForEdit('${esc(d.id)}')" class="btn btn-outline btn-sm" style="font-size:11px">&#9998; Edit</button>
-        <button onclick="clearDonFollowUp('${esc(d.id)}',${slot})" class="btn btn-sm" style="font-size:11px;background:#22c55e;color:white">&#10003; Done</button>
-      </div>
-    </div>`;
-  }).join("");
-
+  list.innerHTML = items.slice(0, 10).map(item => config.renderItem(item)).join("");
   banner.style.display = "";
 }
 
-function renderGrantFollowUpBanner(count) {
-  const banner = document.getElementById("grantFollowUpBanner");
-  const list   = document.getElementById("grantFollowUpList");
-  if (!banner || !list) return;
-
+function renderDonFollowUpBanner() {
   const myName = currentUser?.displayName || "";
   const today  = new Date();
+  renderFollowUpBanner({
+    bannerId: "donFollowUpBanner",
+    listId:   "donFollowUpList",
+    getItems: () => {
+      const items = [];
+      ALL_DONATIONS.filter(d => d.follow_up).forEach(d => {
+        if (!d.follow_up_assignee || d.follow_up_assignee === myName)
+          items.push({ d, slot:1, date: d.follow_up_date, note: d.follow_up_note });
+        if (d.follow_up_assignee_2 && d.follow_up_assignee_2 === myName)
+          items.push({ d, slot:2, date: d.follow_up_date_2, note: d.follow_up_note_2 });
+      });
+      return items.sort((a,b) => (!a.date&&!b.date)?0:!a.date?1:!b.date?-1:new Date(a.date)-new Date(b.date));
+    },
+    renderItem: ({ d, slot, date, note }) => {
+      const isPast = date && new Date(date) < today;
+      const dateLabel = date ? `<span style="font-size:11px;font-weight:600;color:${isPast?"#dc2626":"#92400e"};white-space:nowrap">${isPast?"Overdue: ":"Due: "}${fmtDate(date)}</span>` : "";
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:6px;background:white;border:1px solid #fde68a;border-radius:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:150px">
+          <div style="font-weight:600;font-size:13px">${esc(d.organization)}</div>
+          ${note ? `<div style="font-size:12px;color:#92400e;margin-top:2px">&#128204; ${esc(note)}</div>` : ""}
+          ${d.event_requested ? `<div style="font-size:11px;color:var(--gray)">${esc(d.event_requested)}</div>` : ""}
+        </div>
+        ${dateLabel}
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button data-id="${esc(d.id)}" onclick="openDonationForEdit(this.dataset.id)" class="btn btn-outline btn-sm" style="font-size:11px">&#9998; Edit</button>
+          <button data-id="${esc(d.id)}" data-slot="${slot}" onclick="clearDonFollowUp(this.dataset.id,this.dataset.slot)" class="btn btn-sm" style="font-size:11px;background:#22c55e;color:white">&#10003; Done</button>
+        </div>
+      </div>`;
+    }
+  });
+}
 
-  const items = ALL_GRANT_REQUESTS.filter(r =>
-    r.follow_up && (!r.follow_up_assignee || r.follow_up_assignee === myName)
-  ).sort((a,b) => {
-    if (!a.follow_up_date && !b.follow_up_date) return 0;
-    if (!a.follow_up_date) return 1;
-    if (!b.follow_up_date) return -1;
-    return new Date(a.follow_up_date) - new Date(b.follow_up_date);
-  }).slice(0, 10);
-
-  if (!items.length) { banner.style.display = "none"; return; }
-
-  list.innerHTML = items.map(r => {
-    const grant = ALL_GRANTS.find(g => g.id === r.grant_id);
-    const isPast = r.follow_up_date && new Date(r.follow_up_date) < today;
-    const dateLabel = r.follow_up_date
-      ? `<span style="font-size:11px;font-weight:600;color:${isPast?"#dc2626":"#166534"};white-space:nowrap">${isPast?"Overdue: ":"Due: "}${fmtDate(r.follow_up_date)}</span>`
-      : "";
-    return `<div style="display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:6px;background:white;border:1px solid #bbf7d0;border-radius:8px;flex-wrap:wrap">
-      <div style="flex:1;min-width:150px">
-        <div style="font-weight:600;font-size:13px">${esc(grant?.name||"Unknown Grantor")}</div>
-        ${r.follow_up_note ? `<div style="font-size:12px;color:#166534;margin-top:2px">&#128204; ${esc(r.follow_up_note)}</div>` : ""}
-        <div style="font-size:11px;color:var(--gray)">${r.status} · ${r.year||""}</div>
-      </div>
-      ${dateLabel}
-      <div style="display:flex;gap:6px;flex-shrink:0">
-        <button onclick="openGrantRequestModalEdit('${esc(r.id)}','${esc(r.grant_id)}')" class="btn btn-outline btn-sm" style="font-size:11px">&#9998; Edit</button>
-        <button onclick="clearGrantFollowUp('${esc(r.id)}')" class="btn btn-sm" style="font-size:11px;background:#22c55e;color:white">&#10003; Done</button>
-      </div>
-    </div>`;
-  }).join("");
-
-  banner.style.display = "";
+function renderGrantFollowUpBanner() {
+  const myName = currentUser?.displayName || "";
+  const today  = new Date();
+  renderFollowUpBanner({
+    bannerId: "grantFollowUpBanner",
+    listId:   "grantFollowUpList",
+    getItems: () => ALL_GRANT_REQUESTS.filter(r =>
+      r.follow_up && (!r.follow_up_assignee || r.follow_up_assignee === myName)
+    ).sort((a,b) => (!a.follow_up_date&&!b.follow_up_date)?0:!a.follow_up_date?1:!b.follow_up_date?-1:new Date(a.follow_up_date)-new Date(b.follow_up_date)),
+    renderItem: (r) => {
+      const grant = ALL_GRANTS.find(g => g.id === r.grant_id);
+      const isPast = r.follow_up_date && new Date(r.follow_up_date) < today;
+      const dateLabel = r.follow_up_date ? `<span style="font-size:11px;font-weight:600;color:${isPast?"#dc2626":"#166534"};white-space:nowrap">${isPast?"Overdue: ":"Due: "}${fmtDate(r.follow_up_date)}</span>` : "";
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:6px;background:white;border:1px solid #bbf7d0;border-radius:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:150px">
+          <div style="font-weight:600;font-size:13px">${esc(grant?.name||"Unknown Grantor")}</div>
+          ${r.follow_up_note ? `<div style="font-size:12px;color:#166534;margin-top:2px">&#128204; ${esc(r.follow_up_note)}</div>` : ""}
+          <div style="font-size:11px;color:var(--gray)">${r.status} · ${r.year||""}</div>
+        </div>
+        ${dateLabel}
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button data-id="${esc(r.id)}" data-gid="${esc(r.grant_id)}" onclick="openGrantRequestModalEdit(this.dataset.id,this.dataset.gid)" class="btn btn-outline btn-sm" style="font-size:11px">&#9998; Edit</button>
+          <button data-id="${esc(r.id)}" onclick="clearGrantFollowUp(this.dataset.id)" class="btn btn-sm" style="font-size:11px;background:#22c55e;color:white">&#10003; Done</button>
+        </div>
+      </div>`;
+    }
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3911,25 +3938,17 @@ function showEvDetailTab(tab) {
 }
 
 function showEventDetail(eventName) {
-  console.log("[showEventDetail] called with:", JSON.stringify(eventName));
-  console.log("[showEventDetail] ALL_EVENTS_DATA names:", ALL_EVENTS_DATA.map(e=>e.name));
+
   CURRENT_EVENT_VIEW = eventName;
   try {
     document.getElementById("evListView").style.display = "none";
     document.getElementById("evDetailView").style.display = "";
-    console.log("[showEventDetail] list hidden, detail shown");
     const ev = ALL_EVENTS_DATA.find(e => e.name === eventName) || { name: eventName };
-    console.log("[showEventDetail] ev found:", ev ? ev.name : "FALLBACK");
     renderEventDetailCard(ev);
-    console.log("[showEventDetail] renderEventDetailCard done");
     showEvDetailTab("tasks");
-    console.log("[showEventDetail] showEvDetailTab done");
     renderEventDetailTasks();
-    console.log("[showEventDetail] renderEventDetailTasks done");
     renderEventDetailDonations();
-    console.log("[showEventDetail] renderEventDetailDonations done");
     renderEventDetailAssets();
-    console.log("[showEventDetail] renderEventDetailAssets done");
   } catch(err) {
     console.error("[showEventDetail] CRASHED:", err.message, err.stack);
     showToast("Error opening event: " + err.message, "error");
@@ -3988,7 +4007,7 @@ function renderEventDetailTasks() {
 
   if (!tasks.length) {
     container.innerHTML = `<div style="color:var(--gray);font-size:14px;padding:16px 0;text-align:center">
-      No tasks yet.${isEditor() ? " Use <strong>+ Add Task</strong> to create the first one, or generate from a template in Admin." : ""}
+      No checklist items yet.${isEditor() ? " Use <strong>+ Add Checklist Item</strong> to create the first one, or generate from a template in Admin." : ""}
     </div>`;
     return;
   }
@@ -4283,8 +4302,8 @@ function renderEventsPage() {
               <div style="flex:1;height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden">
                 <div style="height:100%;width:${pct}%;background:var(--gold);border-radius:3px"></div>
               </div>
-              <span style="font-size:12px;color:var(--gray);white-space:nowrap">${done}/${tasks.length} tasks</span>
-            </div>` : `<div style="font-size:12px;color:var(--gray)">No tasks yet</div>`}
+              <span style="font-size:12px;color:var(--gray);white-space:nowrap">${done}/${tasks.length} checklist items</span>
+            </div>` : `<div style="font-size:12px;color:var(--gray)">No checklist items yet</div>`}
         </div>
         <div class="event-card-footer">
           <div style="font-size:12px;color:var(--gray);display:flex;flex-direction:column;gap:2px">
@@ -4492,12 +4511,23 @@ async function deleteEvent(name) {
 // ═══════════════════════════════════════════════════════════
 // DONATIONS PAGE
 // ═══════════════════════════════════════════════════════════
+async function onDonYearChange(year) {
+  const y = parseInt(year) || new Date().getFullYear();
+  if (_donationsLoadedYear !== y && !_donationsAllLoaded) {
+    // Show loading state
+    const tbody = document.getElementById("donTable");
+    if (tbody) tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--gray)">Loading ${y} donations…</td></tr>`;
+    await loadDonations(y);
+  }
+  renderDonations();
+}
+
 function renderDonations() {
   updateActionSummary();
   let data = filterDonations();
   document.getElementById("donCount").textContent = `Showing ${data.length} of ${ALL_DONATIONS.length} records`;
   const tbody = document.getElementById("donTable");
-  if (!data.length) { tbody.innerHTML = `<tr><td colspan="10" class="empty-state">No donations match your filters.</td></tr>`; return; }
+  if (!data.length) { tbody.innerHTML = `<tr><td colspan="11" class="empty-state">No donations match your filters.</td></tr>`; const cl=document.getElementById("donCardList"); if(cl) cl.innerHTML=`<div style="text-align:center;padding:24px;color:var(--gray)">No donations match your filters.</div>`; return; }
   tbody.innerHTML = data.map(d => {
     // Year mismatch indicator
     const reqYear = d.year ? String(d.year) : "";
@@ -4534,6 +4564,27 @@ function renderDonations() {
       </td>
     </tr>`;
   }).join("");
+
+  // Mobile card view — same data, stacked cards (shown < 600px via CSS)
+  const cardList = document.getElementById("donCardList");
+  if (cardList) {
+    cardList.innerHTML = data.map(d => `
+      <div class="card" data-id="${esc(d.id)}" onclick="viewDonation(this.dataset.id)"
+           style="margin-bottom:10px;padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:12px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.organization)}</div>
+          <div style="font-size:12px;color:var(--gray);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            ${d.event_requested ? esc(d.event_requested) : "—"}${d.item ? " · " + esc(d.item) : ""}
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">
+            <span class="badge ${grantedBadge(d.granted)}" style="font-size:11px">${d.granted || "Pending"}</span>
+            ${d.value ? `<span style="font-size:12px;font-weight:600">$${parseFloat(d.value).toLocaleString()}</span>` : ""}
+            <span style="font-size:11px;color:var(--gray)">${fmtDate(d.date_requested)}</span>
+          </div>
+        </div>
+        <span style="color:var(--gray);font-size:20px;font-weight:300;flex-shrink:0">›</span>
+      </div>`).join("");
+  }
 }
 
 function filterDonations() {
@@ -4576,15 +4627,12 @@ function clearDonationFilters() {
 }
 
 function viewDonation(id) {
-  console.log("[viewDonation] called with id:", id, "| ALL_DONATIONS length:", ALL_DONATIONS.length);
   let d = ALL_DONATIONS.find(x => x.id === id);
-  console.log("[viewDonation] exact ID match:", d);
   // Fallback: quick-assign tasks store the organization name as linked_id
   // since donations are grouped by vendor, not a single record. If no exact
   // ID match, treat the id as an organization name and find the most recent record.
   if (!d) {
     const matches = ALL_DONATIONS.filter(x => x.organization === id);
-    console.log("[viewDonation] org-name fallback matches:", matches.length, matches);
     if (matches.length) {
       d = matches.sort((a, b) => (b.date_requested || "").localeCompare(a.date_requested || ""))[0];
     }
@@ -4594,9 +4642,7 @@ function viewDonation(id) {
     showToast("Donation record not found — it may have been deleted.", "error");
     return;
   }
-  console.log("[viewDonation] rendering modal for:", d.organization);
   const donDetailEl = document.getElementById("donDetailContent");
-  console.log("[viewDonation] donDetailContent element found:", !!donDetailEl);
   const vend = ALL_VENDORS.find(v => v.name === d.organization);
   const vendHistory = ALL_DONATIONS.filter(x => x.organization === d.organization && x.id !== id);
   document.getElementById("donDetailContent").innerHTML = `
@@ -5057,6 +5103,17 @@ function renderTasks() {
 // ═══════════════════════════════════════════════════════════
 // REPORTS PAGE
 // ═══════════════════════════════════════════════════════════
+async function loadAllYearsForReport() {
+  const btn = document.getElementById("rptLoadAllBtn");
+  const badge = document.getElementById("rptAllLoadedBadge");
+  if (_donationsAllLoaded) { renderReport(); return; }
+  if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
+  await loadAllDonations();
+  if (btn) { btn.style.display = "none"; }
+  if (badge) badge.style.display = "";
+  renderReport();
+}
+
 function renderReport() {
   const year = document.getElementById("rptYear").value;
   const event = document.getElementById("rptEvent").value;
@@ -5410,144 +5467,6 @@ async function deletePickup(pid) {
 // ═══════════════════════════════════════════════════════════
 // IMPORT JSON DATA (migration from Google Sheets export)
 // ═══════════════════════════════════════════════════════════
-function openImportModal() { openModal("importModal"); document.getElementById("importStatus").innerHTML = ""; document.getElementById("importFile").value = ""; }
-
-async function runImport() {
-  const file = document.getElementById("importFile").files[0];
-  if (!file) { showToast("Please select a JSON file.", "error"); return; }
-  const statusEl = document.getElementById("importStatus");
-  statusEl.innerHTML = `<div style="color:var(--gray)">Reading file…</div>`;
-  try {
-    const text = await file.text();
-    const data = JSON.parse(text);
-    const results = { donations: 0, donSkip: 0, vendors: 0, vendSkip: 0, users: 0, userSkip: 0, events: 0, pickups: 0, errors: [] };
-
-    // Helper: normalize field names (camelCase → snake_case)
-    function norm(r) {
-      const map = {
-        ID:"id", Year:"year", Who:"who", EventRequested:"event_requested", UsedFor:"used_for",
-        Type:"type", Organization:"organization", How:"how", DateRequested:"date_requested",
-        Granted:"granted", Value:"value", Item:"item", LeadTime:"lead_time",
-        PickupMethod:"pickup_method", PickupAssignedTo:"pickup_assigned_to",
-        Notes:"notes", ReferenceLink:"reference_link", SavedAt:"saved_at",
-        LastEditedBy:"edited_by", LastEditedAt:"edited_at",
-        display_name:"display_name", displayName:"display_name"
-      };
-      const out = {};
-      for (const k in r) { out[map[k] || k] = r[k]; }
-      return out;
-    }
-
-    // Donations
-    const donations = data.donations || [];
-    const existingIds = new Set(ALL_DONATIONS.map(d => d.id));
-    for (const raw of donations) {
-      const r = norm(raw);
-      if (!r.id) r.id = genId();
-      if (existingIds.has(r.id)) { results.donSkip++; continue; }
-      try {
-        const row = {
-          id: r.id, year: parseInt(r.year) || null, who: r.who || "", event_requested: r.event_requested || "",
-          used_for: r.used_for || "", type: r.type || "", organization: r.organization || "",
-          how: r.how || "", date_requested: r.date_requested || "", granted: r.granted || "",
-          value: parseFloat(r.value) || null, item: r.item || "", lead_time: r.lead_time || "",
-          pickup_method: r.pickup_method || "", pickup_assigned_to: r.pickup_assigned_to || "",
-          notes: r.notes || "", reference_link: r.reference_link || "",
-          saved_at: r.saved_at || new Date().toISOString(), edited_by: r.edited_by || "", edited_at: r.edited_at || ""
-        };
-        await sbInsert("MyBFFDonations", row);
-        existingIds.add(r.id);
-        results.donations++;
-      } catch(e) { results.errors.push("Donation " + r.id + ": " + e.message); }
-    }
-
-    // Vendors (only real cards, skip auto_)
-    const vendors = (data.vendors || []).filter(v => {
-      const r = norm(v);
-      return r.id && !String(r.id).startsWith("auto_");
-    });
-    const existingVendIds = new Set(ALL_VENDORS.filter(v=>!v.id.startsWith("auto_")).map(v=>v.id));
-    for (const raw of vendors) {
-      const r = norm(raw);
-      if (!r.id) r.id = genId();
-      if (existingVendIds.has(r.id)) { results.vendSkip++; continue; }
-      try {
-        await sbInsert("MyBFFVendors", {
-          id: r.id, name: r.name || "", type: r.type || "", address: r.address || "",
-          phone: r.phone || "", email: r.email || "", website: r.website || "",
-          contact1_name: r.contact1_name || "", contact1_phone: r.contact1_phone || "", contact1_email: r.contact1_email || "",
-          contact2_name: r.contact2_name || "", contact2_phone: r.contact2_phone || "", contact2_email: r.contact2_email || "",
-          notes: r.notes || "", reference_link: r.reference_link || "", created_at: new Date().toISOString()
-        });
-        results.vendors++;
-      } catch(e) { results.errors.push("Vendor " + r.name + ": " + e.message); }
-    }
-
-    // Users
-    const users = data.users || [];
-    const existingUsernames = new Set(APP_USERS.map(u => u.username));
-    for (const raw of users) {
-      const r = norm(raw);
-      if (!r.username || existingUsernames.has(r.username)) { results.userSkip++; continue; }
-      try {
-        await sbInsert("MyBFFUsers", { username: r.username, password: r.password || "changeme", role: r.role || "standard", display_name: r.display_name || r.username });
-        results.users++;
-      } catch(e) { results.errors.push("User " + r.username + ": " + e.message); }
-    }
-
-    // Events
-    const events = data.events || [];
-    for (const raw of events) {
-      const r = norm(raw);
-      if (!r.name || ALL_EVENTS.includes(r.name)) continue;
-      try {
-        await sbUpsert("MyBFFEvents", { name: r.name }, "name");
-        ALL_EVENTS.push(r.name);
-        results.events++;
-      } catch(e) {}
-    }
-
-    // Pickups
-    const pickups = data.pickups || [];
-    for (const raw of pickups) {
-      const r = norm(raw);
-      if (!r.name || PICKUP_PEOPLE.includes(r.name)) continue;
-      try {
-        await sbInsert("MyBFFPickups", { id: genId(), name: r.name, phone: r.phone || "", email: r.email || "" });
-        PICKUP_PEOPLE.push(r.name);
-        results.pickups++;
-      } catch(e) {}
-    }
-
-    // Reload all data
-    await loadAll();
-    renderDashboard();
-
-    const errHtml = results.errors.length ? `<div style="margin-top:8px;color:var(--red);font-size:12px">${results.errors.slice(0,5).join("<br>")}</div>` : "";
-    statusEl.innerHTML = `
-      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin-top:12px">
-        <div style="font-weight:700;color:#166534;margin-bottom:8px">✅ Import Complete</div>
-        <div style="font-size:13px;color:#166534">
-          Donations imported: <strong>${results.donations}</strong> (${results.donSkip} duplicates skipped)<br>
-          Vendor cards imported: <strong>${results.vendors}</strong> (${results.vendSkip} duplicates skipped)<br>
-          Users imported: <strong>${results.users}</strong><br>
-          Events added: <strong>${results.events}</strong><br>
-          Pickup people added: <strong>${results.pickups}</strong>
-        </div>
-        ${errHtml}
-        <div style="margin-top:10px;font-size:12px;color:#166534">
-          Verify in Supabase Table Editor that row counts match your export.
-        </div>
-      </div>`;
-  } catch(e) {
-    statusEl.innerHTML = `<div style="color:var(--red);margin-top:12px;padding:12px;background:#fef2f2;border-radius:8px">
-      <strong>Error:</strong> ${e.message}<br><small>Is this a valid JSON export file?</small></div>`;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-// TYPEAHEAD
-// ═══════════════════════════════════════════════════════════
 function typeahead(input, listId, data) {
   const q = input.value.toLowerCase();
   const list = document.getElementById(listId);
@@ -5698,7 +5617,10 @@ function showToast(msg, type) {
   const t = document.getElementById("toast");
   t.textContent = msg;
   t.className = "toast-show" + (type === "error" ? " toast-error" : type === "success" ? " toast-success" : "");
-  setTimeout(() => t.className = "", 3000);
+  t.style.cursor = "pointer";
+  t.onclick = () => { t.className = ""; };
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.className = "", type === "error" ? 6000 : 3000);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -7096,7 +7018,7 @@ let _assetPickerMode = "link"; // "link" | "photo"
 let _assetPickerFolder = "all";
 
 function openAssetPicker(contentType) {
-  _assetPickerMode = ["Facebook","Instagram","Flyer"].includes(contentType) ? "photo" : "link";
+  _assetPickerMode = ["Facebook/Instagram","Facebook","Instagram","Flyer"].includes(contentType) ? "photo" : "link";
   _assetPickerFolder = "all";
   const hintEl = document.getElementById("assetPickerHint");
   if (hintEl) hintEl.textContent = _assetPickerMode === "photo"
@@ -7174,9 +7096,19 @@ function insertAssetIntoContent(assetId) {
 // ── Data loading ─────────────────────────────────────────────
 async function loadContent() {
   try {
-    const rows = await sbGet("MyBFFContent", "order=created_at.desc");
+    // Exclude Used records from initial load — they're fetched lazily when expanded
+    const rows = await sbGet("MyBFFContent", "status=neq.Used&order=created_at.desc");
     ALL_CONTENT = (rows || []).filter(r => r.id);
+    ALL_USED_CONTENT = null; // reset lazy cache
   } catch(e) { console.warn("loadContent:", e.message); ALL_CONTENT = []; }
+}
+
+async function loadUsedContent() {
+  if (ALL_USED_CONTENT !== null) return; // already loaded
+  try {
+    const rows = await sbGet("MyBFFContent", "status=eq.Used&order=post_date.desc");
+    ALL_USED_CONTENT = (rows || []).filter(r => r.id);
+  } catch(e) { console.warn("loadUsedContent:", e.message); ALL_USED_CONTENT = []; }
 }
 async function loadContentComments() {
   try {
@@ -7254,7 +7186,7 @@ function showMktgTab(tab) {
 function ctStatusClass(s) { return "ct-" + (s||"draft").toLowerCase().replace(/\s+/g,"-").replace(/[^a-z-]/g,""); }
 function ctChannelClass(ch) { return "ct-" + (ch||"other").toLowerCase().replace(/\s+/g,"-"); }
 function ctStatusBadge(s) { return `<span class="badge ${ctStatusClass(s)}" style="font-size:11px">${s||"Draft"}</span>`; }
-function ctChannelBadge(ch) { return `<span class="badge ${ctChannelClass(ch)}" style="font-size:11px">${ch||"Other"}</span>`; }
+function ctChannelBadge(ch) { const d = (ch==="Facebook"||ch==="Instagram"||ch==="Facebook/Instagram") ? "Facebook/Instagram" : (ch||"Other"); return `<span class="badge ${ctChannelClass(ch)}" style="font-size:11px">${d}</span>`; }
 
 function getMyReviewStatus(contentId) {
   const myName = currentUser?.displayName || "";
@@ -7300,192 +7232,272 @@ function renderMarketing() {
 }
 
 // ── STATUS BOARD ──────────────────────────────────────────────
+async function loadAndRenderUsedContent() {
+  const container = document.getElementById("sbUsedContent");
+  if (!container) return;
+  // Only load once
+  if (ALL_USED_CONTENT === null) {
+    container.innerHTML = `<div style="font-size:13px;color:var(--gray);padding:12px 4px">⏳ Loading used posts…</div>`;
+    await loadUsedContent();
+  }
+  if (!ALL_USED_CONTENT || ALL_USED_CONTENT.length === 0) {
+    container.innerHTML = `<div style="font-size:13px;color:var(--gray);padding:12px 4px">No used posts yet.</div>`;
+    return;
+  }
+  // Update summary badge in the details summary
+  const summary = document.querySelector("#sbUsedSection summary");
+  if (summary) summary.innerHTML = `✓ Used — ${ALL_USED_CONTENT.length} post${ALL_USED_CONTENT.length!==1?"s":""}`;
+
+  // Group by month-year using post_date
+  const groups = {};
+  ALL_USED_CONTENT.forEach(c => {
+    const d = c.post_date || c.updated_at?.split("T")[0] || "Unknown";
+    const key = d.length >= 7 ? d.substring(0,7) : "Unknown"; // YYYY-MM
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(c);
+  });
+
+  const MONTH_NAMES = ["","January","February","March","April","May","June","July","August","September","October","November","December"];
+  const html = Object.keys(groups).sort().reverse().map(key => {
+    const label = key === "Unknown" ? "Unknown Date" :
+      (() => { const [y,m] = key.split("-"); return `${MONTH_NAMES[parseInt(m)]} ${y}`; })();
+    const items = groups[key].map(c =>
+      contentCard(c, `<span style="background:#e5e7eb;color:#374151;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600">✓ Used ${c.post_date||""}</span>`)
+    ).join("");
+    return `
+      <div style="margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray);padding:6px 0;border-bottom:2px solid var(--border);margin-bottom:8px">
+          ${label} · ${groups[key].length} post${groups[key].length!==1?"s":""}
+        </div>
+        ${items}
+      </div>`;
+  }).join("");
+
+  container.innerHTML = html;
+}
+
 function renderStatusBoard() {
   const container = document.getElementById("mktgStatusBoard");
   if (!container) return;
   const myName = currentUser?.displayName || "";
-  const evFilter = (ALL_EVENTS_DATA.length > 0 && document.getElementById("mktgEventFilter")?.value) ? document.getElementById("mktgEventFilter").value : "";
-  const chFilter = document.getElementById("mktgChannelFilter")?.value || "";
-  const sortOrder = document.getElementById("mktgSortOrder")?.value || "desc";
+  const evFilter  = document.getElementById("mktgEventFilter")?.value  || "";
+  const chFilter  = document.getElementById("mktgChannelFilter")?.value || "";
+  const stFilter  = document.getElementById("mktgStatusFilter")?.value  || "";
+  const sortOrder = document.getElementById("mktgSortOrder")?.value     || "asc";
   const today = (d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)(new Date());
-  const soon = new Date(Date.now()+3*86400000).toISOString().split("T")[0];
+  const soon  = (d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`)(new Date(Date.now()+3*86400000));
 
-  let allItems = [...ALL_CONTENT];
-  if (evFilter) allItems = allItems.filter(c => c.event_name === evFilter);
-  if (chFilter) allItems = allItems.filter(c => c.channel === chFilter);
+  // Build item list — exclude Used (lazy-loaded separately)
+  let items = ALL_CONTENT.filter(c => c.status !== "Used");
 
-  // Apply sort
-  allItems.sort((a, b) => {
-    if (sortOrder === "created") {
-      return new Date(b.created_at||0) - new Date(a.created_at||0);
+  // Channel filter — match both "Facebook" and "Facebook/Instagram"
+  if (chFilter) {
+    if (chFilter === "Facebook/Instagram") {
+      items = items.filter(c => c.channel === "Facebook" || c.channel === "Facebook/Instagram" || c.channel === "Instagram");
+    } else {
+      items = items.filter(c => c.channel === chFilter);
     }
-    const da = a.post_date || a.created_at || "";
-    const db = b.post_date || b.created_at || "";
+  }
+  if (evFilter) items = items.filter(c => c.event_name === evFilter);
+  if (stFilter) items = items.filter(c => c.status === stFilter);
+
+  // Sort — soonest post date first by default
+  // Items with no post_date go to the bottom
+  items.sort((a, b) => {
+    if (sortOrder === "created") return new Date(b.created_at||0) - new Date(a.created_at||0);
+    const da = a.post_date || "9999-99-99";
+    const db = b.post_date || "9999-99-99";
     return sortOrder === "asc" ? da.localeCompare(db) : db.localeCompare(da);
   });
 
-  if (!isEditor()) {
-    allItems = allItems.filter(c => {
-      if (c.status === "Approved" || c.status === "Posted") return true;
-      if (c.status === "In Review") return ALL_CONTENT_REVIEWERS.some(r => r.content_id === c.id && r.reviewer === myName);
-      return false;
-    });
-  }
+  // Float "Needs Changes" to top for the creator
+  // Float "In Review" to top for the reviewer
+  const floatTop = [];
+  const rest = [];
+  items.forEach(c => {
+    const isMyNeedsChanges = c.status === "Needs Changes" && c.created_by === myName;
+    const isMyReview = c.status === "In Review" &&
+      ALL_CONTENT_REVIEWERS.some(r => r.content_id === c.id && r.reviewer === myName && r.status === "pending");
+    if (isMyNeedsChanges || isMyReview) floatTop.push(c);
+    else rest.push(c);
+  });
+  const sortedItems = [...floatTop, ...rest];
 
-  const sections = [
-    { key:"attention", label:"🔴 Needs Your Attention",
-      items: allItems.filter(c => {
-        if (c.status === "In Review") {
-          const r = ALL_CONTENT_REVIEWERS.find(x => x.content_id === c.id && x.reviewer === myName);
-          return r && r.status === "pending";
-        }
-        return c.status === "Needs Changes" && c.created_by === myName;
-      })},
-    { key:"review",   label:"🔵 In Review",             items: allItems.filter(c => c.status === "In Review") },
-    { key:"changes",  label:"🟡 Needs Changes",          items: allItems.filter(c => c.status === "Needs Changes") },
-    { key:"approved", label:"🟢 Approved — Ready to Post", items: allItems.filter(c => c.status === "Approved") },
-    { key:"draft",    label:"⚪ Drafts",                 items: allItems.filter(c => c.status === "Draft") },
-    { key:"posted",   label:"🟣 Posted",                 items: allItems.filter(c => c.status === "Posted") },
-  ];
-
-  // Used items — separate from main sections, shown collapsed at bottom
-  const usedItems = ALL_CONTENT
-    .filter(c => c.status === "Used")
-    .filter(c => !evFilter || c.event_name === evFilter)
-    .filter(c => !chFilter || c.channel === chFilter)
-    .sort((a, b) => (b.post_date||b.updated_at||"").localeCompare(a.post_date||a.updated_at||""));
-
-  const draftItems = allItems.filter(c => c.status === "Draft");
-  const bulkBar = draftItems.length > 0 ? `
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px">
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer">
-        <input type="checkbox" id="sbSelectAll" onchange="toggleSelectAllDrafts(this.checked)" style="width:15px;height:15px;accent-color:var(--gold)">
-        Select All Drafts (${draftItems.length})
-      </label>
-      <button class="btn btn-gold btn-sm" onclick="bulkSubmitForReview()" style="margin-left:auto">Submit Selected for Review</button>
-    </div>` : "";
-
-  // Filtering hint
-  const filterHint = _activeSectionFilter
-    ? `<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:8px 12px;background:#f0f4ff;border-radius:8px;font-size:13px">
-        <span>Showing: <strong>${sections.find(s=>s.key===_activeSectionFilter)?.label||""}</strong></span>
-        <button class="btn btn-sm btn-outline" onclick="_activeSectionFilter=null;renderStatusBoard()" style="margin-left:auto">✕ Show All</button>
-       </div>` : "";
-
-  const visibleSections = _activeSectionFilter
-    ? sections.filter(s => s.key === _activeSectionFilter)
-    : sections;
-
-  container.innerHTML = filterHint + bulkBar + (visibleSections.map(sec => {
-    if (!sec.items.length && sec.key !== "attention" && !_activeSectionFilter) return "";
-    const isActive = _activeSectionFilter === sec.key;
-    const headerBg = isActive ? "var(--navy)" : "var(--gray-light)";
-    const headerColor = isActive ? "white" : "inherit";
-    const badgeBg = isActive ? "white" : "var(--navy)";
-    const badgeColor = isActive ? "var(--navy)" : "white";
-    return `
-      <div style="margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${headerBg};color:${headerColor};border-radius:8px;cursor:pointer;transition:background 0.15s"
-             onclick="toggleSection('sb-${sec.key}')" title="${_activeSectionFilter===sec.key?'Click to show all':'Click to focus this section'}">
-          <span style="font-weight:700;font-size:14px;flex:1">${sec.label}</span>
-          <span style="background:${badgeBg};color:${badgeColor};border-radius:9999px;font-size:11px;font-weight:700;padding:1px 8px">${sec.items.length}</span>
-          ${!_activeSectionFilter ? `<span style="font-size:11px;opacity:0.6">click to focus</span>` : ""}
-        </div>
-        <div style="padding-top:8px">
-          ${sec.items.length
-            ? sec.items.map(c => {
-                const overdueTag = c.review_deadline && c.review_deadline < today && c.status==="In Review"
-                  ? `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600">⚠️ Review overdue</span>` : "";
-                const soonTag = c.post_date && c.post_date <= soon && c.status !== "Posted"
-                  ? `<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600">📅 Post date soon</span>` : "";
-                return contentCard(c, overdueTag + soonTag);
-              }).join("")
-            : `<div style="font-size:13px;color:var(--gray);padding:12px 4px">Nothing here yet.</div>`}
-        </div>
-      </div>`;
-  }).join("")) + (usedItems.length && !_activeSectionFilter ? `
-    <details style="margin-top:16px">
-      <summary style="font-size:14px;font-weight:700;color:var(--gray);cursor:pointer;padding:10px 14px;background:#f9fafb;border-radius:8px;border:1px solid var(--border)">
-        ✓ Used — ${usedItems.length} post${usedItems.length!==1?"s":""} (click to expand, sorted by date used)
-      </summary>
-      <div style="padding-top:8px">
-        ${usedItems.map(c => contentCard(c, `<span style="background:#e5e7eb;color:#374151;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600">✓ Used ${c.post_date||""}</span>`)).join("")}
+  if (!sortedItems.length && !stFilter) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:40px;color:var(--gray)">
+        No content yet. Go to <strong>Create Content</strong> to add the first piece.
       </div>
-    </details>` : "") || `<div style="text-align:center;padding:40px;color:var(--gray)">No content yet. Go to <strong>Create Content</strong> to add the first piece.</div>`;
-}
-
-let _activeSectionFilter = null; // null = show all, else = section key
-
-function toggleSection(id) {
-  const key = id.replace("sb-","");
-  if (_activeSectionFilter === key) {
-    // Already filtered to this — click again to show all
-    _activeSectionFilter = null;
-  } else {
-    _activeSectionFilter = key;
+      <details id="sbUsedSection" style="margin-top:16px">
+        <summary style="font-size:14px;font-weight:700;color:var(--gray);cursor:pointer;padding:10px 14px;background:#f9fafb;border-radius:8px;border:1px solid var(--border)"
+          onclick="loadAndRenderUsedContent()">✓ Used — click to expand</summary>
+        <div id="sbUsedContent" style="padding-top:8px"><div style="font-size:13px;color:var(--gray);padding:12px 4px">Click to load used posts…</div></div>
+      </details>`;
+    return;
   }
-  renderStatusBoard();
+
+  if (!sortedItems.length && stFilter) {
+    container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--gray)">No ${stFilter} posts found.</div>`;
+    return;
+  }
+
+  const cards = sortedItems.map(c => {
+    const soonTag = c.post_date && c.post_date <= soon && c.status !== "Posted"
+      ? `<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:1px 6px;border-radius:20px;font-weight:600">📅 Soon</span>` : "";
+    return contentCard(c, soonTag);
+  }).join("");
+
+  container.innerHTML = `
+    <div style="font-size:12px;color:var(--gray);margin-bottom:10px">${sortedItems.length} post${sortedItems.length!==1?"s":""} — sorted by post date</div>
+    ${floatTop.length ? `<div style="background:#fff8e1;border:1.5px solid #f59e0b;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;font-weight:600;color:#92400e">⚡ ${floatTop.length} item${floatTop.length!==1?"s":""} need${floatTop.length===1?"s":""} your attention — shown at top</div>` : ""}
+    ${cards}
+    <details id="sbUsedSection" style="margin-top:16px">
+      <summary style="font-size:14px;font-weight:700;color:var(--gray);cursor:pointer;padding:10px 14px;background:#f9fafb;border-radius:8px;border:1px solid var(--border)"
+        onclick="loadAndRenderUsedContent()">✓ Used — click to expand</summary>
+      <div id="sbUsedContent" style="padding-top:8px"><div style="font-size:13px;color:var(--gray);padding:12px 4px">Click to load used posts…</div></div>
+    </details>`;
 }
+
+let _activeSectionFilter = null; // kept for backward compat, unused in new board
 
 // ── CONTENT CARD ──────────────────────────────────────────────
 function contentCard(c, extraBadges = "") {
-  const comments = ALL_CONTENT_COMMENTS.filter(x => x.content_id === c.id);
-  const summary = getReviewerSummary(c.id);
-  const myStatus = getMyReviewStatus(c.id);
-  const snippet = (c.content_text||"").substring(0,120);
-  const myName = currentUser?.displayName || "";
+  const comments  = ALL_CONTENT_COMMENTS.filter(x => x.content_id === c.id);
+  const summary   = getReviewerSummary(c.id);
+  const myName    = currentUser?.displayName || "";
   const isAssigned = ALL_CONTENT_REVIEWERS.some(r => r.content_id === c.id && r.reviewer === myName);
+  const myStatus  = getMyReviewStatus(c.id);
+
+  // Status badge — prominent, color-coded
+  const statusColors = {
+    "Draft":         ["#f3f4f6","#374151","⚪"],
+    "In Review":     ["#dbeafe","#1d4ed8","🔵"],
+    "Needs Changes": ["#fee2e2","#991b1b","🔴"],
+    "Approved":      ["#d1fae5","#065f46","🟢"],
+    "Posted":        ["#ede9fe","#5b21b6","🟣"],
+  };
+  const [sbg, sfg, sicon] = statusColors[c.status] || ["#f3f4f6","#374151","⚪"];
+  const statusBadge = `<span style="background:${sbg};color:${sfg};font-size:13px;font-weight:700;padding:4px 12px;border-radius:20px;white-space:nowrap">${sicon} ${c.status}</span>`;
+
+  // Channel display
+  const channelDisplay = c.channel === "Facebook" || c.channel === "Instagram" || c.channel === "Facebook/Instagram"
+    ? "Facebook/Instagram" : c.channel;
+
+  // Preview content — channel-specific format
+  const isSocial = channelDisplay === "Facebook/Instagram";
+  const isEmail  = c.channel === "Email";
+  let preview = "";
+
+  if (isSocial) {
+    // Social post preview — looks like a feed post
+    const postText = c.content_text || "";
+    const displayText = postText.length > 200 ? postText.substring(0,200) + "…" : postText;
+    preview = `
+      <div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:white;margin:10px 0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div style="width:36px;height:36px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <span style="color:var(--gold);font-weight:700;font-size:14px">M</span>
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:13px">My Best Friends Foundation</div>
+            <div style="font-size:11px;color:#888">${c.post_date ? fmtDate(c.post_date) : "Scheduled"}</div>
+          </div>
+        </div>
+        <div style="font-size:13px;line-height:1.6;white-space:pre-wrap;color:#1c1e21">${esc(displayText)}</div>
+        ${c.photo_url ? `<img src="${esc(c.photo_url)}" style="width:100%;max-height:180px;border-radius:8px;margin-top:8px;object-fit:cover">` : ""}
+      </div>`;
+  } else if (isEmail) {
+    // Email preview
+    const lines = (c.content_text||"").split("\n");
+    const subjectLine = lines.find(l => l.startsWith("SUBJECT:"))?.replace("SUBJECT:","").trim() || c.title || "";
+    const body = lines.filter(l => !l.startsWith("SUBJECT:")).join("\n").trim();
+    const bodySnippet = body.length > 160 ? body.substring(0,160) + "…" : body;
+    preview = `
+      <div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:white;margin:10px 0;font-family:Arial,sans-serif">
+        <div style="border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:8px">
+          <div style="font-size:11px;color:#888">From: My Best Friends Foundation &lt;info@mybff.org&gt;</div>
+          <div style="font-weight:700;font-size:14px;margin-top:4px">${esc(subjectLine)}</div>
+        </div>
+        <div style="font-size:13px;color:#333;line-height:1.6">${esc(bodySnippet)}</div>
+      </div>`;
+  } else {
+    // Other types — simple text preview
+    const snippet = (c.content_text||"").substring(0,160);
+    preview = snippet ? `<div style="font-size:13px;color:var(--gray);line-height:1.5;margin:8px 0">${esc(snippet)}${(c.content_text?.length||0)>160?"…":""}</div>` : "";
+  }
+
+  // My review status tag
   const myReviewTag = c.status === "In Review" && isAssigned
     ? myStatus === "pending"
       ? `<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">⏳ Awaiting your review</span>`
-    : myStatus === "approved"
+      : myStatus === "approved"
       ? `<span style="background:#d1fae5;color:#065f46;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">✅ You approved</span>`
       : `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">↩️ You requested changes</span>`
     : "";
+
+  // Needs changes badge for creator
+  const needsChangesTag = c.status === "Needs Changes" && c.created_by === myName
+    ? `<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600">🔴 Changes requested</span>`
+    : "";
+
   return `
     <div class="card" id="cc-${esc(c.id)}" style="margin-bottom:14px;position:relative">
-      ${c.status === "Draft" ? `<input type="checkbox" class="sb-draft-check" data-id="${esc(c.id)}"
-        style="position:absolute;top:14px;right:14px;width:16px;height:16px;accent-color:var(--gold);cursor:pointer;z-index:2"
-        onclick="event.stopPropagation()">` : ""}
       <div style="cursor:pointer" onclick="showContentDetail('${esc(c.id)}')">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding-right:${c.status==="Draft"?"28px":"0"}">
+        <!-- Header row: title + status badge -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px">
           <div>
-            <div style="font-weight:700;font-size:15px;margin-bottom:6px">${esc(c.title||"Untitled")}</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-              ${ctChannelBadge(c.channel)} ${ctStatusBadge(c.status)}
-              ${c.event_name ? `<span style="font-size:12px;color:var(--gray)">${esc(c.event_name)}</span>` : ""}
+            <div style="font-weight:700;font-size:15px">${esc(c.title||"Untitled")}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px">
+              <span style="font-size:12px;color:var(--gray);font-weight:600">${esc(channelDisplay)}</span>
+              ${c.event_name ? `<span style="font-size:12px;color:var(--gray)">· ${esc(c.event_name)}</span>` : ""}
+              ${c.post_date ? `<span style="font-size:12px;color:var(--gray)">· 📅 ${c.post_date}</span>` : `<span style="font-size:12px;color:#f59e0b">· No date set</span>`}
             </div>
           </div>
-          <div style="font-size:12px;color:var(--gray);text-align:right;flex-shrink:0">
-            <div>v${c.version||1} · by ${esc(c.created_by||"")}</div>
-            ${summary.total > 0 ? `<div style="margin-top:2px">
+          <div style="flex-shrink:0;text-align:right">
+            ${statusBadge}
+            ${summary.total > 0 ? `<div style="font-size:11px;color:var(--gray);margin-top:4px">
               ${summary.approved>0?`<span style="color:#065f46">✅${summary.approved}</span> `:""}
               ${summary.changes>0?`<span style="color:#991b1b">↩️${summary.changes}</span> `:""}
               ${summary.pending>0?`<span style="color:#92400e">⏳${summary.pending}</span>`:""}
             </div>` : ""}
           </div>
         </div>
-        ${(myReviewTag||extraBadges) ? `<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap">${myReviewTag}${extraBadges}</div>` : ""}
-        ${c.photo_url ? `<img src="${esc(c.photo_url)}" style="max-width:100%;max-height:100px;border-radius:6px;margin-bottom:8px;object-fit:cover">` : ""}
-        ${snippet ? `<div style="font-size:13px;color:var(--gray);line-height:1.5">${esc(snippet)}${(c.content_text?.length||0)>120?"…":""}</div>` : ""}
-        ${c.file_link ? `<div style="margin-top:8px"><a href="${esc(c.file_link)}" target="_blank" onclick="event.stopPropagation()" style="font-size:13px">📎 View File</a></div>` : ""}
-        <div style="margin-top:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--gray)">
-          <span>💬 ${comments.length} comment${comments.length!==1?"s":""}</span>
-          ${c.review_deadline?`<span>🔍 Review by ${c.review_deadline}</span>`:""}
-          ${c.post_date?`<span>📅 Post ${c.post_date}</span>`:""}
+
+        <!-- Tags row -->
+        ${(myReviewTag || needsChangesTag || extraBadges) ? `<div style="margin-bottom:6px;display:flex;gap:6px;flex-wrap:wrap">${myReviewTag}${needsChangesTag}${extraBadges}</div>` : ""}
+
+        <!-- Preview -->
+        ${preview}
+
+        <!-- Meta -->
+        <div style="margin-top:6px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--gray)">
+          <span>by ${esc(c.created_by||"")}</span>
+          <span>💬 ${comments.length}</span>
+          ${c.file_link ? `<a href="${esc(c.file_link)}" target="_blank" onclick="event.stopPropagation()" style="color:var(--navy)">📎 Link</a>` : ""}
         </div>
       </div>
+
+      <!-- Action buttons -->
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();copyContentText('${esc(c.id)}')" title="Copy post text to clipboard">📋 Copy Text</button>
-        ${c.channel === "Email" ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();copyContentSubject('${esc(c.id)}')" title="Copy subject line">📋 Copy Subject</button>` : ""}
-        ${c.status === "Draft" && isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openInlineEdit('${esc(c.id)}')">✏️ Quick Edit</button>` : ""}
-        ${(c.status === "Draft" || c.status === "In Review") && isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openRegenModal('${esc(c.id)}')">🔄 Regenerate</button>` : ""}
-        ${c.status === "Draft" && isEditor() ? `<button class="btn btn-gold btn-sm" onclick="event.stopPropagation();submitForReview('${esc(c.id)}')">Submit for Review</button>` : ""}
-        ${(c.status === "Approved" || c.status === "Posted" || c.status === "In Review" || c.status === "Draft") && isEditor() ? `<button class="btn btn-sm" style="background:#e0f2fe;color:#0369a1;border:1px solid #7dd3fc" onclick="event.stopPropagation();openMarkUsedModal('${esc(c.id)}')">✓ Mark Used</button>` : ""}
-        ${isEditor() ? `<button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5" onclick="event.stopPropagation();deleteContentRecord('${esc(c.id)}')">🗑 Delete</button>` : ""}
+        <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();copyContentText('${esc(c.id)}')" title="Copy post text">📋 Copy</button>
+        ${c.channel === "Email" ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();copyContentSubject('${esc(c.id)}')">📋 Subject</button>` : ""}
+        ${isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openInlineEdit('${esc(c.id)}')">✏️ Edit</button>` : ""}
+        ${(c.status === "Draft" || c.status === "In Review" || c.status === "Needs Changes") && isEditor() ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openRegenModal('${esc(c.id)}')">🔄 Regenerate</button>` : ""}
+        ${(c.status === "Draft" || c.status === "Needs Changes") && isEditor() ? `<button class="btn btn-gold btn-sm" onclick="event.stopPropagation();submitForReview('${esc(c.id)}')">Send for Review</button>` : ""}
+        ${isEditor() ? `<button class="btn btn-sm" style="background:#e0f2fe;color:#0369a1;border:1px solid #7dd3fc" onclick="event.stopPropagation();openMarkUsedModal('${esc(c.id)}')">✓ Mark Used</button>` : ""}
+        ${isEditor() ? `<button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5" onclick="event.stopPropagation();deleteContentRecord('${esc(c.id)}')">🗑</button>` : ""}
       </div>
+
+      <!-- Inline edit area -->
       <div id="inline-edit-${esc(c.id)}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-        <textarea class="form-textarea" id="inline-text-${esc(c.id)}" style="min-height:120px;font-size:13px">${esc(c.content_text||"")}</textarea>
+        ${c.channel === "Email" ? `
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px">Subject Line</div>
+          <input type="text" class="form-input" id="inline-subject-${esc(c.id)}" style="margin-bottom:8px;font-size:13px"
+            value="${esc((c.content_text||"").match(/^SUBJECT:\s*(.+?)(\n|$)/i)?.[1]?.trim()||c.title||"")}">
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px">Body</div>` : ""}
+        <textarea class="form-textarea" id="inline-text-${esc(c.id)}" style="min-height:120px;font-size:13px">${esc(c.channel === "Email"
+          ? (c.content_text||"").replace(/^SUBJECT:[^\n]*\n?/i,"").trim()
+          : c.content_text||"")}</textarea>
         <div style="display:flex;gap:8px;margin-top:8px">
           <button class="btn btn-gold btn-sm" onclick="event.stopPropagation();saveInlineEdit('${esc(c.id)}')">Save</button>
           <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();closeInlineEdit('${esc(c.id)}')">Cancel</button>
@@ -7493,6 +7505,7 @@ function contentCard(c, extraBadges = "") {
       </div>
     </div>`;
 }
+
 
 async function offerAddPhotoToAssetLibrary(url, name) {
   const folder = prompt(`Save to which Asset Library folder?\n\nOptions: Social Media Photos, Brand, Events, General\n\nType folder name:`, "Social Media Photos");
@@ -7629,15 +7642,19 @@ function closeInlineEdit(contentId) {
 async function saveInlineEdit(contentId) {
   const ta = document.getElementById("inline-text-" + contentId);
   if (!ta) return;
-  const newText = ta.value.trim();
+  const c = ALL_CONTENT.find(x => x.id === contentId);
+  let newText = ta.value.trim();
+  // For Email, prepend subject line if separate subject field exists
+  const subjectEl = document.getElementById("inline-subject-" + contentId);
+  if (subjectEl && subjectEl.value.trim()) {
+    newText = `SUBJECT: ${subjectEl.value.trim()}\n\n${newText}`;
+  }
   try {
     await sbUpdate("MyBFFContent", contentId, { content_text: newText, updated_at: new Date().toISOString() }, "id");
     const idx = ALL_CONTENT.findIndex(x => x.id === contentId);
     if (idx >= 0) ALL_CONTENT[idx] = { ...ALL_CONTENT[idx], content_text: newText };
     closeInlineEdit(contentId);
-    // Update the snippet on the card without full re-render
-    const snippet = document.querySelector(`#cc-${contentId} div[style*="font-size:13px;color:var(--gray)"]`);
-    if (snippet) snippet.textContent = newText.substring(0, 120) + (newText.length > 120 ? "…" : "");
+    renderStatusBoard(); // re-render to update preview
     showToast("Saved.");
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
@@ -7802,6 +7819,7 @@ async function submitReview(action) {
     document.getElementById("cdChangesBtn").style.display = canStill ? "" : "none";
     renderStatusBoard();
     updateMktgBadge();
+    renderDashboardMarketingCard(); // refresh Marketing card independently
     const msg = action==="approve" ? "✅ Approved!" : action==="changes" ? "↩️ Changes requested" : "💬 Comment added";
     showToast(msg);
     if (action==="approve" || action==="changes") {
@@ -7861,20 +7879,28 @@ function renderCreatePanel() {
     container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--gray)">Content creation is available to Editors and Admins.</div>`;
     return;
   }
+  const types = [
+    { key: "Facebook/Instagram", label: "Social Post", sub: "Facebook/Instagram", icon: "📱" },
+    { key: "Email",              label: "Email",        sub: "Newsletter/Blast",   icon: "✉️" },
+    { key: "Newsletter",         label: "Newsletter",   sub: "Monthly issue",      icon: "📰" },
+    { key: "Flyer",              label: "Flyer",        sub: "Event/promo",        icon: "📄" },
+    { key: "Other",              label: "Other",        sub: "General content",    icon: "📌" },
+  ];
   container.innerHTML = `
     <div class="card" style="max-width:700px;margin:0 auto">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px">
         <div style="font-weight:700;font-size:16px">New Content</div>
-        ${isContributor() ? `<button class="btn btn-outline btn-sm" onclick="if(typeof openAISequenceModal==='function')openAISequenceModal()">&#128197; Generate Monthly Schedule</button>` : ''}
+        ${isContributor() ? `<button class="btn btn-outline btn-sm" onclick="if(typeof openAISequenceModal==='function')openAISequenceModal()">📅 Generate Monthly Schedule</button>` : ""}
       </div>
-      <div style="font-size:13px;color:var(--gray);margin-bottom:20px">Select a content type to see the right creation form.</div>
+      <div style="font-size:13px;color:var(--gray);margin-bottom:20px">Select a content type to get started.</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:24px" id="ctTypeGrid">
-        ${["Facebook","Instagram","Email","Newsletter","Flyer","Other"].map(t => `
-          <button onclick="selectContentType('${t}')" class="btn btn-outline"
-            style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"
-            id="ctTypeBtn-${t}">
-            <span style="font-size:24px">${{"Facebook":"👍","Instagram":"📸","Email":"✉️","Newsletter":"📰","Flyer":"📄","Other":"📌"}[t]}</span>
-            ${t}
+        ${types.map(t => `
+          <button data-type="${esc(t.key)}" onclick="selectContentType(this.dataset.type)" class="btn btn-outline"
+            style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:13px;font-weight:600"
+            id="ctTypeBtn-${esc(t.key)}">
+            <span style="font-size:28px">${t.icon}</span>
+            <span>${t.label}</span>
+            <span style="font-size:10px;color:var(--gray);font-weight:400">${t.sub}</span>
           </button>`).join("")}
       </div>
       <div id="ctTypeForm" style="display:none"></div>
@@ -7882,11 +7908,11 @@ function renderCreatePanel() {
 }
 
 function selectContentType(type) {
-  // Highlight selected type
-  ["Facebook","Instagram","Email","Newsletter","Flyer","Other"].forEach(t => {
-    const btn = document.getElementById("ctTypeBtn-" + t);
-    if (btn) btn.style.background = t === type ? "var(--gold)" : "";
-    if (btn) btn.style.color = t === type ? "white" : "";
+  document.querySelectorAll("#ctTypeGrid button").forEach(btn => {
+    const isSelected = btn.dataset.type === type;
+    btn.style.background = isSelected ? "var(--navy)" : "";
+    btn.style.color = isSelected ? "white" : "";
+    btn.querySelector("span:last-child").style.color = isSelected ? "rgba(255,255,255,0.7)" : "";
   });
   const form = document.getElementById("ctTypeForm");
   if (!form) return;
@@ -7932,87 +7958,107 @@ function buildContentTypeForm(type) {
     </div>`;
 
   const typeFields = {
-    Facebook: `
+    "Facebook/Instagram": `
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">What should this post be about? <span class="req">*</span></label>
+        <label class="form-label" for="ctNewText">What should this post be about? <span class="req">*</span></label>
         <textarea class="form-input form-textarea" id="ctNewText" rows="4"
           placeholder="Describe what you want to say — the AI will write the post from this. e.g. Promote the Walk/Run on August 8 at Judson University. Emphasize all paces welcome, virtual option available."></textarea>
       </div>
       <div class="form-group">
-        <label class="form-label">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <label class="form-label" for="ctNewEvent">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
         <select class="form-input" id="ctNewEvent">${evOpts}</select>
       </div>
       <div class="form-group">
-        <label class="form-label">Link / URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <label class="form-label" for="ctNewFileLink">Link / URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
         <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — uploads immediately</span></label>
+        <label class="form-label" for="ctNewPhoto">Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — uploads immediately</span></label>
+        <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px" onchange="handleSimplePhotoUpload(this)">
+        <div id="ctPhotoStatus" style="font-size:12px;color:var(--gray);margin-top:4px"></div>
+        <input type="hidden" id="ctPhotoUrl" value="">
+      </div>`,
+    Facebook: `
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label" for="ctNewText">What should this post be about? <span class="req">*</span></label>
+        <textarea class="form-input form-textarea" id="ctNewText" rows="4"
+          placeholder="Describe what you want to say — the AI will write the post from this."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="ctNewEvent">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <select class="form-input" id="ctNewEvent">${evOpts}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="ctNewFileLink">Link / URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label" for="ctNewPhoto">Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — uploads immediately</span></label>
         <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px" onchange="handleSimplePhotoUpload(this)">
         <div id="ctPhotoStatus" style="font-size:12px;color:var(--gray);margin-top:4px"></div>
         <input type="hidden" id="ctPhotoUrl" value="">
       </div>`,
     Instagram: `
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Caption <span style="font-size:11px;color:var(--gray)">(under 2,200 characters)</span></label>
+        <label class="form-label" for="ctNewText">Caption <span style="font-size:11px;color:var(--gray)">(under 2,200 characters)</span></label>
         <textarea class="form-input form-textarea" id="ctNewText" rows="5" placeholder="Write the Instagram caption here..." oninput="updateCharCount(this,'ctNewCharCount',2200)"></textarea>
         <div id="ctNewCharCount" style="font-size:11px;color:var(--gray);margin-top:4px;text-align:right"></div>
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Hashtags</label>
+        <label class="form-label" for="ctNewHashtags">Hashtags</label>
         <textarea class="form-input form-textarea" id="ctNewHashtags" rows="2" placeholder="#MyBFF #TriviaForGood #Cornhole2026"></textarea>
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Photo / Image <span class="req">*</span></label>
+        <label class="form-label" for="ctNewPhoto">Photo / Image <span class="req">*</span></label>
         <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Alt Text</label>
+        <label class="form-label" for="ctNewAltText">Alt Text</label>
         <input type="text" class="form-input" id="ctNewAltText" placeholder="e.g. Team playing cornhole at Mikerphone Brewing">
       </div>`,
     Email: `
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">What should this email be about? <span class="req">*</span></label>
+        <label class="form-label" for="ctNewText">What should this email be about? <span class="req">*</span></label>
         <textarea class="form-input form-textarea" id="ctNewText" rows="4"
           placeholder="Describe what you want to say — the AI will write the subject and body. e.g. Invite past attendees to register for Walk/Run Aug 8. Include early bird pricing ends July 1."></textarea>
       </div>
       <div class="form-group">
-        <label class="form-label">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <label class="form-label" for="ctNewEvent">Event <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
         <select class="form-input" id="ctNewEvent">${evOpts}</select>
       </div>
       <div class="form-group">
-        <label class="form-label">Link / URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+        <label class="form-label" for="ctNewFileLink">Link / URL <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
         <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — uploads immediately</span></label>
+        <label class="form-label" for="ctNewPhoto">Photo <span style="font-size:11px;color:var(--gray);font-weight:400">optional — uploads immediately</span></label>
         <input type="file" class="form-input" id="ctNewPhoto" accept="image/*" style="padding:6px" onchange="handleSimplePhotoUpload(this)">
         <div id="ctPhotoStatus" style="font-size:12px;color:var(--gray);margin-top:4px"></div>
         <input type="hidden" id="ctPhotoUrl" value="">
       </div>`,
     Newsletter: `
       <div class="form-group">
-        <label class="form-label">Issue / Edition <span class="req">*</span></label>
+        <label class="form-label" for="ctNewSubject">Issue / Edition <span class="req">*</span></label>
         <input type="text" class="form-input" id="ctNewSubject" placeholder="e.g. May 2026 — Making Today Count">
       </div>
       <div class="form-group">
-        <label class="form-label">Volume / Issue # <span style="font-size:11px;color:var(--gray)">optional</span></label>
+        <label class="form-label" for="ctNewPreview">Volume / Issue # <span style="font-size:11px;color:var(--gray)">optional</span></label>
         <input type="text" class="form-input" id="ctNewPreview" placeholder="e.g. Vol. 3, Issue 5">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Lead Story / Theme</label>
+        <label class="form-label" for="ctNewHeadline">Lead Story / Theme</label>
         <input type="text" class="form-input" id="ctNewHeadline" placeholder="e.g. Cornhole Tournament Recap, Volunteer Spotlight">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Sections / Content Outline</label>
+        <label class="form-label" for="ctNewText">Sections / Content Outline</label>
         <textarea class="form-input form-textarea" id="ctNewText" rows="5" placeholder="List the sections or key stories for this issue&#10;e.g.&#10;- Lead story: 2026 Walk/Run event recap&#10;- Member spotlight: [name]&#10;- Upcoming events&#10;- Donation thank-yous"></textarea>
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Full Body Draft <span style="font-size:11px;color:var(--gray)">paste here when ready for review</span></label>
+        <label class="form-label" for="ctNewBody">Full Body Draft <span style="font-size:11px;color:var(--gray)">paste here when ready for review</span></label>
         <textarea class="form-input form-textarea" id="ctNewBody" rows="6" placeholder="Paste the full newsletter draft here for review..."></textarea>
       </div>
       <div class="form-group">
-        <label class="form-label">Distribution Method</label>
+        <label class="form-label" for="ctNewAudience">Distribution Method</label>
         <select class="form-input" id="ctNewAudience">
           <option value="">— Select —</option>
           <option>Email (Mailchimp)</option>
@@ -8023,67 +8069,67 @@ function buildContentTypeForm(type) {
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Estimated Recipients</label>
+        <label class="form-label" for="ctNewSendCount">Estimated Recipients</label>
         <input type="number" class="form-input" id="ctNewSendCount" placeholder="e.g. 450">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Upload File <span style="font-size:11px;color:var(--gray)">finished PDF or Word doc</span></label>
+        <label class="form-label" for="ctNewPhoto">Upload File <span style="font-size:11px;color:var(--gray)">finished PDF or Word doc</span></label>
         <input type="file" class="form-input" id="ctNewPhoto" accept=".pdf,.docx,.doc" style="padding:6px">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">File Link <span style="font-size:11px;color:var(--gray)">Google Drive, Canva, or public URL</span></label>
+        <label class="form-label" for="ctNewFileLink">File Link <span style="font-size:11px;color:var(--gray)">Google Drive, Canva, or public URL</span></label>
         <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
       </div>`,
     Flyer: `
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Headline</label>
+        <label class="form-label" for="ctNewHeadline">Headline</label>
         <input type="text" class="form-input" id="ctNewHeadline" placeholder="e.g. 5th Annual MyBFF Cornhole Tournament">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Key Details (date, time, location, price)</label>
+        <label class="form-label" for="ctNewText">Key Details (date, time, location, price)</label>
         <textarea class="form-input form-textarea" id="ctNewText" rows="4" placeholder="June 13, 2026 · 12:00 PM&#10;Mikerphone Brewing, Evergreen Park IL&#10;$40/team entry"></textarea>
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Body Copy</label>
+        <label class="form-label" for="ctNewBody">Body Copy</label>
         <textarea class="form-input form-textarea" id="ctNewBody" rows="3" placeholder="All proceeds benefit My Best Friends Foundation..."></textarea>
       </div>
       <div class="form-group">
-        <label class="form-label">Call to Action</label>
+        <label class="form-label" for="ctNewCTA">Call to Action</label>
         <input type="text" class="form-input" id="ctNewCTA" placeholder="e.g. Register at mybff.org/cornhole">
       </div>
       <div class="form-group">
-        <label class="form-label">Due to Printer / Designer</label>
+        <label class="form-label" for="ctNewPrinterDate">Due to Printer / Designer</label>
         <input type="date" class="form-input" id="ctNewPrinterDate">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Upload Design File <span style="font-size:11px;color:var(--gray)">or paste Canva link below</span></label>
+        <label class="form-label" for="ctNewPhoto">Upload Design File <span style="font-size:11px;color:var(--gray)">or paste Canva link below</span></label>
         <input type="file" class="form-input" id="ctNewPhoto" accept="image/*,.pdf" style="padding:6px">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Canva / Design Link</label>
+        <label class="form-label" for="ctNewFileLink">Canva / Design Link</label>
         <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://canva.com/...">
       </div>
       <div class="form-group">
-        <label class="form-label">Print Specs <span style="font-size:11px;color:var(--gray)">optional</span></label>
+        <label class="form-label" for="ctNewPrintSpecs">Print Specs <span style="font-size:11px;color:var(--gray)">optional</span></label>
         <input type="text" class="form-input" id="ctNewPrintSpecs" placeholder="e.g. 8.5x11, full bleed">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Distribution Notes</label>
+        <label class="form-label" for="ctNewDistrib">Distribution Notes</label>
         <input type="text" class="form-input" id="ctNewDistrib" placeholder="e.g. Post at Mikerphone, distribute at Walk event">
       </div>`,
     Other: `
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Description / Content</label>
+        <label class="form-label" for="ctNewText">Description / Content</label>
         <textarea class="form-input form-textarea" id="ctNewText" rows="5" placeholder="Describe this content item..."></textarea>
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">File Link</label>
+        <label class="form-label" for="ctNewFileLink">File Link</label>
         <input type="text" class="form-input" id="ctNewFileLink" placeholder="https://...">
       </div>`
   };
 
   // For Facebook and Email, Generate Draft is the primary action — show it prominently at top
-  const isAIFirst = ["Facebook", "Email"].includes(type);
+  const isAIFirst = ["Facebook/Instagram", "Facebook", "Email"].includes(type);
   const aiFirstBanner = isAIFirst ? `
     <div style="background:var(--navy);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
       <div>
@@ -8103,7 +8149,7 @@ function buildContentTypeForm(type) {
         <div style="border:2px solid var(--border);border-radius:7px;padding:8px 12px;max-height:120px;overflow-y:auto;background:white;display:flex;flex-direction:column;gap:4px">${reviewerChecks}</div>
       </div>
       <div class="form-group full" style="grid-column:1/-1">
-        <label class="form-label">Additional Notes</label>
+        <label class="form-label" for="ctNewNotes">Additional Notes</label>
         <textarea class="form-input form-textarea" id="ctNewNotes" rows="2" placeholder="Any additional context..."></textarea>
       </div>`}
     </div>
@@ -8176,6 +8222,7 @@ async function saveNewContent(type, status) {
       }
     }
     showToast(status === "Draft" ? "Saved as draft!" : "Submitted for review!");
+    renderDashboardMarketingCard(); // targeted refresh
     showMktgTab("status");
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
@@ -8221,19 +8268,6 @@ function clearContentPhoto() {
   document.getElementById("ctPhotoUrl").value = "";
   document.getElementById("ctPhotoPreview").style.display = "none";
 }
-function buildReviewerChecks(selectedList) {
-  const container = document.getElementById("ctReviewerChecks");
-  if (!container) return;
-  container.innerHTML = APP_USERS.map(u => `
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;font-size:14px">
-      <input type="checkbox" value="${esc(u.displayName)}" ${selectedList.includes(u.displayName)?"checked":""} style="width:16px;height:16px;accent-color:var(--gold)">
-      ${esc(u.displayName)}
-    </label>`).join("");
-}
-function getCheckedReviewers() {
-  return Array.from(document.querySelectorAll("#ctReviewerChecks input[type=checkbox]:checked")).map(c => c.value).join(", ");
-}
-
 async function saveContent(status) {
   const title = document.getElementById("ctTitle").value.trim();
   const channel = document.getElementById("ctChannel").value;
@@ -8913,33 +8947,33 @@ function renderAISettings() {
         <div style="font-size:12px;color:var(--gray);margin-bottom:16px">Who you are — facts the AI should always know</div>
         <div class="form-grid">
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Organization Name & Tagline</label>
+            <label class="form-label" for="ai_name">Organization Name & Tagline</label>
             <input type="text" class="form-input" id="ai_name" value="${esc(c.org_name||"")}" placeholder="My Best Friends Foundation — Supporting Animals in Need">
             ${campaignCheckbox("org_name")}
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Mission Statement</label>
+            <label class="form-label" for="ai_mission">Mission Statement</label>
             <textarea class="form-input form-textarea" id="ai_mission" rows="3" placeholder="Paste your official mission statement here...">${esc(c.mission||"")}</textarea>
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">History & Background</label>
+            <label class="form-label" for="ai_history">History & Background</label>
             <textarea class="form-input form-textarea" id="ai_history" rows="3" placeholder="Founding year, key milestones, what makes you different...">${esc(c.history||"")}</textarea>
           </div>
           <div class="form-group">
-            <label class="form-label">Years in Operation</label>
+            <label class="form-label" for="ai_years">Years in Operation</label>
             <input type="text" class="form-input" id="ai_years" value="${esc(c.years||"")}" placeholder="e.g. Since 2015">
           </div>
           <div class="form-group">
-            <label class="form-label">Geographic Area Served</label>
+            <label class="form-label" for="ai_geography">Geographic Area Served</label>
             <input type="text" class="form-input" id="ai_geography" value="${esc(c.geography||"")}" placeholder="e.g. Chicagoland southwest suburbs">
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Key Impact Statistics</label>
+            <label class="form-label" for="ai_stats">Key Impact Statistics</label>
             <textarea class="form-input form-textarea" id="ai_stats" rows="2" placeholder="Animals helped, funds raised, families served...">${esc(c.stats||"")}</textarea>
             ${campaignCheckbox("stats")}
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Key People to Reference</label>
+            <label class="form-label" for="ai_people">Key People to Reference</label>
             <input type="text" class="form-input" id="ai_people" value="${esc(c.people||"")}" placeholder="e.g. Ed Grasse (Founder), Kris Grasse (Co-Founder)">
           </div>
         </div>
@@ -8967,25 +9001,25 @@ function renderAISettings() {
             </div>
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Personality Words <span style="font-size:11px;color:var(--gray);font-weight:400">comma-separated</span></label>
+            <label class="form-label" for="ai_personality">Personality Words <span style="font-size:11px;color:var(--gray);font-weight:400">comma-separated</span></label>
             <input type="text" class="form-input" id="ai_personality" value="${esc(c.personality||"")}" placeholder="e.g. warm, community-focused, passionate, approachable">
           </div>
           <div class="form-group">
-            <label class="form-label">Words / Phrases to Always Use</label>
+            <label class="form-label" for="ai_use_words">Words / Phrases to Always Use</label>
             <textarea class="form-input form-textarea" id="ai_use_words" rows="3" placeholder="e.g. animals in need, community, My Best Friends Foundation...">${esc(c.use_words||"")}</textarea>
           </div>
           <div class="form-group">
-            <label class="form-label">Words / Phrases to Never Use</label>
+            <label class="form-label" for="ai_avoid_words">Words / Phrases to Never Use</label>
             <textarea class="form-input form-textarea" id="ai_avoid_words" rows="3" placeholder="e.g. charity (prefer foundation), cheap, crisis...">${esc(c.avoid_words||"")}</textarea>
           </div>
           <div class="form-group">
-            <label class="form-label">Emoji Usage</label>
+            <label class="form-label" for="ai_emoji">Emoji Usage</label>
             <select class="form-input" id="ai_emoji">
               ${["Always — they match our brand","Sometimes — sparingly for emphasis","Rarely — only for events","Never"].map(o=>`<option ${(c.emoji||"Sometimes — sparingly for emphasis")===o?"selected":""}>${o}</option>`).join("")}
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Standard Hashtags</label>
+            <label class="form-label" for="ai_hashtags">Standard Hashtags</label>
             <input type="text" class="form-input" id="ai_hashtags" value="${esc(c.hashtags||"")}" placeholder="#MyBFF #MyBestFriendsFoundation">
           </div>
         </div>
@@ -9000,23 +9034,23 @@ function renderAISettings() {
         </div>
         <div class="form-grid">
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Current Focus / Urgency</label>
+            <label class="form-label" for="ai_current_focus">Current Focus / Urgency</label>
             <textarea class="form-input form-textarea" id="ai_current_focus" rows="2"
               placeholder="e.g. We are in Cornhole registration season. Emphasize urgency — tickets are selling fast. Price is $40/team.">${esc(c.current_focus||"")}</textarea>
           </div>
           <div class="form-group">
-            <label class="form-label">Active Event</label>
+            <label class="form-label" for="ai_active_event">Active Event</label>
             <select class="form-input" id="ai_active_event">
               <option value="">— None —</option>
               ${ALL_EVENTS_DATA.map(e => `<option value="${esc(e.name)}" ${c.active_event===e.name?"selected":""}>${esc(e.name)}</option>`).join("")}
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Campaign Expires</label>
+            <label class="form-label" for="ai_campaign_expires">Campaign Expires</label>
             <input type="date" class="form-input" id="ai_campaign_expires" value="${esc(c.campaign_expires||"")}">
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Key Messages This Campaign</label>
+            <label class="form-label" for="ai_campaign_messages">Key Messages This Campaign</label>
             <textarea class="form-input form-textarea" id="ai_campaign_messages" rows="2"
               placeholder="e.g. This is our 5th annual event. Last year we raised $12,000. Spot filling up fast.">${esc(c.campaign_messages||"")}</textarea>
           </div>
@@ -9031,7 +9065,7 @@ function renderAISettings() {
           ${["General Public","Past Attendees","Donors","Sponsors","Volunteers"].map(seg => {
             const key = seg.toLowerCase().replace(/\s+/g,"_");
             return `<div class="form-group">
-              <label class="form-label">${seg}</label>
+              <label class="form-label" for="ai_audience_${key}">${seg}</label>
               <textarea class="form-input form-textarea" id="ai_audience_${key}" rows="2"
                 placeholder="How to speak to this audience...">${esc(c["audience_"+key]||"")}</textarea>
             </div>`;
@@ -9046,7 +9080,7 @@ function renderAISettings() {
         <div class="form-grid">
           ${["Facebook","Instagram","Email","Flyer"].map(ch => `
             <div class="form-group" style="grid-column:1/-1">
-              <label class="form-label">${ch}</label>
+              <label class="form-label" for="ai_channel_${ch.toLowerCase()}">${ch}</label>
               <textarea class="form-input form-textarea" id="ai_channel_${ch.toLowerCase()}" rows="2"
                 placeholder="e.g. Keep under 200 words. Always end with CTA link.">${esc(c["channel_"+ch.toLowerCase()]||"")}</textarea>
             </div>`).join("")}
@@ -9061,7 +9095,7 @@ function renderAISettings() {
           ${["Cornhole","Trivia","Walk/Run","Golf","Super Bowl Squares"].map(ev => {
             const key = ev.toLowerCase().replace(/[^a-z]/g,"_");
             return `<div class="form-group" style="grid-column:1/-1">
-              <label class="form-label">${ev}</label>
+              <label class="form-label" for="ai_event_${key}">${ev}</label>
               <textarea class="form-input form-textarea" id="ai_event_${key}" rows="3"
                 placeholder="Standard description, key facts, past results, approved phrases...">${esc(c["event_"+key]||"")}</textarea>
               ${campaignCheckbox("event_"+key)}
@@ -9076,15 +9110,15 @@ function renderAISettings() {
         <div style="font-size:12px;color:var(--gray);margin-bottom:16px">What the AI must always include or never say</div>
         <div class="form-grid">
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Required Disclosures</label>
+            <label class="form-label" for="ai_disclosures">Required Disclosures</label>
             <textarea class="form-input form-textarea" id="ai_disclosures" rows="2" placeholder="e.g. 501(c)(3) language, donation tax notes...">${esc(c.disclosures||"")}</textarea>
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Claims to Avoid</label>
+            <label class="form-label" for="ai_avoid_claims">Claims to Avoid</label>
             <textarea class="form-input form-textarea" id="ai_avoid_claims" rows="2" placeholder="e.g. Don't make specific financial projections...">${esc(c.avoid_claims||"")}</textarea>
           </div>
           <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Privacy Rules</label>
+            <label class="form-label" for="ai_privacy">Privacy Rules</label>
             <textarea class="form-input form-textarea" id="ai_privacy" rows="2" placeholder="e.g. Don't name specific donors without approval...">${esc(c.privacy||"")}</textarea>
           </div>
         </div>
@@ -10482,7 +10516,7 @@ const HELP_DATA = [
       },
       {
         q: "How do I add a task manually?",
-        a: "Click <strong>+ Add Task</strong> on the Event Tasks page. Enter the task name, select the event, set an optional due date and assignee, and click Save Task."
+        a: "Click <strong>+ Add Checklist Item</strong> on the Event Tasks page. Enter the task name, select the event, set an optional due date and assignee, and click Save Task."
       },
       {
         q: "How do I mark a task as done?",
@@ -10555,21 +10589,17 @@ function filterHelp() {
 // ═══════════════════════════════════════════════════════════
 
 function navigateToMyTaskDonation(linkedId) {
-  console.log("[navigateToMyTaskDonation] called with:", linkedId);
   closeModal("myTasksModal");
   showPageNav("donations");
   setTimeout(() => {
-    console.log("[navigateToMyTaskDonation] setTimeout firing, calling viewDonation");
     viewDonation(linkedId);
   }, 150);
 }
 
 function navigateToMyTaskDonationByName(linkedName) {
-  console.log("[navigateToMyTaskDonationByName] called with:", linkedName);
   closeModal("myTasksModal");
   showPageNav("donations");
   setTimeout(() => {
-    console.log("[navigateToMyTaskDonationByName] setTimeout firing, calling viewDonation");
     viewDonation(linkedName);
   }, 150);
 }
@@ -10666,13 +10696,13 @@ function openMyTasksModal() {
 
   if (myTasks.length === 0) {
     content.innerHTML = `<div style="text-align:center;padding:32px;color:var(--gray);font-size:14px">
-      🎉 No open tasks assigned to you right now.
+      🎉 No open checklist items or tasks assigned to you right now.
     </div>`;
   } else {
     content.innerHTML = `
       ${eventTasks.length ? `
         <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:700;margin-bottom:2px;padding-top:4px">
-          Event Tasks (${eventTasks.length})
+          Checklist Items (${eventTasks.length})
         </div>
         ${eventTasks.map(t => taskRow(t, true)).join("")}` : ""}
       ${quickTasks.length ? `
@@ -10696,8 +10726,7 @@ async function markMyTaskDone(taskId) {
     showToast("✓ Task marked done.");
     openMyTasksModal(); // refresh the modal
     updateActionSummary();
-    renderDashboard();
-    if (document.getElementById("dashTasksCard")) renderDashboardTasksCard();
+    renderDashboardTasksCard(); // targeted refresh — no need for full renderDashboard
   } catch(e) { showToast("Error: " + e.message, "error"); }
 }
 
@@ -10801,8 +10830,7 @@ async function saveQuickTask() {
     closeModal("quickTaskModal");
     showToast(`✅ Task assigned to ${assignTo}.`);
     updateActionSummary();
-    renderDashboard();
-    if (document.getElementById("dashTasksCard")) renderDashboardTasksCard();
+    renderDashboardTasksCard(); // targeted refresh
   } catch(e) {
     showToast("Error saving task: " + e.message, "error");
   }
@@ -11392,380 +11420,6 @@ async function acceptRegenDraft() {
 // v5.15 — AI CONTENT CREATION MODULE (Claude Code)
 // ═══════════════════════════════════════════════════════════
 
-const AI_CONTENT_HTML = `
-
-<!-- ═══════════════════════════════════════
-     MODAL: AI Single Post Generator
-     ═══════════════════════════════════════ -->
-<div id="aiGenerateModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAIGenerateModal()">
-  <div class="modal" style="max-width:600px;width:100%;max-height:90vh;overflow-y:auto;">
-    <div class="modal-header">
-      <span class="modal-title">✨ AI Draft Generator</span>
-      <button class="modal-close" onclick="closeAIGenerateModal()" aria-label="Close">&times;</button>
-    </div>
-    <div style="padding:1.5rem;">
-
-      <p id="aiGenContentTypeLabel" style="font-size:.85rem;color:var(--navy);font-weight:600;margin:0 0 1rem;text-transform:uppercase;letter-spacing:.05em;"></p>
-
-      <div class="form-group">
-        <label class="form-label" for="aiGenEvent">Event / Campaign</label>
-        <input id="aiGenEvent" class="form-input" type="text" placeholder="e.g. 2026 Walk/Run, Volunteer Appreciation Week" />
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="aiGenTalkingPoints">Talking Points <span style="font-weight:400;color:#666;">(what to include)</span></label>
-        <textarea id="aiGenTalkingPoints" class="form-textarea" rows="3" placeholder="Key facts, stats, names, moments, goals…"></textarea>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="aiGenExclude">Exclude <span style="font-weight:400;color:#666;">(what to leave out)</span></label>
-        <input id="aiGenExclude" class="form-input" type="text" placeholder="e.g. pricing details, specific sponsor names" />
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="aiGenTone">Tone Override</label>
-        <select id="aiGenTone" class="form-input">
-          <option value="standard">Standard MyBFF Voice</option>
-          <option value="urgent">More Urgent</option>
-          <option value="celebratory">More Celebratory</option>
-          <option value="emotional">More Emotional</option>
-          <option value="informational">More Informational</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="aiGenLength">Length Preference</label>
-        <input id="aiGenLength" class="form-input" type="text" readonly style="background:var(--cream);color:#555;" />
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="aiGenKeyDates">Key Dates</label>
-        <input id="aiGenKeyDates" class="form-input" type="text" placeholder="Event date, registration deadline, etc." />
-      </div>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:1.25rem;gap:1rem;flex-wrap:wrap;">
-        <span id="aiGenRegenCount" style="font-size:.8rem;color:#666;">0 of 3 regenerations used</span>
-        <button id="aiGenSubmitBtn" class="btn btn-gold" onclick="generateContentDraft()">Generate Draft</button>
-      </div>
-
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════
-     POPUP: AI Draft Result
-     ═══════════════════════════════════════ -->
-<div id="aiDraftPopup" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAIDraftPopup()">
-  <div class="modal" style="max-width:640px;width:100%;max-height:90vh;overflow-y:auto;">
-    <div class="modal-header">
-      <span class="modal-title">✨ Generated Draft</span>
-      <button class="modal-close" onclick="closeAIDraftPopup()" aria-label="Close">&times;</button>
-    </div>
-    <div style="padding:1.5rem;">
-
-      <div id="aiDraftEmailSubjectRow" style="display:none;" class="form-group">
-        <label class="form-label">Generated Subject Line</label>
-        <input id="aiDraftSubjectField" class="form-input" type="text" />
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Generated Draft</label>
-        <div id="aiDraftHighlighted" style="background:var(--cream);border:1px solid var(--border);border-radius:6px;padding:.75rem;font-size:.9rem;line-height:1.6;min-height:100px;margin-bottom:.5rem;white-space:pre-wrap;word-break:break-word;"></div>
-        <textarea id="aiDraftTextarea" class="form-textarea" rows="8" style="font-size:.875rem;line-height:1.6;"></textarea>
-      </div>
-
-      <div id="aiDraftPlaceholderWarning" style="display:none;background:#fff8e1;border:1px solid #f0c040;border-radius:6px;padding:.65rem .9rem;font-size:.82rem;color:#7a5a00;margin-bottom:1rem;">
-        ⚠ This draft contains <strong id="aiDraftPlaceholderCount">0</strong> placeholder(s). Fill them in before publishing.
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="aiDraftFeedback">Notes for Regeneration <span style="font-weight:400;color:#666;">(optional)</span></label>
-        <input id="aiDraftFeedback" class="form-input" type="text" placeholder="e.g. Make it shorter, add urgency around the deadline…" />
-      </div>
-
-      <div id="aiDraftRegenMaxMsg" style="display:none;font-size:.82rem;color:var(--red);margin-bottom:.75rem;">
-        Maximum regenerations reached. Edit the draft above or start over.
-      </div>
-
-      <!-- Reviewer selection — shown above Accept button -->
-      <div id="aiDraftReviewerSection" style="margin:12px 0;padding:12px 14px;background:#f9fafb;border:1.5px solid var(--border);border-radius:8px">
-        <div style="font-weight:600;font-size:13px;margin-bottom:8px">Select Reviewers</div>
-        <div id="aiDraftReviewerChecks" style="display:flex;flex-direction:column;gap:4px;max-height:100px;overflow-y:auto"></div>
-      </div>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-top:.5rem;">
-        <button class="btn" style="color:var(--navy);background:none;padding:0;text-decoration:underline;font-size:.85rem;" onclick="startOverAIGenerate()">Start Over</button>
-        <div style="display:flex;gap:.75rem;align-items:center;">
-          <span id="aiDraftRegenCountDisplay" style="font-size:.8rem;color:#666;"></span>
-          <button id="aiDraftRegenBtn" class="btn btn-outline" onclick="regenerateContentDraft()">Regenerate</button>
-          <button class="btn btn-gold" onclick="acceptContentDraft()">Accept &amp; Save to Review</button>
-        </div>
-      </div>
-
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════
-     MODAL: Monthly Sequence Generator
-     ═══════════════════════════════════════ -->
-<div id="aiSequenceModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAISequenceModal()">
-  <div class="modal" style="max-width:700px;width:100%;max-height:92vh;overflow-y:auto;">
-    <div class="modal-header">
-      <span class="modal-title">📅 Generate Monthly Post Schedule</span>
-      <button class="modal-close" onclick="closeAISequenceModal()" aria-label="Close">&times;</button>
-    </div>
-    <div style="padding:1.5rem;">
-
-      <div style="display:flex;gap:1rem;flex-wrap:wrap;">
-        <div class="form-group" style="flex:1;min-width:140px;">
-          <label class="form-label" for="aiSeqMonth">Month</label>
-          <select id="aiSeqMonth" class="form-input"></select>
-        </div>
-        <div class="form-group" style="flex:1;min-width:100px;">
-          <label class="form-label" for="aiSeqYear">Year</label>
-          <input id="aiSeqYear" class="form-input" type="number" min="2024" max="2035" />
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="aiSeqFocus">Monthly Focus</label>
-        <input id="aiSeqFocus" class="form-input" type="text" placeholder="e.g. Cancer Survivors Month, Walk/Run Promotion, Volunteer Appreciation" />
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Posting Schedule</label>
-        <div style="display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;margin-top:.25rem;">
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
-            <input type="checkbox" id="aiSeqMon" checked /> Mon
-          </label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
-            <input type="checkbox" id="aiSeqTue" /> Tue
-          </label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
-            <input type="checkbox" id="aiSeqWed" checked /> Wed
-          </label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
-            <input type="checkbox" id="aiSeqThu" checked /> Thu
-          </label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
-            <input type="checkbox" id="aiSeqFri" /> Fri
-          </label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
-            <input type="checkbox" id="aiSeqSat" /> Sat
-          </label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
-            <input type="checkbox" id="aiSeqSun" /> Sun
-          </label>
-        </div>
-      </div>
-
-      <!-- Post Ideas from queue -->
-      <div class="form-group" id="aiSeqIdeasSection" style="display:none">
-        <label class="form-label">Post Ideas to Include <span style="font-weight:400;font-size:11px;color:var(--gray)">from your idea queue — check which ones to weave in</span></label>
-        <div id="aiSeqIdeasList" style="border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:#f9fafb;max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
-      </div>
-
-      <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
-        <button id="aiSeqGenerateBtn" class="btn btn-gold" onclick="generateMonthlySequence()">Generate Schedule</button>
-      </div>
-
-      <!-- Results area -->
-      <div id="aiSeqResults" style="display:none;margin-top:1.5rem;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem;">
-          <strong style="font-size:.9rem;color:var(--navy);">Proposed Schedule</strong>
-          <button id="aiSeqAcceptAllBtn" class="btn btn-gold btn-sm" onclick="acceptAllSequencePosts()">Accept All to Drafts</button>
-        </div>
-        <div id="aiSeqPostList" style="display:flex;flex-direction:column;gap:.75rem;"></div>
-      </div>
-
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════
-     MODAL: Newsletter Generator
-     ═══════════════════════════════════════ -->
-<div id="aiNewsletterModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAINewsletterModal()">
-  <div class="modal" style="max-width:720px;width:100%;max-height:92vh;overflow-y:auto;">
-    <div class="modal-header">
-      <span class="modal-title">📰 Generate Newsletter</span>
-      <button class="modal-close" onclick="closeAINewsletterModal()" aria-label="Close">&times;</button>
-    </div>
-    <div style="padding:1.5rem;">
-
-      <!-- Step indicator -->
-      <div id="aiNLStepIndicator" style="display:flex;gap:0;margin-bottom:1.5rem;">
-        <div class="ai-nl-step active" data-step="1" style="flex:1;text-align:center;padding:.4rem;font-size:.78rem;font-weight:600;border-bottom:2px solid var(--gold);color:var(--gold);">1 · Intake</div>
-        <div class="ai-nl-step" data-step="2" style="flex:1;text-align:center;padding:.4rem;font-size:.78rem;font-weight:600;border-bottom:2px solid var(--border);color:#999;">2 · Sections</div>
-        <div class="ai-nl-step" data-step="3" style="flex:1;text-align:center;padding:.4rem;font-size:.78rem;font-weight:600;border-bottom:2px solid var(--border);color:#999;">3 · Full Draft</div>
-      </div>
-
-      <!-- Step 1: Intake -->
-      <div id="aiNLStep1" style="display:block;">
-        <div style="display:flex;gap:1rem;flex-wrap:wrap;">
-          <div class="form-group" style="flex:1;min-width:140px;">
-            <label class="form-label" for="aiNLMonth">Issue Month</label>
-            <select id="aiNLMonth" class="form-input"></select>
-          </div>
-          <div class="form-group" style="flex:1;min-width:100px;">
-            <label class="form-label" for="aiNLYear">Year</label>
-            <input id="aiNLYear" class="form-input" type="number" min="2024" max="2035" />
-          </div>
-          <div class="form-group" style="flex:1;min-width:80px;">
-            <label class="form-label">Volume</label>
-            <input id="aiNLVolume" class="form-input" type="number" min="1" max="99" />
-          </div>
-          <div class="form-group" style="flex:1;min-width:80px;">
-            <label class="form-label">Issue #</label>
-            <input id="aiNLIssue" class="form-input" type="number" min="1" max="12" />
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Q&amp;A — Select from Queue</label>
-          <select id="aiNLQASelect" class="form-input" onchange="loadQAFromQueue(this.value)" style="margin-bottom:8px">
-            <option value="">— Select from Newsletter Queue —</option>
-          </select>
-          <div id="aiNLQAPreview" style="display:none;font-size:12px;color:var(--gray);margin-bottom:8px;padding:8px;background:#f9fafb;border-radius:6px;border:1px solid var(--border)"></div>
-          <div id="aiNLQAPairsSelect" style="display:none;margin-bottom:8px"></div>
-          <p style="font-size:.8rem;color:#666;margin:.15rem 0 .5rem;">Or paste/upload Q&amp;A text directly:</p>
-          <textarea id="aiNLQAText" class="form-textarea" rows="4" placeholder="Paste Q&A transcript here (or select from queue above)…"></textarea>
-          <div style="margin-top:.5rem;display:flex;align-items:center;gap:.75rem;">
-            <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0;">
-              Upload File
-              <input type="file" id="aiNLQAFile" accept=".txt,.doc,.docx" style="display:none;" onchange="handleNLQAFileUpload(event)" />
-            </label>
-            <span id="aiNLQAFileName" style="font-size:.8rem;color:#666;"></span>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Cancer Awareness Article — Select from Queue</label>
-          <select id="aiNLArticleSelect" class="form-input" onchange="loadArticleFromQueue(this.value)" style="margin-bottom:8px">
-            <option value="">— Select from Article Bank —</option>
-          </select>
-          <label class="form-label" style="margin-top:8px" for="aiNLArticleURL">Or enter article URL directly</label>
-          <input id="aiNLArticleURL" class="form-input" type="url" placeholder="https://…" />
-          <p style="font-size:.78rem;color:#666;margin:.25rem 0 0;">Claude will fetch and summarize this article.</p>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Upcoming Events <span style="font-weight:400;color:#666;">(confirm which to include)</span></label>
-          <div id="aiNLEventChecklist" style="display:flex;flex-direction:column;gap:.4rem;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:.65rem;background:var(--cream);"></div>
-        </div>
-
-        <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
-          <button class="btn btn-gold" onclick="startNewsletterGeneration()">Generate Section by Section →</button>
-        </div>
-      </div>
-
-      <!-- Step 2: Section review -->
-      <div id="aiNLStep2" style="display:none;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
-          <span id="aiNLSectionStatus" style="font-size:.85rem;color:#555;font-weight:600;">0 of 3 sections approved</span>
-          <button id="aiNLFullDraftBtn" class="btn btn-gold" onclick="generateFullNewsletter()" disabled style="opacity:.5;cursor:not-allowed;">Generate Full Newsletter →</button>
-        </div>
-
-        <!-- Section 1: Q&A -->
-        <div class="card" style="margin-bottom:1rem;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
-            <strong style="font-size:.875rem;color:var(--navy);">Section 1 — Q&amp;A with a Friend</strong>
-            <div style="display:flex;gap:.5rem;align-items:center;">
-              <span id="aiNLSec1Status" style="font-size:.78rem;padding:.2rem .55rem;border-radius:12px;background:#eee;color:#555;">Pending</span>
-              <button class="btn btn-outline btn-sm" onclick="generateNewsletterSection('qa')" id="aiNLSec1GenBtn">Generate</button>
-              <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('qa')" id="aiNLSec1AcceptBtn" disabled>Approve</button>
-            </div>
-          </div>
-          <textarea id="aiNLSec1Text" class="form-textarea" rows="14" placeholder="Generated Q&A will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
-        </div>
-
-        <!-- Section 2: Article summary -->
-        <div class="card" style="margin-bottom:1rem;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
-            <strong style="font-size:.875rem;color:var(--navy);">Section 2 — Cancer Awareness Article Summary</strong>
-            <div style="display:flex;gap:.5rem;align-items:center;">
-              <span id="aiNLSec2Status" style="font-size:.78rem;padding:.2rem .55rem;border-radius:12px;background:#eee;color:#555;">Pending</span>
-              <button class="btn btn-outline btn-sm" onclick="generateNewsletterSection('article')" id="aiNLSec2GenBtn">Generate</button>
-              <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('article')" id="aiNLSec2AcceptBtn" disabled>Approve</button>
-            </div>
-          </div>
-          <textarea id="aiNLSec2Text" class="form-textarea" rows="10" placeholder="Generated article summary will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
-        </div>
-
-        <!-- Section 3: Events calendar -->
-        <div class="card" style="margin-bottom:1rem;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
-            <strong style="font-size:.875rem;color:var(--navy);">Section 3 — Upcoming Events Calendar</strong>
-            <div style="display:flex;gap:.5rem;align-items:center;">
-              <span id="aiNLSec3Status" style="font-size:.78rem;padding:.2rem .55rem;border-radius:12px;background:#eee;color:#555;">Pending</span>
-              <button class="btn btn-outline btn-sm" onclick="generateNewsletterSection('events')" id="aiNLSec3GenBtn">Generate</button>
-              <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('events')" id="aiNLSec3AcceptBtn" disabled>Approve</button>
-            </div>
-          </div>
-          <textarea id="aiNLSec3Text" class="form-textarea" rows="8" placeholder="Generated events list will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
-        </div>
-      </div>
-
-      <!-- Step 3: Three copy blocks for Canva -->
-      <div id="aiNLStep3" style="display:none;">
-        <div style="background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#92400e">
-          &#128203; <strong>Ready to paste into Canva.</strong> Copy each block into the corresponding section. Text is formatted with bold questions and Open Sans 10pt styling notes below each block.
-        </div>
-
-        <!-- Block 1: Q&A -->
-        <div class="card" style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
-            <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9312; LEFT COLUMN — Q&amp;A WITH A FRIEND</div>
-            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock1')">&#128203; Copy Text</button>
-          </div>
-          <div id="nlBlock1Stats" style="font-size:11px;color:var(--gray);margin-bottom:6px"></div>
-          <div id="nlBlock1Warning" style="display:none;font-size:12px;color:#dc2626;background:#fef2f2;padding:6px 10px;border-radius:6px;margin-bottom:8px"></div>
-          <textarea id="aiNLBlock1" class="form-textarea" rows="14"
-            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
-            placeholder="Q&A block will appear here…"
-            oninput="updateNLBlockStats('aiNLBlock1','nlBlock1Stats','nlBlock1Warning',225,1300)"></textarea>
-          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Questions are BOLD, answers are regular text. Font: Open Sans 10pt, black, left-justified.</div>
-        </div>
-
-        <!-- Block 2: Article -->
-        <div class="card" style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
-            <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9313; RIGHT COLUMN — CANCER NEWS</div>
-            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock2')">&#128203; Copy Text</button>
-          </div>
-          <div id="nlBlock2Stats" style="font-size:11px;color:var(--gray);margin-bottom:6px"></div>
-          <div id="nlBlock2Warning" style="display:none;font-size:12px;color:#dc2626;background:#fef2f2;padding:6px 10px;border-radius:6px;margin-bottom:8px"></div>
-          <textarea id="aiNLBlock2" class="form-textarea" rows="12"
-            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
-            placeholder="Article summary will appear here…"
-            oninput="updateNLBlockStats('aiNLBlock2','nlBlock2Stats','nlBlock2Warning',200,1200)"></textarea>
-          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Title is BOLD, body text is regular. Font: Open Sans 10pt, black, left-justified.</div>
-        </div>
-
-        <!-- Block 3: Events -->
-        <div class="card" style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
-            <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9314; BOTTOM STRIP — UPCOMING EVENTS</div>
-            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock3')">&#128203; Copy Text</button>
-          </div>
-          <textarea id="aiNLBlock3" class="form-textarea" rows="6"
-            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
-            placeholder="Events list will appear here…"></textarea>
-          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Event name is BOLD, date is regular text. Font: Open Sans 10pt, black, left-justified. No times listed.</div>
-        </div>
-
-        <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:8px">
-          <button class="btn btn-outline" onclick="saveNewsletterAsDraft()">Save as Draft Record</button>
-        </div>
-      </div>
-
-    </div>
-  </div>
-</div>
-
-`;
-
 let _aiGen = {
   contentType: null,       // e.g. "Facebook", "Email"
   regenCount: 0,
@@ -11792,10 +11446,7 @@ let _aiNL = {
 // ─── Inject HTML into DOM (called once on page load) ──────────────────────────
 
 function initAIContentModule() {
-  if (document.getElementById('aiGenerateModal')) return; // already injected
-  const container = document.createElement('div');
-  container.innerHTML = AI_CONTENT_HTML;
-  document.getElementById('appShell').appendChild(container);
+  // AI modal HTML is now part of the main HTML — just initialize state
   _populateMonthSelects();
   _initSequenceDefaults();
 }
@@ -11896,8 +11547,8 @@ function openAIGenerateModal(contentType) {
   _aiGen.lastSubject = '';
 
   // Label
-  document.getElementById('aiGenContentTypeLabel').textContent =
-    `Generating: ${contentType} Post`;
+  const typeLabel = contentType === 'Facebook/Instagram' ? 'Social Post (Facebook/Instagram)' : `${contentType} Post`;
+  document.getElementById('aiGenContentTypeLabel').textContent = `Generating: ${typeLabel}`;
 
   // Length hint
   const lenHint = _LENGTH_HINTS[contentType] || _LENGTH_HINTS['default'];
@@ -11922,18 +11573,12 @@ function openAIGenerateModal(contentType) {
   document.getElementById('aiGenKeyDates').value = '';
   document.getElementById('aiGenRegenCount').textContent = '0 of 3 regenerations used';
 
-  document.getElementById('aiGenerateModal').style.display = 'flex';
+  openModal('aiGenerateModal');
 }
 
-function closeAIGenerateModal() {
-  const m = document.getElementById('aiGenerateModal');
-  if (m) m.style.display = 'none';
-}
+function closeAIGenerateModal() { closeModal('aiGenerateModal'); }
 
-function closeAIDraftPopup() {
-  const p = document.getElementById('aiDraftPopup');
-  if (p) p.style.display = 'none';
-}
+function closeAIDraftPopup() { closeModal('aiDraftPopup'); }
 
 function startOverAIGenerate() {
   closeAIDraftPopup();
@@ -11941,7 +11586,7 @@ function startOverAIGenerate() {
   _aiGen.lastDraft = '';
   _aiGen.lastSubject = '';
   document.getElementById('aiGenRegenCount').textContent = '0 of 3 regenerations used';
-  document.getElementById('aiGenerateModal').style.display = 'flex';
+  openModal('aiGenerateModal');
 }
 
 async function generateContentDraft() {
@@ -12086,7 +11731,7 @@ function _showDraftPopup(bodyText, subjectText) {
   // Populate reviewer checkboxes for Facebook/Email direct-save flow
   const revSection = document.getElementById('aiDraftReviewerSection');
   const revChecks  = document.getElementById('aiDraftReviewerChecks');
-  const isAIFirst  = ['Facebook','Email'].includes(_aiGen.contentType);
+  const isAIFirst  = ['Facebook','Facebook/Instagram','Instagram','Email'].includes(_aiGen.contentType);
   if (revSection) revSection.style.display = isAIFirst ? '' : 'none';
   if (revChecks && isAIFirst) {
     revChecks.innerHTML = APP_USERS.map(u => `
@@ -12096,7 +11741,7 @@ function _showDraftPopup(bodyText, subjectText) {
       </label>`).join('');
   }
 
-  document.getElementById('aiDraftPopup').style.display = 'flex';
+  openModal('aiDraftPopup');
 
   // Sync textarea edits to highlighted view live
   ta.oninput = () => {
@@ -12115,84 +11760,53 @@ async function acceptContentDraft() {
   const draftText = document.getElementById('aiDraftTextarea').value.trim();
   const subject   = document.getElementById('aiDraftSubjectField')?.value.trim() || '';
   const type      = _aiGen.contentType;
-
   if (!draftText) { showToast('No draft text to save.', 'error'); return; }
 
-  // For Facebook/Email — save directly to Supabase as In Review
-  if (['Facebook','Email'].includes(type)) {
-    const isAIFirst = true;
-    const topic  = document.getElementById('ctNewText')?.value.trim() || draftText.substring(0, 60);
-    const link   = document.getElementById('ctNewFileLink')?.value.trim() || null;
-    const event  = document.getElementById('ctNewEvent')?.value || null;
+  const aiFirstTypes = ['Facebook','Facebook/Instagram','Instagram','Email'];
+  if (aiFirstTypes.includes(type)) {
+    const topic    = document.getElementById('ctNewText')?.value.trim() || '';
+    const link     = document.getElementById('ctNewFileLink')?.value.trim() || null;
+    const event    = document.getElementById('ctNewEvent')?.value || null;
     const photoUrl = document.getElementById('ctPhotoUrl')?.value || null;
-
-    // Build content text
+    const channel  = (type==='Facebook'||type==='Instagram') ? 'Facebook/Instagram' : type;
     let contentText = draftText;
-    if (type === 'Email' && subject) {
-      contentText = `SUBJECT: ${subject}\n\n${draftText}`;
+    if (channel === 'Email' && subject) contentText = `SUBJECT: ${subject}\n\n${draftText}`;
+    let title = '';
+    if (channel === 'Email' && subject) {
+      title = subject.substring(0,80);
+    } else {
+      const fs = draftText.match(/^([^.!?\n]{10,60})[.!?\n]/)?.[1] || draftText.substring(0,60);
+      title = fs.trim() + (fs.length < draftText.length ? '…' : '');
     }
-
-    // Get selected reviewers from popup checkboxes
-    const checkedRevs = Array.from(
-      document.querySelectorAll('#aiDraftReviewerChecks input:checked')
-    ).map(c => c.value);
-
+    const titleFieldVal = document.getElementById('aiDraftTitleField')?.value.trim();
+    if (titleFieldVal) title = titleFieldVal;
+    const checkedRevs = Array.from(document.querySelectorAll('#aiDraftReviewerChecks input:checked')).map(c=>c.value);
     const now = new Date().toISOString();
-    const title = type === 'Email' && subject
-      ? subject.substring(0, 80)
-      : (topic.substring(0, 60) + (topic.length > 60 ? '…' : ''));
-
     const row = {
-      id: genId(),
-      channel: type,
-      title: title || `${type} Post`,
-      content_text: contentText,
-      file_link: link,
-      event_name: event,
-      photo_url: photoUrl,
+      id: genId(), channel, title: title||`${channel} Post`, content_text: contentText,
+      file_link: link, event_name: event, photo_url: photoUrl,
       status: checkedRevs.length > 0 ? 'In Review' : 'Draft',
-      reviewers: checkedRevs.join(', '),
-      version: 1,
-      created_by: currentUser?.displayName || '',
-      created_at: now,
-      updated_at: now,
-      ai_generated: true,
+      reviewers: checkedRevs.join(', '), version: 1,
+      created_by: currentUser?.displayName||'', created_at: now, updated_at: now, ai_generated: true,
     };
-
     try {
       await sbInsert('MyBFFContent', row);
       ALL_CONTENT.unshift(row);
-      // Add reviewer records
       for (const rev of checkedRevs) {
         const rRow = { id: genId(), content_id: row.id, reviewer: rev, status: 'pending', reviewed_at: null };
         try { await sbInsert('MyBFFContentReviewers', rRow); ALL_CONTENT_REVIEWERS.push(rRow); } catch(e) {}
       }
-      closeAIDraftPopup();
-      closeAIGenerateModal();
-      showToast(checkedRevs.length > 0 ? '✅ Sent to review!' : '✅ Saved as draft!');
-      showMktgTab('status');
-      renderStatusBoard();
-    } catch(e) {
-      showToast('Error saving: ' + e.message, 'error');
-    }
+      closeModal('aiDraftPopup'); closeModal('aiGenerateModal');
+      showToast(checkedRevs.length > 0 ? '✅ Sent for review!' : '✅ Saved as Draft!');
+      renderDashboardMarketingCard();
+      showMktgTab('status'); renderStatusBoard();
+    } catch(e) { showToast('Error saving: ' + e.message, 'error'); }
     return;
   }
-
-  // For other types — original behavior: populate the form fields
-  if (type === 'Email') {
-    const subEl  = document.getElementById('ctNewSubject');
-    const bodyEl = document.getElementById('ctNewBody');
-    if (subEl && subject) subEl.value = subject;
-    if (bodyEl) bodyEl.value = draftText;
-  } else if (type === 'Newsletter') {
-    const bodyEl = document.getElementById('ctNewBody');
-    if (bodyEl) bodyEl.value = draftText;
-  } else {
-    const textEl = document.getElementById('ctNewText');
-    if (textEl) textEl.value = draftText;
-  }
-  closeAIDraftPopup();
-  closeAIGenerateModal();
+  // Newsletter/Flyer/Other — populate form
+  if (type==='Newsletter') { const b=document.getElementById('ctNewBody'); if(b) b.value=draftText; }
+  else { const t=document.getElementById('ctNewText'); if(t) t.value=draftText; }
+  closeModal('aiDraftPopup'); closeModal('aiGenerateModal');
   showToast('Draft accepted and populated in the form.');
 }
 
@@ -12281,7 +11895,8 @@ function buildGenerationPrompt(contentType, formData, brandBrain) {
   // 4. CONTENT-TYPE SPECIFIC INSTRUCTIONS
   lines.push('');
   lines.push('=== CONTENT TYPE INSTRUCTIONS ===');
-  if (contentType === 'Facebook') {
+  const isSocial = contentType === 'Facebook' || contentType === 'Facebook/Instagram' || contentType === 'Instagram';
+  if (isSocial) {
     lines.push('FACEBOOK BEST PRACTICES:');
     lines.push('- Hook in the first 1-2 lines — Facebook truncates after ~125 characters before "See More". Lead with emotion or a specific detail that makes people stop scrolling.');
     lines.push('- Optimal length: 40-80 words for engagement posts, up to 150 for event announcements.');
@@ -12290,13 +11905,7 @@ function buildGenerationPrompt(contentType, formData, brandBrain) {
     lines.push('- Open with a person, moment, or specific detail — not an org announcement.');
     lines.push('- Avoid exclamation points doing emotional labor. Confidence over hype.');
     lines.push('- End with hashtags on their own line: always #MakeTodayCount #MyBFF + 2-4 contextual.');
-  } else if (contentType === 'Instagram') {
-    lines.push('INSTAGRAM BEST PRACTICES:');
-    lines.push('- First 3 words determine the scroll-stop. Never start with "We" or the org name.');
-    lines.push('- Optimal length: 40-60 words for the caption before hashtags.');
-    lines.push('- Use line breaks between short paragraphs for visual breathing room.');
-    lines.push('- Hashtags on their own line at the end. 5-10 targeted hashtags.');
-    lines.push('- Strong hook → brief context → CTA → hashtags.');
+    lines.push('- This post will be shared to both Facebook AND Instagram simultaneously.');
   } else if (contentType === 'Email') {
     lines.push('Subject line first on its own line labeled SUBJECT:. Then body. Professional but warm. Mission-driven without being heavy. Open with the most important information.');
   } else if (contentType === 'Flyer') {
@@ -12395,13 +12004,10 @@ function openAISequenceModal() {
         </label>`).join('');
   }
 
-  document.getElementById('aiSequenceModal').style.display = 'flex';
+  openModal('aiSequenceModal');
 }
 
-function closeAISequenceModal() {
-  const m = document.getElementById('aiSequenceModal');
-  if (m) m.style.display = 'none';
-}
+function closeAISequenceModal() { closeModal('aiSequenceModal'); }
 
 async function generateMonthlySequence() {
   const month = parseInt(document.getElementById('aiSeqMonth').value, 10);
@@ -12586,7 +12192,7 @@ async function acceptAllSequencePosts() {
   for (const post of toSave) {
     const record = {
       id:             genId(),
-      channel:        'Facebook',
+      channel:        'Facebook/Instagram',
       title:          `${post.date} — ${post.type}`,
       content_text:   post.draft || post.preview || '',
       status:         'Draft',
@@ -12618,7 +12224,8 @@ async function acceptAllSequencePosts() {
     } catch(e) { console.warn('Failed to mark idea used:', id); }
   }
   if (btn) { btn.disabled = false; btn.textContent = 'Accept All to Drafts'; }
-  closeAISequenceModal();
+  closeModal('aiSequenceModal');
+  renderDashboardMarketingCard();
   if (typeof renderStatusBoard === 'function') renderStatusBoard();
 }
 
@@ -12773,13 +12380,10 @@ function openAINewsletterModal() {
   }
 
   _buildNLEventChecklist();
-  document.getElementById('aiNewsletterModal').style.display = 'flex';
+  openModal('aiNewsletterModal');
 }
 
-function closeAINewsletterModal() {
-  const m = document.getElementById('aiNewsletterModal');
-  if (m) m.style.display = 'none';
-}
+function closeAINewsletterModal() { closeModal('aiNewsletterModal'); }
 
 function _nlGoToStep(step) {
   [1,2,3].forEach(s => {
@@ -13109,5 +12713,378 @@ if (document.readyState === 'loading') {
 
 
 </script>
+
+<!-- ═══ AI CONTENT MODALS (moved from JS template) ═══ -->
+
+<!-- ═══════════════════════════════════════
+     MODAL: AI Single Post Generator
+     ═══════════════════════════════════════ -->
+<div id="aiGenerateModal" class="modal-overlay" onclick="if(event.target===this)closeModal('aiGenerateModal')">
+  <div class="modal" style="max-width:600px;width:100%;max-height:90vh;overflow-y:auto;">
+    <div class="modal-header">
+      <span class="modal-title">✨ AI Draft Generator</span>
+      <button class="modal-close" onclick="closeModal('aiGenerateModal')" aria-label="Close">&times;</button>
+    </div>
+    <div style="padding:1.5rem;">
+
+      <p id="aiGenContentTypeLabel" style="font-size:.85rem;color:var(--navy);font-weight:600;margin:0 0 1rem;text-transform:uppercase;letter-spacing:.05em;"></p>
+
+      <div class="form-group">
+        <label class="form-label" for="aiGenEvent">Event / Campaign</label>
+        <input id="aiGenEvent" class="form-input" type="text" placeholder="e.g. 2026 Walk/Run, Volunteer Appreciation Week" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="aiGenTalkingPoints">Talking Points <span style="font-weight:400;color:#666;">(what to include)</span></label>
+        <textarea id="aiGenTalkingPoints" class="form-textarea" rows="3" placeholder="Key facts, stats, names, moments, goals…"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="aiGenExclude">Exclude <span style="font-weight:400;color:#666;">(what to leave out)</span></label>
+        <input id="aiGenExclude" class="form-input" type="text" placeholder="e.g. pricing details, specific sponsor names" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="aiGenTone">Tone Override</label>
+        <select id="aiGenTone" class="form-input">
+          <option value="standard">Standard MyBFF Voice</option>
+          <option value="urgent">More Urgent</option>
+          <option value="celebratory">More Celebratory</option>
+          <option value="emotional">More Emotional</option>
+          <option value="informational">More Informational</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="aiGenLength">Length Preference</label>
+        <input id="aiGenLength" class="form-input" type="text" readonly style="background:var(--cream);color:#555;" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="aiGenKeyDates">Key Dates</label>
+        <input id="aiGenKeyDates" class="form-input" type="text" placeholder="Event date, registration deadline, etc." />
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:1.25rem;gap:1rem;flex-wrap:wrap;">
+        <span id="aiGenRegenCount" style="font-size:.8rem;color:#666;">0 of 3 regenerations used</span>
+        <button id="aiGenSubmitBtn" class="btn btn-gold" onclick="generateContentDraft()">Generate Draft</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     POPUP: AI Draft Result
+     ═══════════════════════════════════════ -->
+<div id="aiDraftPopup" class="modal-overlay" onclick="if(event.target===this)closeModal('aiDraftPopup')">
+  <div class="modal" style="max-width:640px;width:100%;max-height:90vh;overflow-y:auto;">
+    <div class="modal-header">
+      <span class="modal-title">✨ Generated Draft</span>
+      <button class="modal-close" onclick="closeModal('aiDraftPopup')" aria-label="Close">&times;</button>
+    </div>
+    <div style="padding:1.5rem;">
+
+      <div id="aiDraftEmailSubjectRow" style="display:none;" class="form-group">
+        <label class="form-label">Generated Subject Line</label>
+        <input id="aiDraftSubjectField" class="form-input" type="text" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Generated Draft</label>
+        <div id="aiDraftHighlighted" style="background:var(--cream);border:1px solid var(--border);border-radius:6px;padding:.75rem;font-size:.9rem;line-height:1.6;min-height:100px;margin-bottom:.5rem;white-space:pre-wrap;word-break:break-word;"></div>
+        <textarea id="aiDraftTextarea" class="form-textarea" rows="8" style="font-size:.875rem;line-height:1.6;"></textarea>
+      </div>
+
+      <div id="aiDraftPlaceholderWarning" style="display:none;background:#fff8e1;border:1px solid #f0c040;border-radius:6px;padding:.65rem .9rem;font-size:.82rem;color:#7a5a00;margin-bottom:1rem;">
+        ⚠ This draft contains <strong id="aiDraftPlaceholderCount">0</strong> placeholder(s). Fill them in before publishing.
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="aiDraftFeedback">Notes for Regeneration <span style="font-weight:400;color:#666;">(optional)</span></label>
+        <input id="aiDraftFeedback" class="form-input" type="text" placeholder="e.g. Make it shorter, add urgency around the deadline…" />
+      </div>
+
+      <div id="aiDraftRegenMaxMsg" style="display:none;font-size:.82rem;color:var(--red);margin-bottom:.75rem;">
+        Maximum regenerations reached. Edit the draft above or start over.
+      </div>
+
+      <!-- Reviewer selection — shown above Accept button -->
+      <div id="aiDraftReviewerSection" style="margin:12px 0;padding:12px 14px;background:#f9fafb;border:1.5px solid var(--border);border-radius:8px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px">Select Reviewers</div>
+        <div id="aiDraftReviewerChecks" style="display:flex;flex-direction:column;gap:4px;max-height:100px;overflow-y:auto"></div>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-top:.5rem;">
+        <button class="btn" style="color:var(--navy);background:none;padding:0;text-decoration:underline;font-size:.85rem;" onclick="startOverAIGenerate()">Start Over</button>
+        <div style="display:flex;gap:.75rem;align-items:center;">
+          <span id="aiDraftRegenCountDisplay" style="font-size:.8rem;color:#666;"></span>
+          <button id="aiDraftRegenBtn" class="btn btn-outline" onclick="regenerateContentDraft()">Regenerate</button>
+          <button class="btn btn-gold" onclick="acceptContentDraft()">Accept &amp; Save to Review</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     MODAL: Monthly Sequence Generator
+     ═══════════════════════════════════════ -->
+<div id="aiSequenceModal" class="modal-overlay" onclick="if(event.target===this)closeModal('aiSequenceModal')">
+  <div class="modal" style="max-width:700px;width:100%;max-height:92vh;overflow-y:auto;">
+    <div class="modal-header">
+      <span class="modal-title">📅 Generate Monthly Post Schedule</span>
+      <button class="modal-close" onclick="closeModal('aiSequenceModal')" aria-label="Close">&times;</button>
+    </div>
+    <div style="padding:1.5rem;">
+
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+        <div class="form-group" style="flex:1;min-width:140px;">
+          <label class="form-label" for="aiSeqMonth">Month</label>
+          <select id="aiSeqMonth" class="form-input"></select>
+        </div>
+        <div class="form-group" style="flex:1;min-width:100px;">
+          <label class="form-label" for="aiSeqYear">Year</label>
+          <input id="aiSeqYear" class="form-input" type="number" min="2024" max="2035" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="aiSeqFocus">Monthly Focus</label>
+        <input id="aiSeqFocus" class="form-input" type="text" placeholder="e.g. Cancer Survivors Month, Walk/Run Promotion, Volunteer Appreciation" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Posting Schedule</label>
+        <div style="display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;margin-top:.25rem;">
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
+            <input type="checkbox" id="aiSeqMon" checked /> Mon
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
+            <input type="checkbox" id="aiSeqTue" /> Tue
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
+            <input type="checkbox" id="aiSeqWed" checked /> Wed
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
+            <input type="checkbox" id="aiSeqThu" checked /> Thu
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
+            <input type="checkbox" id="aiSeqFri" /> Fri
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
+            <input type="checkbox" id="aiSeqSat" /> Sat
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;">
+            <input type="checkbox" id="aiSeqSun" /> Sun
+          </label>
+        </div>
+      </div>
+
+      <!-- Post Ideas from queue -->
+      <div class="form-group" id="aiSeqIdeasSection" style="display:none">
+        <label class="form-label">Post Ideas to Include <span style="font-weight:400;font-size:11px;color:var(--gray)">from your idea queue — check which ones to weave in</span></label>
+        <div id="aiSeqIdeasList" style="border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:#f9fafb;max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
+        <button id="aiSeqGenerateBtn" class="btn btn-gold" onclick="generateMonthlySequence()">Generate Schedule</button>
+      </div>
+
+      <!-- Results area -->
+      <div id="aiSeqResults" style="display:none;margin-top:1.5rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem;">
+          <strong style="font-size:.9rem;color:var(--navy);">Proposed Schedule</strong>
+          <button id="aiSeqAcceptAllBtn" class="btn btn-gold btn-sm" onclick="acceptAllSequencePosts()">Accept All to Drafts</button>
+        </div>
+        <div id="aiSeqPostList" style="display:flex;flex-direction:column;gap:.75rem;"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     MODAL: Newsletter Generator
+     ═══════════════════════════════════════ -->
+<div id="aiNewsletterModal" class="modal-overlay" onclick="if(event.target===this)closeModal('aiNewsletterModal')">
+  <div class="modal" style="max-width:720px;width:100%;max-height:92vh;overflow-y:auto;">
+    <div class="modal-header">
+      <span class="modal-title">📰 Generate Newsletter</span>
+      <button class="modal-close" onclick="closeModal('aiNewsletterModal')" aria-label="Close">&times;</button>
+    </div>
+    <div style="padding:1.5rem;">
+
+      <!-- Step indicator -->
+      <div id="aiNLStepIndicator" style="display:flex;gap:0;margin-bottom:1.5rem;">
+        <div class="ai-nl-step active" data-step="1" style="flex:1;text-align:center;padding:.4rem;font-size:.78rem;font-weight:600;border-bottom:2px solid var(--gold);color:var(--gold);">1 · Intake</div>
+        <div class="ai-nl-step" data-step="2" style="flex:1;text-align:center;padding:.4rem;font-size:.78rem;font-weight:600;border-bottom:2px solid var(--border);color:#999;">2 · Sections</div>
+        <div class="ai-nl-step" data-step="3" style="flex:1;text-align:center;padding:.4rem;font-size:.78rem;font-weight:600;border-bottom:2px solid var(--border);color:#999;">3 · Full Draft</div>
+      </div>
+
+      <!-- Step 1: Intake -->
+      <div id="aiNLStep1" style="display:block;">
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+          <div class="form-group" style="flex:1;min-width:140px;">
+            <label class="form-label" for="aiNLMonth">Issue Month</label>
+            <select id="aiNLMonth" class="form-input"></select>
+          </div>
+          <div class="form-group" style="flex:1;min-width:100px;">
+            <label class="form-label" for="aiNLYear">Year</label>
+            <input id="aiNLYear" class="form-input" type="number" min="2024" max="2035" />
+          </div>
+          <div class="form-group" style="flex:1;min-width:80px;">
+            <label class="form-label">Volume</label>
+            <input id="aiNLVolume" class="form-input" type="number" min="1" max="99" />
+          </div>
+          <div class="form-group" style="flex:1;min-width:80px;">
+            <label class="form-label">Issue #</label>
+            <input id="aiNLIssue" class="form-input" type="number" min="1" max="12" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Q&amp;A — Select from Queue</label>
+          <select id="aiNLQASelect" class="form-input" onchange="loadQAFromQueue(this.value)" style="margin-bottom:8px">
+            <option value="">— Select from Newsletter Queue —</option>
+          </select>
+          <div id="aiNLQAPreview" style="display:none;font-size:12px;color:var(--gray);margin-bottom:8px;padding:8px;background:#f9fafb;border-radius:6px;border:1px solid var(--border)"></div>
+          <div id="aiNLQAPairsSelect" style="display:none;margin-bottom:8px"></div>
+          <p style="font-size:.8rem;color:#666;margin:.15rem 0 .5rem;">Or paste/upload Q&amp;A text directly:</p>
+          <textarea id="aiNLQAText" class="form-textarea" rows="4" placeholder="Paste Q&A transcript here (or select from queue above)…"></textarea>
+          <div style="margin-top:.5rem;display:flex;align-items:center;gap:.75rem;">
+            <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0;">
+              Upload File
+              <input type="file" id="aiNLQAFile" accept=".txt,.doc,.docx" style="display:none;" onchange="handleNLQAFileUpload(event)" />
+            </label>
+            <span id="aiNLQAFileName" style="font-size:.8rem;color:#666;"></span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Cancer Awareness Article — Select from Queue</label>
+          <select id="aiNLArticleSelect" class="form-input" onchange="loadArticleFromQueue(this.value)" style="margin-bottom:8px">
+            <option value="">— Select from Article Bank —</option>
+          </select>
+          <label class="form-label" style="margin-top:8px" for="aiNLArticleURL">Or enter article URL directly</label>
+          <input id="aiNLArticleURL" class="form-input" type="url" placeholder="https://…" />
+          <p style="font-size:.78rem;color:#666;margin:.25rem 0 0;">Claude will fetch and summarize this article.</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Upcoming Events <span style="font-weight:400;color:#666;">(confirm which to include)</span></label>
+          <div id="aiNLEventChecklist" style="display:flex;flex-direction:column;gap:.4rem;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:.65rem;background:var(--cream);"></div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
+          <button class="btn btn-gold" onclick="startNewsletterGeneration()">Generate Section by Section →</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Section review -->
+      <div id="aiNLStep2" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
+          <span id="aiNLSectionStatus" style="font-size:.85rem;color:#555;font-weight:600;">0 of 3 sections approved</span>
+          <button id="aiNLFullDraftBtn" class="btn btn-gold" onclick="generateFullNewsletter()" disabled style="opacity:.5;cursor:not-allowed;">Generate Full Newsletter →</button>
+        </div>
+
+        <!-- Section 1: Q&A -->
+        <div class="card" style="margin-bottom:1rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+            <strong style="font-size:.875rem;color:var(--navy);">Section 1 — Q&amp;A with a Friend</strong>
+            <div style="display:flex;gap:.5rem;align-items:center;">
+              <span id="aiNLSec1Status" style="font-size:.78rem;padding:.2rem .55rem;border-radius:12px;background:#eee;color:#555;">Pending</span>
+              <button class="btn btn-outline btn-sm" onclick="generateNewsletterSection('qa')" id="aiNLSec1GenBtn">Generate</button>
+              <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('qa')" id="aiNLSec1AcceptBtn" disabled>Approve</button>
+            </div>
+          </div>
+          <textarea id="aiNLSec1Text" class="form-textarea" rows="14" placeholder="Generated Q&A will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
+        </div>
+
+        <!-- Section 2: Article summary -->
+        <div class="card" style="margin-bottom:1rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+            <strong style="font-size:.875rem;color:var(--navy);">Section 2 — Cancer Awareness Article Summary</strong>
+            <div style="display:flex;gap:.5rem;align-items:center;">
+              <span id="aiNLSec2Status" style="font-size:.78rem;padding:.2rem .55rem;border-radius:12px;background:#eee;color:#555;">Pending</span>
+              <button class="btn btn-outline btn-sm" onclick="generateNewsletterSection('article')" id="aiNLSec2GenBtn">Generate</button>
+              <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('article')" id="aiNLSec2AcceptBtn" disabled>Approve</button>
+            </div>
+          </div>
+          <textarea id="aiNLSec2Text" class="form-textarea" rows="10" placeholder="Generated article summary will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
+        </div>
+
+        <!-- Section 3: Events calendar -->
+        <div class="card" style="margin-bottom:1rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+            <strong style="font-size:.875rem;color:var(--navy);">Section 3 — Upcoming Events Calendar</strong>
+            <div style="display:flex;gap:.5rem;align-items:center;">
+              <span id="aiNLSec3Status" style="font-size:.78rem;padding:.2rem .55rem;border-radius:12px;background:#eee;color:#555;">Pending</span>
+              <button class="btn btn-outline btn-sm" onclick="generateNewsletterSection('events')" id="aiNLSec3GenBtn">Generate</button>
+              <button class="btn btn-sm" style="background:var(--gold);color:#fff;" onclick="acceptNewsletterSection('events')" id="aiNLSec3AcceptBtn" disabled>Approve</button>
+            </div>
+          </div>
+          <textarea id="aiNLSec3Text" class="form-textarea" rows="8" placeholder="Generated events list will appear here…" style="font-size:13px;font-family:Open Sans,Arial,sans-serif"></textarea>
+        </div>
+      </div>
+
+      <!-- Step 3: Three copy blocks for Canva -->
+      <div id="aiNLStep3" style="display:none;">
+        <div style="background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#92400e">
+          &#128203; <strong>Ready to paste into Canva.</strong> Copy each block into the corresponding section. Text is formatted with bold questions and Open Sans 10pt styling notes below each block.
+        </div>
+
+        <!-- Block 1: Q&A -->
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+            <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9312; LEFT COLUMN — Q&amp;A WITH A FRIEND</div>
+            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock1')">&#128203; Copy Text</button>
+          </div>
+          <div id="nlBlock1Stats" style="font-size:11px;color:var(--gray);margin-bottom:6px"></div>
+          <div id="nlBlock1Warning" style="display:none;font-size:12px;color:#dc2626;background:#fef2f2;padding:6px 10px;border-radius:6px;margin-bottom:8px"></div>
+          <textarea id="aiNLBlock1" class="form-textarea" rows="14"
+            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
+            placeholder="Q&A block will appear here…"
+            oninput="updateNLBlockStats('aiNLBlock1','nlBlock1Stats','nlBlock1Warning',225,1300)"></textarea>
+          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Questions are BOLD, answers are regular text. Font: Open Sans 10pt, black, left-justified.</div>
+        </div>
+
+        <!-- Block 2: Article -->
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+            <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9313; RIGHT COLUMN — CANCER NEWS</div>
+            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock2')">&#128203; Copy Text</button>
+          </div>
+          <div id="nlBlock2Stats" style="font-size:11px;color:var(--gray);margin-bottom:6px"></div>
+          <div id="nlBlock2Warning" style="display:none;font-size:12px;color:#dc2626;background:#fef2f2;padding:6px 10px;border-radius:6px;margin-bottom:8px"></div>
+          <textarea id="aiNLBlock2" class="form-textarea" rows="12"
+            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
+            placeholder="Article summary will appear here…"
+            oninput="updateNLBlockStats('aiNLBlock2','nlBlock2Stats','nlBlock2Warning',200,1200)"></textarea>
+          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Title is BOLD, body text is regular. Font: Open Sans 10pt, black, left-justified.</div>
+        </div>
+
+        <!-- Block 3: Events -->
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+            <div style="font-weight:700;font-size:13px;color:var(--navy)">&#9314; BOTTOM STRIP — UPCOMING EVENTS</div>
+            <button class="btn btn-outline btn-sm" onclick="copyNLBlock('aiNLBlock3')">&#128203; Copy Text</button>
+          </div>
+          <textarea id="aiNLBlock3" class="form-textarea" rows="6"
+            style="font-size:13px;line-height:1.7;font-family:'Open Sans',Arial,sans-serif;color:#000"
+            placeholder="Events list will appear here…"></textarea>
+          <div style="font-size:11px;color:var(--gray);margin-top:4px">Format note: Event name is BOLD, date is regular text. Font: Open Sans 10pt, black, left-justified. No times listed.</div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:8px">
+          <button class="btn btn-outline" onclick="saveNewsletterAsDraft()">Save as Draft Record</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
