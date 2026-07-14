@@ -1884,9 +1884,11 @@ if ('serviceWorker' in navigator) {
         <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:700;margin-bottom:10px">
           Attachments <span style="font-size:11px;color:var(--gray);font-weight:400;text-transform:none;letter-spacing:0">— pick any files from the Asset Library to append after the letter, in the order selected</span>
         </div>
+        <div id="ltrAssetShortcuts" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
         <div id="ltrAssetFolderChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
         <div id="ltrAssetGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;max-height:220px;overflow-y:auto;padding:4px"></div>
-        <div id="ltrSelectedAssets" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"></div>
+        <div id="ltrSelectedCount" style="font-size:11px;color:var(--gray);margin-top:8px"></div>
+        <div id="ltrSelectedAssets" style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap"></div>
       </div>
       <div id="ltrAttachStatus" style="font-size:12px;color:var(--gray)"></div>
     </div>
@@ -2647,7 +2649,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v6.7-DEV · Jul 04 2026";
+const BUILD_VERSION = "v6.8-DEV · Jul 04 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -11034,6 +11036,18 @@ let _ltrFolderPath = [];     // e.g. [] = root, ["Events"], ["Events","7th Annua
 function renderLetterAssetPicker() {
   const prefix = _ltrFolderPath.join("/");
 
+  // Always-visible top-level shortcuts, so adding a second file from a
+  // different folder is one click from anywhere, not "go back then re-enter"
+  const topFolders = [...new Set(ALL_ASSETS.map(a => (a.folder||"").split("/")[0]).filter(Boolean))].sort();
+  const shortcutEl = document.getElementById("ltrAssetShortcuts");
+  if (shortcutEl) {
+    shortcutEl.innerHTML = topFolders.map(f => `
+      <button data-f="${esc(f)}" onclick="_ltrFolderPath=[this.dataset.f];renderLetterAssetPicker()"
+        style="padding:3px 10px;border-radius:20px;border:1.5px solid ${_ltrFolderPath[0]===f?"var(--navy)":"var(--border)"};
+        background:${_ltrFolderPath[0]===f?"var(--navy)":"white"};color:${_ltrFolderPath[0]===f?"white":"#374151"};
+        font-size:11px;font-weight:600;cursor:pointer">📁 ${esc(f)}</button>`).join("");
+  }
+
   // Every asset whose folder is exactly this level (a file here) or nested deeper (a subfolder)
   const relevant = ALL_ASSETS.filter(a => {
     if (!a.folder) return prefix === "";
@@ -11083,6 +11097,13 @@ function renderLetterAssetPicker() {
     gridEl.innerHTML = allTiles.length
       ? allTiles.join("")
       : `<div style="grid-column:1/-1;text-align:center;color:var(--gray);font-size:12px;padding:12px">Nothing here.</div>`;
+  }
+
+  const countEl = document.getElementById("ltrSelectedCount");
+  if (countEl) {
+    countEl.textContent = _ltrSelectedAssets.length
+      ? `${_ltrSelectedAssets.length} file${_ltrSelectedAssets.length!==1?"s":""} selected — click a different folder above to add more`
+      : "No files selected yet";
   }
 
   const selEl = document.getElementById("ltrSelectedAssets");
