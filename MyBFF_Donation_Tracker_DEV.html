@@ -393,6 +393,8 @@ a:hover { text-decoration: underline; }
 .ct-other         { background:#f3f4f6;color:#374151; }
 </style>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -428,6 +430,7 @@ if ('serviceWorker' in navigator) {
     </div>
     <div class="header-right">
       <span class="header-user" id="headerUser"></span>
+      <button class="btn btn-outline btn-sm" style="color:white;border-color:rgba(255,255,255,.4)" onclick="openMyInfoModal()">👤 My Info</button>
       <span id="headerBuild" style="font-size:10px;color:rgba(255,255,255,.4);white-space:nowrap;display:none"></span>
       <button class="btn-logout" onclick="doLogout()">Sign Out</button>
     </div>
@@ -635,6 +638,7 @@ if ('serviceWorker' in navigator) {
         <div class="section-title" style="margin:0">Donations</div>
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn btn-outline btn-sm" onclick="openQuickTaskModal('Donation')">📋 Assign Task</button>
+          <button class="btn btn-outline btn-sm" onclick="openLetterModal()">✉️ Create Letter</button>
           <button class="btn btn-gold btn-sm" onclick="openDonationModal()">+ Add Donation</button>
         </div>
       </div>
@@ -1777,6 +1781,115 @@ if ('serviceWorker' in navigator) {
 <!-- IMPORT DATA MODAL -->
 <div id="toast"></div>
 
+<!-- MY INFO MODAL -->
+<div class="modal-overlay" id="myInfoModal" onclick="if(event.target===this)closeModal('myInfoModal')">
+  <div class="modal" style="max-width:420px;width:100%">
+    <div class="modal-header">
+      <div class="modal-title">👤 My Info</div>
+      <button class="modal-close" onclick="closeModal('myInfoModal')">&#x2715;</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Name</label>
+        <input type="text" class="form-input" id="miDisplayName" disabled style="background:#f3f4f6;color:var(--gray)">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Username</label>
+        <input type="text" class="form-input" id="miUsername" disabled style="background:#f3f4f6;color:var(--gray)">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label" for="miEmail">Email <span style="font-size:11px;color:var(--gray);font-weight:400">used on generated letters, and for future notifications</span></label>
+        <input type="email" class="form-input" id="miEmail" placeholder="you@mybestfriends.foundation">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label" for="miPhone">Phone</label>
+        <input type="tel" class="form-input" id="miPhone" placeholder="(847) 555-1234">
+      </div>
+      <div style="font-size:12px;color:var(--gray)">To change your name, username, or password, contact an Admin.</div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
+      <button class="btn btn-outline" onclick="closeModal('myInfoModal')">Cancel</button>
+      <button class="btn btn-gold" onclick="saveMyInfo()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- DONATION LETTER GENERATOR MODAL -->
+<div class="modal-overlay" id="letterModal" onclick="if(event.target===this)closeModal('letterModal')">
+  <div class="modal" style="max-width:640px;width:100%;max-height:90vh;overflow-y:auto">
+    <div class="modal-header">
+      <div class="modal-title">✉️ Create Donation Letter</div>
+      <button class="modal-close" onclick="closeModal('letterModal')">&#x2715;</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+
+      <div class="form-group" style="margin:0">
+        <label class="form-label" for="ltrVendorSelect">Vendor <span class="req">*</span></label>
+        <select class="form-input" id="ltrVendorSelect" onchange="onLetterVendorChange()">
+          <option value="">— Select vendor —</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr;gap:8px">
+        <div class="form-group" style="margin:0">
+          <label class="form-label" for="ltrVendorName">Vendor Name (as it will appear on letter)</label>
+          <input type="text" class="form-input" id="ltrVendorName">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label" for="ltrVendorAddress">Vendor Address</label>
+          <textarea class="form-input form-textarea" id="ltrVendorAddress" rows="2" placeholder="Street address&#10;City, State ZIP"></textarea>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group" style="margin:0">
+          <label class="form-label" for="ltrEvent">Event <span class="req">*</span></label>
+          <select class="form-input" id="ltrEvent">
+            <option value="">— Select event —</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label" for="ltrPurpose">Raffle Basket / Donation Purpose <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+          <input type="text" class="form-input" id="ltrPurpose" placeholder='e.g. "Pantry Perfection"'>
+        </div>
+      </div>
+
+      <div style="text-align:center">
+        <button class="btn btn-outline" onclick="generateLetterDraftText()">✨ Generate Letter Text</button>
+      </div>
+
+      <div class="form-group" style="margin:0">
+        <label class="form-label" for="ltrBodyText">Letter Body <span style="font-size:11px;color:var(--gray);font-weight:400">generate above, then edit anything before creating the PDF</span></label>
+        <textarea class="form-input form-textarea" id="ltrBodyText" rows="14" style="font-size:13px;line-height:1.5" placeholder="Click &quot;Generate Letter Text&quot; above to fill this in, or write your own."></textarea>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:14px">
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:700;margin-bottom:10px">Signature Block</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div class="form-group" style="margin:0">
+            <label class="form-label" for="ltrSignerName">Name</label>
+            <input type="text" class="form-input" id="ltrSignerName">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label" for="ltrSignerEmail">Email</label>
+            <input type="email" class="form-input" id="ltrSignerEmail">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label" for="ltrSignerPhone">Phone</label>
+            <input type="tel" class="form-input" id="ltrSignerPhone">
+          </div>
+        </div>
+      </div>
+
+      <div id="ltrAttachStatus" style="font-size:12px;color:var(--gray)"></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
+      <button class="btn btn-outline" onclick="closeModal('letterModal')">Cancel</button>
+      <button class="btn btn-gold" id="ltrDownloadBtn" onclick="generateLetterPDF()">⬇ Download Letter PDF</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- TASK MODAL -->
 <div class="modal-overlay" id="taskModal">
   <div class="modal" style="max-width:560px">
@@ -2526,7 +2639,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v6.3-DEV · Jul 04 2026";
+const BUILD_VERSION = "v6.5-DEV · Jul 04 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -2671,7 +2784,7 @@ async function doLogin() {
       const row = rows[0];
       const rawRole = (row.role || "member").toLowerCase();
       const normRole = rawRole === "standard" ? "member" : rawRole;
-      currentUser = { username: row.username, role: normRole, displayName: row.display_name || row.username };
+      currentUser = { username: row.username, role: normRole, displayName: row.display_name || row.username, email: row.email || "", phone: row.phone || "" };
       sessionStorage.setItem("bff_user", JSON.stringify(currentUser));
       document.getElementById("loginError").textContent = "";
       launchApp();
@@ -2937,7 +3050,8 @@ async function loadUsers() {
       const displayName = last ? `${first} ${last}` : first;
       return {
         username: r.username, role: r.role || "member",
-        displayName, firstName: first, lastName: last, _password: r.password
+        displayName, firstName: first, lastName: last, _password: r.password,
+        email: r.email || "", phone: r.phone || ""
       };
     });
     populateWhoDropdown();
@@ -3522,7 +3636,7 @@ function renderDashboard() {
     </div>` : ""}
     <div style="border-top:1px solid var(--border);padding-top:12px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:600">Your Open Tasks</div>
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:600">Your Open Checklist Items</div>
         ${myTasks.length > 0 ? `<button onclick="openMyTasksModal()" style="font-size:11px;color:var(--gold);font-weight:600;background:none;border:none;cursor:pointer;text-decoration:underline">View All →</button>` : ""}
       </div>
       ${myEventTasks.length
@@ -5017,6 +5131,7 @@ function renderVendors() {
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <span style="font-size:13px;color:var(--gray)">${donations.length} contact${donations.length!==1?"s":""} · <strong style="color:var(--green)">$${totalVal.toLocaleString()}</strong></span>
+          <button class="btn btn-outline btn-sm" data-vid="${esc(v.id)}" onclick="openLetterModal(this.dataset.vid)">✉️ Letter</button>
           <button class="btn btn-outline btn-sm" onclick='editVendorModal("${v.id}")'>Edit</button>
           ${canDelete(v.who) && !v.id.startsWith("auto_") ? `<button class="btn btn-danger btn-sm" onclick='deleteVendor("${v.id}")'>Del</button>` : ""}
         </div>
@@ -5458,6 +5573,32 @@ async function renderAdminPickups() {
 
 function openUserModal() { openModal("userModal"); }
 function openPickupModal() { openModal("pickupModal"); }
+
+function openMyInfoModal() {
+  if (!currentUser) return;
+  document.getElementById("miDisplayName").value = currentUser.displayName || "";
+  document.getElementById("miUsername").value = currentUser.username || "";
+  document.getElementById("miEmail").value = currentUser.email || "";
+  document.getElementById("miPhone").value = currentUser.phone || "";
+  openModal("myInfoModal");
+}
+
+async function saveMyInfo() {
+  const email = document.getElementById("miEmail").value.trim();
+  const phone = document.getElementById("miPhone").value.trim();
+  try {
+    await sbUpdate("MyBFFUsers", currentUser.username, { email, phone }, "username");
+    currentUser.email = email;
+    currentUser.phone = phone;
+    sessionStorage.setItem("bff_user", JSON.stringify(currentUser));
+    const u = APP_USERS.find(x => x.username === currentUser.username);
+    if (u) { u.email = email; u.phone = phone; }
+    closeModal("myInfoModal");
+    showToast("✅ Your info was updated.");
+  } catch(e) {
+    showToast("Error saving: " + e.message, "error");
+  }
+}
 
 async function saveUser() {
   const un = document.getElementById("uUsername").value.trim().toLowerCase().replace(/\s+/g,"");
@@ -10801,6 +10942,242 @@ function openAssignedTaskEditor(taskId) {
 }
 
 let editingQuickTaskId = null;
+
+// ═══════════════════════════════════════════════════════════
+// VENDOR DONATION LETTER GENERATOR
+// ═══════════════════════════════════════════════════════════
+
+function openLetterModal(vendorId = "") {
+  const vendSel = document.getElementById("ltrVendorSelect");
+  vendSel.innerHTML = '<option value="">— Select vendor —</option>' +
+    ALL_VENDORS.filter(v => v.name).sort((a,b) => a.name.localeCompare(b.name))
+      .map(v => `<option value="${esc(v.id)}">${esc(v.name)}</option>`).join("");
+
+  const evSel = document.getElementById("ltrEvent");
+  evSel.innerHTML = '<option value="">— Select event —</option>' +
+    ALL_EVENTS_DATA.slice().sort((a,b) => (a.event_date||"").localeCompare(b.event_date||""))
+      .map(ev => `<option value="${esc(ev.name)}">${esc(ev.name)}</option>`).join("");
+
+  document.getElementById("ltrVendorName").value = "";
+  document.getElementById("ltrVendorAddress").value = "";
+  document.getElementById("ltrPurpose").value = "";
+  document.getElementById("ltrBodyText").value = "";
+  document.getElementById("ltrAttachStatus").textContent = "";
+
+  document.getElementById("ltrSignerName").value = currentUser?.displayName || "";
+  document.getElementById("ltrSignerEmail").value = currentUser?.email || "";
+  document.getElementById("ltrSignerPhone").value = currentUser?.phone || "";
+
+  if (vendorId) {
+    vendSel.value = vendorId;
+    onLetterVendorChange();
+  }
+
+  openModal("letterModal");
+}
+
+function onLetterVendorChange() {
+  const id = document.getElementById("ltrVendorSelect").value;
+  const v = ALL_VENDORS.find(x => x.id === id);
+  document.getElementById("ltrVendorName").value = v?.name || "";
+  document.getElementById("ltrVendorAddress").value = v?.address || "";
+}
+
+function generateLetterDraftText() {
+  const evName = document.getElementById("ltrEvent").value;
+  const purpose = document.getElementById("ltrPurpose").value.trim();
+  const ev = ALL_EVENTS_DATA.find(e => e.name === evName);
+
+  if (!ev) {
+    showToast("Please select an event first.", "error");
+    return;
+  }
+
+  const dateStr = ev.event_date
+    ? new Date(ev.event_date + "T12:00:00").toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" })
+    : "[event date]";
+  const locationStr = ev.location ? ` at ${ev.location}` : "";
+  const detailsStr = ev.details ? ev.details.trim() : "";
+
+  const para1 = `My Best Friends Foundation was created to provide support and assistance to those dealing with cancer or dealing with the loss of a loved one to cancer. The vision of the foundation is to make each day count through acts of kindness to support those impacted by cancer.`;
+
+  let para2 = `On ${dateStr}, My Best Friends Foundation will be holding its ${ev.name} event${locationStr}.`;
+  if (detailsStr) para2 += ` ${detailsStr}`;
+  if (purpose) para2 += ` We would like to use your donation to enhance our "${purpose}" raffle basket.`;
+  para2 += ` Please see the attached flyer for more information about our event.`;
+
+  const para3 = `We like to provide support to our Friends to make the situation they are going through a little easier, so they have one less thing to think about and can focus on more important matters. We have sent food and gas gift cards, gifts of flowers and teddy bears for special occasions and we have helped fulfill a few bucket list items for our Friends. We appreciate your support so that we can continue to help our Friends.`;
+
+  const para4 = `To learn more about My Best Friends Foundation, we invite you to follow our Facebook page at www.facebook.com/mybestfriendsfoundation or Instagram (@mybestfriendsfoundation) or email us at info@mybestfriends.foundation.`;
+
+  const para5 = `Thank you for your support!`;
+
+  document.getElementById("ltrBodyText").value = [para1, para2, para3, para4, para5].join("\n\n");
+  showToast("Draft text generated — review and edit as needed before creating the PDF.");
+}
+
+async function findLetterAsset(folder, evName, needsTaxKeyword) {
+  let candidates = ALL_ASSETS.filter(a => a.folder === folder);
+  if (evName) candidates = candidates.filter(a => a.event_name === evName);
+  if (needsTaxKeyword) candidates = candidates.filter(a => (a.name||"").toLowerCase().includes("tax"));
+  candidates.sort((a,b) => (b.created_at||"").localeCompare(a.created_at||""));
+  return candidates[0] || null;
+}
+
+async function embedAssetPages(pdfDoc, asset) {
+  if (!asset || !asset.file_url) return 0;
+  const res = await fetch(asset.file_url);
+  if (!res.ok) throw new Error(`Could not fetch ${asset.name}`);
+  const bytes = await res.arrayBuffer();
+  const type = (asset.file_type || "").toLowerCase();
+
+  if (type.includes("pdf")) {
+    const srcDoc = await PDFLib.PDFDocument.load(bytes);
+    const pages = await pdfDoc.copyPages(srcDoc, srcDoc.getPageIndices());
+    pages.forEach(pg => pdfDoc.addPage(pg));
+    return pages.length;
+  }
+
+  // Image (jpg/png) — add as a single full page
+  let img;
+  if (type.includes("png")) img = await pdfDoc.embedPng(bytes);
+  else img = await pdfDoc.embedJpg(bytes);
+  const page = pdfDoc.addPage([612, 792]); // US Letter
+  const { width: iw, height: ih } = img.scale(1);
+  const maxW = 550, maxH = 720;
+  const scale = Math.min(maxW / iw, maxH / ih, 1);
+  const w = iw * scale, h = ih * scale;
+  page.drawImage(img, { x: (612 - w) / 2, y: (792 - h) / 2, width: w, height: h });
+  return 1;
+}
+
+async function generateLetterPDF() {
+  const vendorName = document.getElementById("ltrVendorName").value.trim();
+  const vendorAddress = document.getElementById("ltrVendorAddress").value.trim();
+  const evName = document.getElementById("ltrEvent").value;
+  const bodyText = document.getElementById("ltrBodyText").value.trim();
+  const signerName = document.getElementById("ltrSignerName").value.trim();
+  const signerEmail = document.getElementById("ltrSignerEmail").value.trim();
+  const signerPhone = document.getElementById("ltrSignerPhone").value.trim();
+
+  if (!vendorName) { showToast("Vendor name is required.", "error"); return; }
+  if (!evName) { showToast("Please select an event.", "error"); return; }
+  if (!bodyText) { showToast("Please generate or write the letter body first.", "error"); return; }
+
+  const btn = document.getElementById("ltrDownloadBtn");
+  const statusEl = document.getElementById("ltrAttachStatus");
+  btn.disabled = true;
+  btn.textContent = "Building PDF…";
+
+  try {
+    const pdfDoc = await PDFLib.PDFDocument.create();
+    const font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+    const fontBold = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+    const fontItalic = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaOblique);
+
+    // Logo — reuse the header image already in the DOM, no need to duplicate the data
+    let logoImg = null;
+    try {
+      const logoEl = document.querySelector("header img");
+      if (logoEl) {
+        const logoBytes = await fetch(logoEl.src).then(r => r.arrayBuffer());
+        logoImg = await pdfDoc.embedJpg(logoBytes);
+      }
+    } catch(e) { console.warn("Logo embed skipped:", e.message); }
+
+    // ── Cover letter page ──
+    let page = pdfDoc.addPage([612, 792]);
+    const marginX = 62;
+    let y = 730;
+
+    if (logoImg) {
+      const logoSize = 70;
+      page.drawImage(logoImg, { x: (612 - logoSize) / 2, y: y - logoSize + 20, width: logoSize, height: logoSize });
+      y -= logoSize + 10;
+    }
+
+    const drawWrapped = (text, opts = {}) => {
+      const { size = 11, bold = false, italic = false, gapAfter = 16 } = opts;
+      const useFont = bold ? fontBold : italic ? fontItalic : font;
+      const maxWidth = 612 - marginX * 2;
+      const words = text.split(" ");
+      let line = "";
+      const lines = [];
+      words.forEach(word => {
+        const test = line ? line + " " + word : word;
+        if (useFont.widthOfTextAtSize(test, size) > maxWidth) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = test;
+        }
+      });
+      if (line) lines.push(line);
+      lines.forEach(l => {
+        if (y < 90) { page = pdfDoc.addPage([612, 792]); y = 740; }
+        page.drawText(l, { x: marginX, y, size, font: useFont });
+        y -= size + 5;
+      });
+      y -= gapAfter;
+    };
+
+    drawWrapped(vendorName, { size: 11 });
+    if (vendorAddress) vendorAddress.split("\n").forEach(l => drawWrapped(l, { size: 11, gapAfter: 0 }));
+    y -= 10;
+    drawWrapped("Re: Request for Donation", { size: 11, bold: true, gapAfter: 18 });
+
+    bodyText.split(/\n\s*\n/).forEach(para => drawWrapped(para.trim(), { size: 11 }));
+
+    y -= 6;
+    drawWrapped(signerName || "My Best Friends Foundation", { size: 11, gapAfter: 2 });
+    drawWrapped("My Best Friends Foundation", { size: 11, gapAfter: 2 });
+    if (signerEmail) drawWrapped(signerEmail, { size: 11, gapAfter: 2 });
+    if (signerPhone) drawWrapped(signerPhone, { size: 11, gapAfter: 16 });
+
+    drawWrapped(
+      "Please note that in accordance with IRS regulation, your contribution is fully tax-deductible as no goods or services of material value were exchanged in consideration of this gift. My Best Friends Foundation is an 501(c)(3) Illinois nonprofit corporation supported by tax-deductible donations.",
+      { size: 9, italic: true, gapAfter: 0 }
+    );
+
+    // ── Attach flyer ──
+    statusEl.textContent = "Looking for event flyer…";
+    const flyer = await findLetterAsset("Events", evName, false);
+    if (flyer) {
+      await embedAssetPages(pdfDoc, flyer);
+      statusEl.textContent = "✓ Flyer attached. Looking for tax letter…";
+    } else {
+      statusEl.textContent = "⚠️ No flyer found in the Asset Library for this event — letter created without it. Looking for tax letter…";
+    }
+
+    // ── Attach tax letter ──
+    const taxLetter = await findLetterAsset("Brand", null, true);
+    if (taxLetter) {
+      await embedAssetPages(pdfDoc, taxLetter);
+      statusEl.textContent = flyer ? "✓ Flyer and tax letter attached." : "⚠️ No flyer found — tax letter attached.";
+    } else {
+      statusEl.textContent += " ⚠️ No tax letter found in the Asset Library (Brand folder, name containing 'tax').";
+    }
+
+    const pdfBytes = await pdfDoc.save();
+    const blob = new Blob([pdfBytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Donation Letter - ${vendorName} - ${evName}.pdf`.replace(/[\/\\:*?"<>|]/g, "");
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    showToast("✅ Letter PDF downloaded.");
+  } catch(e) {
+    console.error("generateLetterPDF:", e);
+    showToast("Error creating PDF: " + e.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "⬇ Download Letter PDF";
+  }
+}
 
 function openQuickTaskModal(defaultCategory = "Donation", linkedId = "", linkedName = "") {
   editingQuickTaskId = null;
