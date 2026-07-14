@@ -1880,6 +1880,14 @@ if ('serviceWorker' in navigator) {
         </div>
       </div>
 
+      <div style="border-top:1px solid var(--border);padding-top:14px">
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gray);font-weight:700;margin-bottom:10px">
+          Attachments <span style="font-size:11px;color:var(--gray);font-weight:400;text-transform:none;letter-spacing:0">— pick any files from the Asset Library to append after the letter, in the order selected</span>
+        </div>
+        <div id="ltrAssetFolderChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+        <div id="ltrAssetGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;max-height:220px;overflow-y:auto;padding:4px"></div>
+        <div id="ltrSelectedAssets" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"></div>
+      </div>
       <div id="ltrAttachStatus" style="font-size:12px;color:var(--gray)"></div>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
@@ -2639,7 +2647,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v6.5-DEV · Jul 04 2026";
+const BUILD_VERSION = "v6.6-DEV · Jul 04 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -10968,6 +10976,10 @@ function openLetterModal(vendorId = "") {
   document.getElementById("ltrSignerEmail").value = currentUser?.email || "";
   document.getElementById("ltrSignerPhone").value = currentUser?.phone || "";
 
+  _ltrSelectedAssets = [];
+  _ltrAssetFolder = "All";
+  renderLetterAssetPicker();
+
   if (vendorId) {
     vendSel.value = vendorId;
     onLetterVendorChange();
@@ -11016,12 +11028,56 @@ function generateLetterDraftText() {
   showToast("Draft text generated — review and edit as needed before creating the PDF.");
 }
 
-async function findLetterAsset(folder, evName, needsTaxKeyword) {
-  let candidates = ALL_ASSETS.filter(a => a.folder === folder);
-  if (evName) candidates = candidates.filter(a => a.event_name === evName);
-  if (needsTaxKeyword) candidates = candidates.filter(a => (a.name||"").toLowerCase().includes("tax"));
-  candidates.sort((a,b) => (b.created_at||"").localeCompare(a.created_at||""));
-  return candidates[0] || null;
+let _ltrSelectedAssets = []; // asset ids, in the order the user selected them
+let _ltrAssetFolder = "All";
+
+function renderLetterAssetPicker() {
+  const folders = ["All", ...[...new Set(ALL_ASSETS.map(a => a.folder).filter(Boolean))].sort()];
+  const chipsEl = document.getElementById("ltrAssetFolderChips");
+  if (chipsEl) {
+    chipsEl.innerHTML = folders.map(f => `
+      <button data-f="${esc(f)}" onclick="_ltrAssetFolder=this.dataset.f;renderLetterAssetPicker()"
+        style="padding:4px 11px;border-radius:20px;border:1.5px solid ${_ltrAssetFolder===f?"var(--navy)":"var(--border)"};
+        background:${_ltrAssetFolder===f?"var(--navy)":"white"};color:${_ltrAssetFolder===f?"white":"#374151"};
+        font-size:12px;font-weight:600;cursor:pointer">${esc(f)}</button>`).join("");
+  }
+
+  const assets = ALL_ASSETS.filter(a => _ltrAssetFolder === "All" || a.folder === _ltrAssetFolder);
+  const gridEl = document.getElementById("ltrAssetGrid");
+  if (gridEl) {
+    gridEl.innerHTML = assets.length
+      ? assets.map(a => {
+          const checked = _ltrSelectedAssets.includes(a.id);
+          const isImg = (a.file_type || "").toLowerCase().includes("image") || (a.file_type||"").match(/jpe?g|png/i);
+          return `
+          <div data-aid="${esc(a.id)}" onclick="toggleLetterAsset(this.dataset.aid)"
+            style="border:2px solid ${checked?"var(--gold)":"var(--border)"};border-radius:8px;padding:6px;cursor:pointer;text-align:center;background:${checked?"#fffbeb":"white"}">
+            ${isImg ? `<img src="${esc(a.file_url)}" style="width:100%;height:50px;object-fit:cover;border-radius:4px;margin-bottom:4px">`
+                    : `<div style="height:50px;display:flex;align-items:center;justify-content:center;font-size:24px">📄</div>`}
+            <div style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.name)}">${checked?"✓ ":""}${esc(a.name)}</div>
+          </div>`;
+        }).join("")
+      : `<div style="grid-column:1/-1;text-align:center;color:var(--gray);font-size:12px;padding:12px">No files in this folder.</div>`;
+  }
+
+  const selEl = document.getElementById("ltrSelectedAssets");
+  if (selEl) {
+    selEl.innerHTML = _ltrSelectedAssets.map((id, i) => {
+      const a = ALL_ASSETS.find(x => x.id === id);
+      if (!a) return "";
+      return `<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;display:inline-flex;align-items:center;gap:6px">
+        ${i+1}. ${esc(a.name)}
+        <span data-aid="${esc(id)}" onclick="event.stopPropagation();toggleLetterAsset(this.dataset.aid)" style="cursor:pointer;font-weight:700">✕</span>
+      </span>`;
+    }).join("");
+  }
+}
+
+function toggleLetterAsset(assetId) {
+  const idx = _ltrSelectedAssets.indexOf(assetId);
+  if (idx >= 0) _ltrSelectedAssets.splice(idx, 1);
+  else _ltrSelectedAssets.push(assetId);
+  renderLetterAssetPicker();
 }
 
 async function embedAssetPages(pdfDoc, asset) {
@@ -11139,23 +11195,24 @@ async function generateLetterPDF() {
       { size: 9, italic: true, gapAfter: 0 }
     );
 
-    // ── Attach flyer ──
-    statusEl.textContent = "Looking for event flyer…";
-    const flyer = await findLetterAsset("Events", evName, false);
-    if (flyer) {
-      await embedAssetPages(pdfDoc, flyer);
-      statusEl.textContent = "✓ Flyer attached. Looking for tax letter…";
+    // ── Attach selected files, in the order chosen ──
+    if (_ltrSelectedAssets.length) {
+      statusEl.textContent = `Attaching ${_ltrSelectedAssets.length} file(s)…`;
+      let attached = 0;
+      for (const id of _ltrSelectedAssets) {
+        const asset = ALL_ASSETS.find(a => a.id === id);
+        if (!asset) continue;
+        try {
+          await embedAssetPages(pdfDoc, asset);
+          attached++;
+        } catch(e) {
+          console.warn(`Could not attach ${asset.name}:`, e.message);
+          statusEl.textContent = `⚠️ Could not attach "${asset.name}" — ${e.message}`;
+        }
+      }
+      statusEl.textContent = `✓ ${attached} of ${_ltrSelectedAssets.length} file(s) attached.`;
     } else {
-      statusEl.textContent = "⚠️ No flyer found in the Asset Library for this event — letter created without it. Looking for tax letter…";
-    }
-
-    // ── Attach tax letter ──
-    const taxLetter = await findLetterAsset("Brand", null, true);
-    if (taxLetter) {
-      await embedAssetPages(pdfDoc, taxLetter);
-      statusEl.textContent = flyer ? "✓ Flyer and tax letter attached." : "⚠️ No flyer found — tax letter attached.";
-    } else {
-      statusEl.textContent += " ⚠️ No tax letter found in the Asset Library (Brand folder, name containing 'tax').";
+      statusEl.textContent = "No attachments selected — letter created on its own.";
     }
 
     const pdfBytes = await pdfDoc.save();
