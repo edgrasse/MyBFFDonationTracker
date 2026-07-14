@@ -2647,7 +2647,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v6.6-DEV · Jul 04 2026";
+const BUILD_VERSION = "v6.7-DEV · Jul 04 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -10977,7 +10977,7 @@ function openLetterModal(vendorId = "") {
   document.getElementById("ltrSignerPhone").value = currentUser?.phone || "";
 
   _ltrSelectedAssets = [];
-  _ltrAssetFolder = "All";
+  _ltrFolderPath = [];
   renderLetterAssetPicker();
 
   if (vendorId) {
@@ -11029,35 +11029,60 @@ function generateLetterDraftText() {
 }
 
 let _ltrSelectedAssets = []; // asset ids, in the order the user selected them
-let _ltrAssetFolder = "All";
+let _ltrFolderPath = [];     // e.g. [] = root, ["Events"], ["Events","7th Annual...","2026"]
 
 function renderLetterAssetPicker() {
-  const folders = ["All", ...[...new Set(ALL_ASSETS.map(a => a.folder).filter(Boolean))].sort()];
-  const chipsEl = document.getElementById("ltrAssetFolderChips");
-  if (chipsEl) {
-    chipsEl.innerHTML = folders.map(f => `
-      <button data-f="${esc(f)}" onclick="_ltrAssetFolder=this.dataset.f;renderLetterAssetPicker()"
-        style="padding:4px 11px;border-radius:20px;border:1.5px solid ${_ltrAssetFolder===f?"var(--navy)":"var(--border)"};
-        background:${_ltrAssetFolder===f?"var(--navy)":"white"};color:${_ltrAssetFolder===f?"white":"#374151"};
-        font-size:12px;font-weight:600;cursor:pointer">${esc(f)}</button>`).join("");
+  const prefix = _ltrFolderPath.join("/");
+
+  // Every asset whose folder is exactly this level (a file here) or nested deeper (a subfolder)
+  const relevant = ALL_ASSETS.filter(a => {
+    if (!a.folder) return prefix === "";
+    return a.folder === prefix || a.folder.startsWith(prefix ? prefix + "/" : "");
+  });
+
+  const childFolders = new Set();
+  const filesHere = [];
+  relevant.forEach(a => {
+    const folderVal = a.folder || "";
+    if (folderVal === prefix) { filesHere.push(a); return; }
+    const remainder = prefix ? folderVal.slice(prefix.length + 1) : folderVal;
+    const nextSegment = remainder.split("/")[0];
+    if (nextSegment) childFolders.add(nextSegment);
+  });
+
+  // Breadcrumbs
+  const crumbEl = document.getElementById("ltrAssetFolderChips");
+  if (crumbEl) {
+    const crumbs = [`<span data-i="-1" onclick="letterFolderJump(this.dataset.i)" style="cursor:pointer;font-weight:700;color:var(--navy)">🏠 Library</span>`];
+    _ltrFolderPath.forEach((seg, i) => {
+      crumbs.push(`<span style="color:var(--gray)"> / </span><span data-i="${i}" onclick="letterFolderJump(this.dataset.i)" style="cursor:pointer;font-weight:${i===_ltrFolderPath.length-1?"700":"400"};color:${i===_ltrFolderPath.length-1?"var(--navy)":"#374151"}">${esc(seg)}</span>`);
+    });
+    crumbEl.innerHTML = `<div style="font-size:13px;margin-bottom:8px">${crumbs.join("")}</div>`;
   }
 
-  const assets = ALL_ASSETS.filter(a => _ltrAssetFolder === "All" || a.folder === _ltrAssetFolder);
   const gridEl = document.getElementById("ltrAssetGrid");
   if (gridEl) {
-    gridEl.innerHTML = assets.length
-      ? assets.map(a => {
-          const checked = _ltrSelectedAssets.includes(a.id);
-          const isImg = (a.file_type || "").toLowerCase().includes("image") || (a.file_type||"").match(/jpe?g|png/i);
-          return `
-          <div data-aid="${esc(a.id)}" onclick="toggleLetterAsset(this.dataset.aid)"
-            style="border:2px solid ${checked?"var(--gold)":"var(--border)"};border-radius:8px;padding:6px;cursor:pointer;text-align:center;background:${checked?"#fffbeb":"white"}">
-            ${isImg ? `<img src="${esc(a.file_url)}" style="width:100%;height:50px;object-fit:cover;border-radius:4px;margin-bottom:4px">`
-                    : `<div style="height:50px;display:flex;align-items:center;justify-content:center;font-size:24px">📄</div>`}
-            <div style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.name)}">${checked?"✓ ":""}${esc(a.name)}</div>
-          </div>`;
-        }).join("")
-      : `<div style="grid-column:1/-1;text-align:center;color:var(--gray);font-size:12px;padding:12px">No files in this folder.</div>`;
+    const folderTiles = [...childFolders].sort().map(name => `
+      <div data-seg="${esc(name)}" onclick="letterFolderEnter(this.dataset.seg)"
+        style="border:1.5px solid var(--border);border-radius:8px;padding:10px 6px;cursor:pointer;text-align:center;background:#fafaf8">
+        <div style="font-size:26px">📁</div>
+        <div style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600" title="${esc(name)}">${esc(name)}</div>
+      </div>`);
+    const fileTiles = filesHere.map(a => {
+      const checked = _ltrSelectedAssets.includes(a.id);
+      const isImg = (a.file_type || "").toLowerCase().includes("image") || (a.file_type||"").match(/jpe?g|png/i);
+      return `
+        <div data-aid="${esc(a.id)}" onclick="toggleLetterAsset(this.dataset.aid)"
+          style="border:2px solid ${checked?"var(--gold)":"var(--border)"};border-radius:8px;padding:6px;cursor:pointer;text-align:center;background:${checked?"#fffbeb":"white"}">
+          ${isImg ? `<img src="${esc(a.file_url)}" style="width:100%;height:50px;object-fit:cover;border-radius:4px;margin-bottom:4px">`
+                  : `<div style="height:50px;display:flex;align-items:center;justify-content:center;font-size:24px">📄</div>`}
+          <div style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.name)}">${checked?"✓ ":""}${esc(a.name)}</div>
+        </div>`;
+    });
+    const allTiles = [...folderTiles, ...fileTiles];
+    gridEl.innerHTML = allTiles.length
+      ? allTiles.join("")
+      : `<div style="grid-column:1/-1;text-align:center;color:var(--gray);font-size:12px;padding:12px">Nothing here.</div>`;
   }
 
   const selEl = document.getElementById("ltrSelectedAssets");
@@ -11071,6 +11096,17 @@ function renderLetterAssetPicker() {
       </span>`;
     }).join("");
   }
+}
+
+function letterFolderEnter(segment) {
+  _ltrFolderPath.push(segment);
+  renderLetterAssetPicker();
+}
+
+function letterFolderJump(index) {
+  const i = parseInt(index);
+  _ltrFolderPath = i < 0 ? [] : _ltrFolderPath.slice(0, i + 1);
+  renderLetterAssetPicker();
 }
 
 function toggleLetterAsset(assetId) {
@@ -11094,10 +11130,30 @@ async function embedAssetPages(pdfDoc, asset) {
     return pages.length;
   }
 
-  // Image (jpg/png) — add as a single full page
+  // Image (jpg/png) — normalize orientation first: pdf-lib embeds raw pixel
+  // data and ignores EXIF rotation metadata that phone photos carry, which
+  // caused sideways images. Drawing through a canvas (with imageOrientation:
+  // 'from-image') bakes the correct rotation into the pixels before pdf-lib
+  // ever sees them.
   let img;
-  if (type.includes("png")) img = await pdfDoc.embedPng(bytes);
-  else img = await pdfDoc.embedJpg(bytes);
+  try {
+    const blob = new Blob([bytes], { type: type.includes("png") ? "image/png" : "image/jpeg" });
+    const bitmap = await createImageBitmap(blob, { imageOrientation: "from-image" });
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bitmap, 0, 0);
+    const normalizedBytes = await new Promise(resolve => {
+      canvas.toBlob(b => b.arrayBuffer().then(resolve), "image/png");
+    });
+    img = await pdfDoc.embedPng(normalizedBytes);
+  } catch(e) {
+    // Fallback for browsers without createImageBitmap orientation support
+    console.warn("Orientation normalization skipped:", e.message);
+    if (type.includes("png")) img = await pdfDoc.embedPng(bytes);
+    else img = await pdfDoc.embedJpg(bytes);
+  }
   const page = pdfDoc.addPage([612, 792]); // US Letter
   const { width: iw, height: ih } = img.scale(1);
   const maxW = 550, maxH = 720;
