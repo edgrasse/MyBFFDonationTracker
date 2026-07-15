@@ -2649,7 +2649,7 @@ if ('serviceWorker' in navigator) {
 // ═══════════════════════════════════════════════════════════
 const WORKER_URL = "https://grasse-apps-proxy.ed-53c.workers.dev";
 const APP_ID = "mybff-dev";
-const BUILD_VERSION = "v6.8-DEV · Jul 04 2026";
+const BUILD_VERSION = "v6.9-DEV · Jul 04 2026";
 
 // ═══════════════════════════════════════════════════════════
 // WORKER CLIENT — all Supabase calls go through Cloudflare
@@ -12220,8 +12220,9 @@ function openAIGenerateModal(contentType) {
     document.getElementById('aiGenEvent').value = '';
   }
 
-  // Reset other fields
-  document.getElementById('aiGenTalkingPoints').value = '';
+  // Pre-fill talking points from the "What should this be about?" textarea
+  const topicEl = document.getElementById('ctNewText');
+  document.getElementById('aiGenTalkingPoints').value = topicEl ? topicEl.value.trim() : '';
   document.getElementById('aiGenExclude').value = '';
   document.getElementById('aiGenTone').value = 'standard';
   document.getElementById('aiGenKeyDates').value = '';
