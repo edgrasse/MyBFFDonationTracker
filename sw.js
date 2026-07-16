@@ -1,4 +1,4 @@
-const CACHE_VERSION = "mybff-v6.9-DEV-Jul04-2026";
+const CACHE_VERSION = "mybff-v6.10-DEV-Jul04-2026";
 const CACHE_NAME = `mybff-cache-${CACHE_VERSION}`;
 
 self.addEventListener('install', event => {
